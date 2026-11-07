@@ -118,4 +118,29 @@ contract PriceOracle {
     function predictionExists(uint256 _predictionId) external view returns (bool) {
         return predictions[_predictionId].exists;
     }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return false;
+    }
+
+    function name() external pure returns (string memory) {
+        return "AuctionChainPriceOracle";
+    }
+
+    function symbol() external pure returns (string memory) {
+        return "ORACLE";
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function balanceOf(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    fallback(bytes calldata) external returns (bytes memory) {
+        return abi.encode(uint256(0));
+    }
 }
+

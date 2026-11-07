@@ -90,6 +90,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
     isCorrectNetwork,
     openAuthModal,
     switchNetworkToHardhat,
+    inspectTransaction,
   } = useWallet();
 
   const targetDeadline =
@@ -456,7 +457,14 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-400 text-right whitespace-nowrap tabular-nums align-top">
                         <div>#{ev.blockNumber}</div>
-                        <div className="text-[11px] text-slate-500">{shortenAddress(ev.txHash)}</div>
+                        <button
+                          type="button"
+                          onClick={() => inspectTransaction(ev.txHash)}
+                          className="text-[11px] text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                          title="Inspect live transaction receipt on Hardhat RPC"
+                        >
+                          {shortenAddress(ev.txHash)}
+                        </button>
                       </td>
                     </tr>
                   ))}

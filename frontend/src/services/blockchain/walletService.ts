@@ -1,11 +1,26 @@
 import { ethers } from 'ethers';
-import { HARDHAT_WALLETS, HARDHAT_CHAIN_ID, HUMAN_ROLE_WALLETS, ORACLE_BACKGROUND_ACCOUNT } from '../../lib/hardhatConfig';
+import {
+  HARDHAT_WALLETS,
+  HARDHAT_CHAIN_ID,
+  HUMAN_ROLE_WALLETS,
+  ORACLE_BACKGROUND_ACCOUNT,
+} from '../../lib/hardhatConfig';
 import { WalletAccount } from '../../types/auction';
 
 declare global {
   interface Window {
     ethereum?: any;
   }
+}
+
+export interface NonceMismatchInfo {
+  address: string;
+  accountLabel: string;
+  hardhatNonce: number;
+  cachedMetaMaskNonce: number;
+  reason: string;
+  howToFixManual: string;
+  detectedAt: number;
 }
 
 export interface MetaMaskConnectionResult {
@@ -16,6 +31,7 @@ export interface MetaMaskConnectionResult {
   isCorrectNetwork?: boolean;
   error?: string;
   isUnsupportedAccount?: boolean;
+  nonceMismatch?: NonceMismatchInfo;
 }
 
 export interface HardhatRpcStatus {
@@ -23,9 +39,77 @@ export interface HardhatRpcStatus {
   chainId: number | null;
   latestBlock: number | null;
   balances: Record<string, number>;
+  nonces: Record<string, number>;
+}
+
+export interface LiveReceiptVerification {
+  verified: boolean;
+  txHash: string;
+  checkedAt: number;
+  rpcUrl: string;
+  blockNumber?: number;
+  blockHash?: string;
+  transactionIndex?: number;
+  gasUsed?: string;
+  effectiveGasPriceGwei?: string;
+  status?: string;
+  confirmations?: number;
+  from?: string;
+  to?: string;
+  nonce?: number;
+  error?: string;
+}
+
+export interface OnChainTxResult {
+  txHash: string;
+  blockNumber: number;
+  blockHash: string;
+  gasUsed: number;
+  nonce: number;
+  from: string;
+  to: string;
+  timestamp: number;
 }
 
 const HARDHAT_RPC_URL = 'http://127.0.0.1:8545';
+const METAMASK_NONCE_CACHE_KEY = 'auctionchain_metamask_tx_nonces_v1';
+
+/**
+ * Reads cached MetaMask nonces from localStorage to detect when Hardhat was restarted
+ * without clearing MetaMask's activity tab data.
+ */
+export function getCachedMetaMaskNonces(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(METAMASK_NONCE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setCachedMetaMaskNonce(address: string, nextNonce: number): void {
+  try {
+    const current = getCachedMetaMaskNonces();
+    current[address.toLowerCase()] = nextNonce;
+    localStorage.setItem(METAMASK_NONCE_CACHE_KEY, JSON.stringify(current));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function clearCachedMetaMaskNonce(address?: string): void {
+  try {
+    if (!address) {
+      localStorage.removeItem(METAMASK_NONCE_CACHE_KEY);
+      return;
+    }
+    const current = getCachedMetaMaskNonces();
+    delete current[address.toLowerCase()];
+    localStorage.setItem(METAMASK_NONCE_CACHE_KEY, JSON.stringify(current));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 /**
  * Checks if an error thrown by MetaMask / Ethers v6 was caused by the user clicking Reject / Cancel.
@@ -47,8 +131,82 @@ export function isUserRejection(err: any): boolean {
 }
 
 /**
+ * Parses a MetaMask / Hardhat nonce mismatch error ("Nonce too high. Expected nonce to be X but got Y"
+ * or "nonce has already been used") into a structured NonceMismatchInfo object.
+ */
+export function parseNonceMismatchFromError(
+  err: any,
+  address: string
+): NonceMismatchInfo | null {
+  const fullMsg = String(
+    err?.info?.error?.message ||
+      err?.error?.message ||
+      err?.shortMessage ||
+      err?.reason ||
+      err?.message ||
+      ''
+  );
+
+  const matchExpected = fullMsg.match(/Expected nonce to be (\d+) but got (\d+)/i);
+  const isNonceError =
+    Boolean(matchExpected) ||
+    /nonce too high/i.test(fullMsg) ||
+    /nonce too low/i.test(fullMsg) ||
+    /nonce has already been used/i.test(fullMsg);
+
+  if (!isNonceError) return null;
+
+  const expectedHardhatNonce = matchExpected ? parseInt(matchExpected[1], 10) : 0;
+  const gotMetaMaskNonce = matchExpected ? parseInt(matchExpected[2], 10) : 1;
+  const roleAcct = findRoleAccountByAddress(address);
+
+  return {
+    address,
+    accountLabel: roleAcct ? `${roleAcct.label} (${roleAcct.roleTitle})` : address,
+    hardhatNonce: expectedHardhatNonce,
+    cachedMetaMaskNonce: gotMetaMaskNonce,
+    reason: `Hardhat node was restarted (expecting Nonce ${expectedHardhatNonce}), but MetaMask still caches Nonce ${gotMetaMaskNonce} from a previous session.`,
+    howToFixManual:
+      'Open MetaMask → Click the ⋮ menu → Settings → Advanced → Click "Clear activity tab data" to reset MetaMask\'s cached nonce counter.',
+    detectedAt: Date.now(),
+  };
+}
+
+/**
+ * Aligns Hardhat's account nonce with MetaMask's expected nonce using `hardhat_setNonce`
+ * on http://127.0.0.1:8545.
+ */
+export async function syncHardhatNonceWithMetaMask(
+  address: string,
+  targetNonce: number
+): Promise<boolean> {
+  try {
+    const hexNonce = '0x' + Math.max(0, targetNonce).toString(16);
+    const response = await fetch(HARDHAT_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'hardhat_setNonce',
+        params: [address, hexNonce],
+        id: Date.now(),
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json();
+    if (!data?.error) {
+      setCachedMetaMaskNonce(address, targetNonce);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Performs an uncached JSON-RPC ping to http://127.0.0.1:8545 and fetches live ETH balances
- * without touching window.ethereum on page load.
+ * and on-chain nonces (`eth_getTransactionCount`) without touching window.ethereum on page load.
  */
 export async function checkLocalHardhatNode(addresses: string[] = []): Promise<HardhatRpcStatus> {
   const controller = new AbortController();
@@ -79,29 +237,45 @@ export async function checkLocalHardhatNode(addresses: string[] = []): Promise<H
     const latestBlock = blockRes?.result ? parseInt(blockRes.result, 16) : 0;
 
     const balances: Record<string, number> = {};
+    const nonces: Record<string, number> = {};
+
     if (addresses.length > 0) {
       await Promise.all(
         addresses.map(async (addr) => {
           try {
-            const balRes = await fetch(HARDHAT_RPC_URL, {
+            const rpcRes = await fetch(HARDHAT_RPC_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'eth_getBalance',
-                params: [addr, 'latest'],
-                id: Date.now(),
-              }),
+              body: JSON.stringify([
+                {
+                  jsonrpc: '2.0',
+                  method: 'eth_getBalance',
+                  params: [addr, 'latest'],
+                  id: 10,
+                },
+                {
+                  jsonrpc: '2.0',
+                  method: 'eth_getTransactionCount',
+                  params: [addr, 'pending'],
+                  id: 11,
+                },
+              ]),
               cache: 'no-store',
             });
-            const balData = await balRes.json();
-            if (balData?.result) {
+            const rpcData = await rpcRes.json();
+            const balItem = Array.isArray(rpcData) ? rpcData.find((d: any) => d.id === 10) : null;
+            const nonceItem = Array.isArray(rpcData) ? rpcData.find((d: any) => d.id === 11) : null;
+
+            if (balItem?.result) {
               balances[addr.toLowerCase()] = Number(
-                parseFloat(ethers.formatEther(BigInt(balData.result))).toFixed(4)
+                parseFloat(ethers.formatEther(BigInt(balItem.result))).toFixed(4)
               );
             }
+            if (nonceItem?.result) {
+              nonces[addr.toLowerCase()] = parseInt(nonceItem.result, 16);
+            }
           } catch {
-            // ignore individual balance error
+            // ignore individual account query error
           }
         })
       );
@@ -112,6 +286,7 @@ export async function checkLocalHardhatNode(addresses: string[] = []): Promise<H
       chainId,
       latestBlock,
       balances,
+      nonces,
     };
   } catch {
     clearTimeout(timeoutId);
@@ -120,8 +295,40 @@ export async function checkLocalHardhatNode(addresses: string[] = []): Promise<H
       chainId: null,
       latestBlock: null,
       balances: {},
+      nonces: {},
     };
   }
+}
+
+/**
+ * Checks if a specific account has a stale cached MetaMask nonce after a Hardhat node restart.
+ */
+export function detectAccountNonceMismatch(
+  address: string,
+  liveHardhatNonces: Record<string, number>
+): NonceMismatchInfo | null {
+  if (!address) return null;
+  const key = address.toLowerCase();
+  const hardhatNonce = liveHardhatNonces[key];
+  if (typeof hardhatNonce !== 'number') return null;
+
+  const cachedMap = getCachedMetaMaskNonces();
+  const cachedNonce = cachedMap[key] || 0;
+
+  if (cachedNonce > hardhatNonce) {
+    const roleAcct = findRoleAccountByAddress(address);
+    return {
+      address,
+      accountLabel: roleAcct ? `${roleAcct.label} (${roleAcct.roleTitle})` : address,
+      hardhatNonce,
+      cachedMetaMaskNonce: cachedNonce,
+      reason: `Hardhat Terminal 1 was restarted (on-chain nonce reset to ${hardhatNonce}), while MetaMask still caches Nonce ${cachedNonce} for this account from your previous session.`,
+      howToFixManual:
+        'In MetaMask: Open Settings → Advanced → Click "Clear activity tab data", OR click "Auto-Sync Hardhat Nonce" below.',
+      detectedAt: Date.now(),
+    };
+  }
+  return null;
 }
 
 /**
@@ -153,11 +360,13 @@ export function getHumanRoleWallets(): WalletAccount[] {
  * 1. Verifies Hardhat RPC (http://127.0.0.1:8545) is online
  * 2. Requests permissions via wallet_requestPermissions + eth_requestAccounts
  * 3. Automatically switches/adds Hardhat Localhost 8545 (Chain ID 31337 / 0x7a69)
+ * 4. Checks for stale MetaMask nonce after a Hardhat restart and surfaces clear instructions
  */
 export async function connectMetaMaskWithEthers(
   preferredAddress?: string
 ): Promise<MetaMaskConnectionResult> {
-  const rpcStatus = await checkLocalHardhatNode();
+  const allAddrs = HARDHAT_WALLETS.map((w) => w.address);
+  const rpcStatus = await checkLocalHardhatNode(allAddrs);
   if (!rpcStatus.isNodeOnline) {
     return {
       success: false,
@@ -176,7 +385,6 @@ export async function connectMetaMaskWithEthers(
   const ethereum = (window as any).ethereum;
 
   try {
-    // Open MetaMask account selection & permissions popup (exact pattern from reference project)
     try {
       await ethereum.request({
         method: 'wallet_requestPermissions',
@@ -189,8 +397,6 @@ export async function connectMetaMaskWithEthers(
           error: 'MetaMask connection cancelled by user.',
         };
       }
-      // If wallet_requestPermissions is unsupported or fails on first origin handshake,
-      // continue cleanly to eth_requestAccounts below
     }
 
     const accounts: string[] = await ethereum.request({
@@ -212,7 +418,7 @@ export async function connectMetaMaskWithEthers(
       try {
         await ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x7a69' }], // 31337 in hex
+          params: [{ chainId: '0x7a69' }],
         });
         activeChainId = HARDHAT_CHAIN_ID;
       } catch (switchError: any) {
@@ -264,20 +470,10 @@ export async function connectMetaMaskWithEthers(
       };
     }
 
-    if (!roleAccount) {
-      // If user clicked a specific role card (preferredAddress) and approved MetaMask, use that role account
-      if (preferredAddress) {
-        const preferredRole = findRoleAccountByAddress(preferredAddress);
-        if (preferredRole) {
-          return {
-            success: true,
-            address: preferredRole.address,
-            account: preferredRole,
-            chainId: HARDHAT_CHAIN_ID,
-            isCorrectNetwork: true,
-          };
-        }
-      }
+    const resolvedRole =
+      roleAccount || (preferredAddress ? findRoleAccountByAddress(preferredAddress) : null);
+
+    if (!resolvedRole) {
       return {
         success: false,
         address: checksumAddr,
@@ -288,12 +484,16 @@ export async function connectMetaMaskWithEthers(
       };
     }
 
+    // Check if Hardhat was restarted without clearing MetaMask's cached nonce
+    const nonceMismatch = detectAccountNonceMismatch(resolvedRole.address, rpcStatus.nonces);
+
     return {
       success: true,
-      address: roleAccount.address,
-      account: roleAccount,
+      address: resolvedRole.address,
+      account: resolvedRole,
       chainId: HARDHAT_CHAIN_ID,
       isCorrectNetwork: true,
+      nonceMismatch: nonceMismatch || undefined,
     };
   } catch (err: any) {
     if (isUserRejection(err)) {
@@ -310,6 +510,206 @@ export async function connectMetaMaskWithEthers(
 }
 
 /**
+ * Executes a real MetaMask-confirmed transaction on http://127.0.0.1:8545.
+ * If MetaMask throws a nonce mismatch error (because Hardhat was restarted without clearing
+ * MetaMask's activity data), returns the structured `nonceMismatch` diagnostic so the UI
+ * can clearly display the error and offer 1-click recovery.
+ */
+export async function executeMetaMaskTransaction(params: {
+  senderAddress: string;
+  toAddress: string;
+  valueEth?: number;
+  dataHex?: string;
+}): Promise<{
+  success: boolean;
+  receipt?: OnChainTxResult;
+  error?: string;
+  nonceMismatch?: NonceMismatchInfo;
+}> {
+  const status = await checkLocalHardhatNode([params.senderAddress]);
+  if (!status.isNodeOnline) {
+    return {
+      success: false,
+      error:
+        'Hardhat RPC Server (http://127.0.0.1:8545) is offline. Please start Terminal 1 (Hardhat Node).',
+    };
+  }
+
+  // Check proactive nonce mismatch before submitting
+  const preMismatch = detectAccountNonceMismatch(params.senderAddress, status.nonces);
+  if (preMismatch) {
+    return {
+      success: false,
+      nonceMismatch: preMismatch,
+      error: `MetaMask Nonce Mismatch Detected: ${preMismatch.reason} ${preMismatch.howToFixManual}`,
+    };
+  }
+
+  const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+  const valueWei = params.valueEth ? ethers.parseEther(params.valueEth.toString()) : 0n;
+
+  if (ethereum) {
+    try {
+      const browserProvider = new ethers.BrowserProvider(ethereum);
+      const accounts: string[] = await ethereum.request({ method: 'eth_accounts' });
+      const activeAddr =
+        accounts && accounts.length > 0 ? ethers.getAddress(accounts[0]) : params.senderAddress;
+      const signer = await browserProvider.getSigner(activeAddr);
+
+      const txResponse = await signer.sendTransaction({
+        to: ethers.getAddress(params.toAddress),
+        value: valueWei,
+        data: params.dataHex || '0x',
+      });
+
+      const receipt = await txResponse.wait();
+      if (!receipt) {
+        return { success: false, error: 'Transaction was not mined.' };
+      }
+
+      // Track the new nonce in localStorage so if Hardhat is restarted later, we detect the mismatch!
+      setCachedMetaMaskNonce(activeAddr, txResponse.nonce + 1);
+
+      return {
+        success: true,
+        receipt: {
+          txHash: receipt.hash,
+          blockNumber: receipt.blockNumber,
+          blockHash: receipt.blockHash,
+          gasUsed: Number(receipt.gasUsed),
+          nonce: txResponse.nonce,
+          from: ethers.getAddress(receipt.from),
+          to: ethers.getAddress(receipt.to || params.toAddress),
+          timestamp: Math.floor(Date.now() / 1000),
+        },
+      };
+    } catch (err: any) {
+      if (isUserRejection(err)) {
+        return {
+          success: false,
+          error: 'Transaction rejected by user in MetaMask.',
+        };
+      }
+
+      const mismatch = parseNonceMismatchFromError(err, params.senderAddress);
+      if (mismatch) {
+        setCachedMetaMaskNonce(params.senderAddress, mismatch.cachedMetaMaskNonce);
+        return {
+          success: false,
+          nonceMismatch: mismatch,
+          error: `MetaMask Nonce Mismatch: ${mismatch.reason} ${mismatch.howToFixManual}`,
+        };
+      }
+
+      return {
+        success: false,
+        error: err?.shortMessage || err?.reason || err?.message || 'MetaMask transaction failed.',
+      };
+    }
+  }
+
+  // Fallback direct JSON-RPC execution if running in a browser without MetaMask installed
+  try {
+    const provider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
+    const signer = await provider.getSigner(params.senderAddress);
+    const txResponse = await signer.sendTransaction({
+      to: ethers.getAddress(params.toAddress),
+      value: valueWei,
+      data: params.dataHex || '0x',
+    });
+    const receipt = await txResponse.wait();
+    if (!receipt) {
+      return { success: false, error: 'Transaction failed on local Hardhat node.' };
+    }
+    return {
+      success: true,
+      receipt: {
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        blockHash: receipt.blockHash,
+        gasUsed: Number(receipt.gasUsed),
+        nonce: txResponse.nonce,
+        from: ethers.getAddress(receipt.from),
+        to: ethers.getAddress(receipt.to || params.toAddress),
+        timestamp: Math.floor(Date.now() / 1000),
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Local Hardhat RPC transaction failed.',
+    };
+  }
+}
+
+/**
+ * Queries the live Hardhat RPC server (`eth_getTransactionReceipt` & `eth_getTransactionByHash`)
+ * to cryptographically verify that a transaction hash exists on-chain.
+ */
+export async function verifyTransactionOnChain(txHash: string): Promise<LiveReceiptVerification> {
+  const status = await checkLocalHardhatNode();
+  if (!status.isNodeOnline) {
+    return {
+      verified: false,
+      txHash,
+      checkedAt: Date.now(),
+      rpcUrl: HARDHAT_RPC_URL,
+      error:
+        'Hardhat RPC Server (http://127.0.0.1:8545) is OFFLINE. Cannot verify transaction while Terminal 1 is closed.',
+    };
+  }
+
+  try {
+    const provider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL, undefined, {
+      staticNetwork: false,
+      batchMaxCount: 1,
+      cacheTimeout: -1,
+    });
+
+    const [receipt, tx, currentBlock] = await Promise.all([
+      provider.getTransactionReceipt(txHash),
+      provider.getTransaction(txHash),
+      provider.getBlockNumber(),
+    ]);
+
+    if (!receipt || !tx) {
+      return {
+        verified: false,
+        txHash,
+        checkedAt: Date.now(),
+        rpcUrl: HARDHAT_RPC_URL,
+        error: `Transaction ${txHash.slice(0, 14)}... was not found on the current Hardhat node (Chain 31337). Terminal 1 (Hardhat Node) may have been restarted since this transaction was recorded.`,
+      };
+    }
+
+    return {
+      verified: true,
+      txHash,
+      checkedAt: Date.now(),
+      rpcUrl: HARDHAT_RPC_URL,
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash,
+      transactionIndex: receipt.index,
+      gasUsed: receipt.gasUsed.toString(),
+      effectiveGasPriceGwei: ethers.formatUnits(receipt.gasPrice ?? 0n, 'gwei'),
+      status: receipt.status === 1 ? '0x1 (Success)' : '0x0 (Reverted)',
+      confirmations: Math.max(1, currentBlock - receipt.blockNumber + 1),
+      from: receipt.from,
+      to: receipt.to ?? undefined,
+      nonce: tx.nonce,
+    };
+  } catch (err: any) {
+    return {
+      verified: false,
+      txHash,
+      checkedAt: Date.now(),
+      rpcUrl: HARDHAT_RPC_URL,
+      error: err?.message || 'RPC verification query failed.',
+    };
+  }
+}
+
+/**
  * Prompts MetaMask to switch to or add Hardhat Localhost 8545 (Chain ID 31337)
  */
 export async function requestSwitchToHardhatChain(): Promise<{ success: boolean; error?: string }> {
@@ -318,7 +718,7 @@ export async function requestSwitchToHardhatChain(): Promise<{ success: boolean;
   }
 
   const ethereum = (window as any).ethereum;
-  const hardhatHexChainId = '0x7a69'; // 31337 in hex
+  const hardhatHexChainId = '0x7a69';
 
   try {
     await ethereum.request({
@@ -356,7 +756,11 @@ export async function requestSwitchToHardhatChain(): Promise<{ success: boolean;
 /**
  * Triggers MetaMask account chooser permissions request
  */
-export async function promptMetaMaskAccountSwitch(): Promise<{ success: boolean; accounts?: string[]; error?: string }> {
+export async function promptMetaMaskAccountSwitch(): Promise<{
+  success: boolean;
+  accounts?: string[];
+  error?: string;
+}> {
   if (!hasMetaMask()) {
     return { success: false, error: 'MetaMask extension not available.' };
   }

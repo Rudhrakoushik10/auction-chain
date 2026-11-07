@@ -25,12 +25,23 @@ import {
   generateDeterministicTxHash,
   shortenAddress,
 } from './lib/crypto';
+import { SEALED_AUCTION_CONTRACT_ADDRESS } from './lib/hardhatConfig';
+import { executeMetaMaskTransaction } from './services/blockchain/walletService';
+import { NonceMismatchBanner } from './components/wallet/NonceMismatchBanner';
 
 const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v1';
 const SECRETS_STORAGE_KEY = 'auctionchain_reveal_secrets_v1';
 
 function AuctionChainAppContent() {
-  const { isConnected, wallet, adjustBalance } = useWallet();
+  const {
+    isConnected,
+    wallet,
+    adjustBalance,
+    nonceMismatch,
+    autoSyncNonce,
+    confirmManualNonceClear,
+    reportNonceMismatch,
+  } = useWallet();
   const [publicTab, setPublicTab] = useState<PublicNavTab>('home');
   const [auctions, setAuctions] = useState<AuctionItem[]>(() => {
     try {
@@ -78,20 +89,39 @@ function AuctionChainAppContent() {
   };
 
   // Commit Sealed Bid on SealedAuction.sol
-  const handleCommitBid = (
+  const handleCommitBid = async (
     auctionId: string,
     commitmentHash: string,
     secretBackup: LocalRevealBackupSecret
   ) => {
     if (!wallet) return;
+    const targetAuction = auctions.find((a) => a.id === auctionId);
+    if (!targetAuction) return;
+
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: targetAuction.fixedDepositEth,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return;
+    }
+
     setSavedSecrets((prev) => [secretBackup, ...prev]);
 
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
-        const txHash = generateDeterministicTxHash(
-          `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
-        );
+        const txHash =
+          txRes.receipt?.txHash ||
+          generateDeterministicTxHash(
+            `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
+          );
+        const blockNum = txRes.receipt?.blockNumber || 4189250 + auc.commitments.length;
         const nowIso = new Date().toISOString();
 
         // Lock fixed collateral deposit from bidder wallet
@@ -111,7 +141,7 @@ function AuctionChainAppContent() {
               depositEth: auc.fixedDepositEth,
               committedAt: nowIso,
               committedTimestamp: Math.floor(Date.now() / 1000),
-              blockNumber: 4189250 + auc.commitments.length,
+              blockNumber: blockNum,
               txHash,
               revealed: false,
               depositRefunded: false,
@@ -123,7 +153,7 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'BidCommitted',
               txHash,
-              blockNumber: 4189250 + auc.commitments.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `${wallet.label} submitted sealed commitment ${commitmentHash.slice(
@@ -428,6 +458,15 @@ function AuctionChainAppContent() {
 
       {/* Main Content Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {nonceMismatch && (
+          <div className="mb-6">
+            <NonceMismatchBanner
+              mismatch={nonceMismatch}
+              onAutoSyncNonce={autoSyncNonce}
+              onConfirmManualClear={confirmManualNonceClear}
+            />
+          </div>
+        )}
         {selectedAuction ? (
           <AuctionDetails
             auction={selectedAuction}

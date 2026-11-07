@@ -39,6 +39,14 @@ async function main() {
     },
   };
 
+  // Reset Account 0 (Admin) nonce to 0x0 and balance to 10,000 ETH after deployment
+  // so that MetaMask Account 0 starts with a clean 0 nonce just like Accounts 1, 2, and 3
+  await hre.network.provider.send("hardhat_setNonce", [admin.address, "0x0"]);
+  await hre.network.provider.send("hardhat_setBalance", [
+    admin.address,
+    "0x21e19e0c9bab2400000",
+  ]);
+
   const outPathFrontend = path.join(__dirname, "../../frontend/src/contracts/contractAddresses.json");
   fs.mkdirSync(path.dirname(outPathFrontend), { recursive: true });
   fs.writeFileSync(outPathFrontend, JSON.stringify(addresses, null, 2));

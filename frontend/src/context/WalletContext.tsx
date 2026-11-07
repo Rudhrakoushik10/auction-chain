@@ -15,7 +15,12 @@ import {
   requestSwitchToHardhatChain,
   promptMetaMaskAccountSwitch,
   findRoleAccountByAddress,
+  detectAccountNonceMismatch,
+  syncHardhatNonceWithMetaMask,
+  clearCachedMetaMaskNonce,
+  NonceMismatchInfo,
 } from '../services/blockchain/walletService';
+import { TransactionReceiptModal } from '../components/common/TransactionReceiptModal';
 
 export interface WalletMismatchInfo {
   expectedRole: string;
@@ -35,6 +40,7 @@ interface WalletContextValue {
   latestBlock: number | null;
   isMetaMaskAvailable: boolean;
   mismatchInfo: WalletMismatchInfo | null;
+  nonceMismatch: NonceMismatchInfo | null;
   errorMessage: string | null;
   isConnecting: boolean;
   isAuthModalOpen: boolean;
@@ -44,6 +50,10 @@ interface WalletContextValue {
   openAuthModal: () => void;
   closeAuthModal: () => void;
   clearMismatch: () => void;
+  reportNonceMismatch: (info: NonceMismatchInfo) => void;
+  autoSyncNonce: () => Promise<boolean>;
+  confirmManualNonceClear: () => void;
+  inspectTransaction: (txHash: string) => void;
   refreshHardhatNode: () => Promise<boolean>;
   connectMetaMask: () => Promise<boolean>;
   selectRoleDirect: (targetAccount: WalletAccount) => Promise<boolean>;
@@ -73,9 +83,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [latestBlock, setLatestBlock] = useState<number | null>(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [mismatchInfo, setMismatchInfo] = useState<WalletMismatchInfo | null>(null);
+  const [nonceMismatch, setNonceMismatch] = useState<NonceMismatchInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [isMetaMaskAvailable, setIsMetaMaskAvailable] = useState<boolean>(false);
+  const [inspectedTxHash, setInspectedTxHash] = useState<string | null>(null);
 
   const [authorizedOracleAddress, setAuthorizedOracleAddress] = useState<string>(() => {
     return (
@@ -86,7 +98,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const humanWallets = wallets.filter((w) => w.isHumanFacing);
 
-  // Sync connection state to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_CONNECTED_KEY, String(isConnected));
     if (activeAddress) {
@@ -94,7 +105,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [isConnected, activeAddress]);
 
-  // Direct JSON-RPC heartbeat to http://127.0.0.1:8545 (does NOT touch window.ethereum on mount)
   const refreshHardhatNode = useCallback(async (): Promise<boolean> => {
     const addrs = HARDHAT_WALLETS.map((w) => w.address);
     const status = await checkLocalHardhatNode(addrs);
@@ -110,11 +120,24 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           })
         );
       }
+
+      // Check if any human role account or active account has a stale MetaMask nonce after Hardhat restart
+      const activeMismatch = detectAccountNonceMismatch(activeAddress, status.nonces);
+      if (activeMismatch) {
+        setNonceMismatch(activeMismatch);
+      } else {
+        for (const w of HUMAN_ROLE_WALLETS) {
+          const m = detectAccountNonceMismatch(w.address, status.nonces);
+          if (m) {
+            setNonceMismatch(m);
+            break;
+          }
+        }
+      }
     }
     return status.isNodeOnline;
-  }, []);
+  }, [activeAddress]);
 
-  // Start Hardhat RPC heartbeat and attach passive MetaMask event listeners (no mount RPC calls)
   useEffect(() => {
     setIsMetaMaskAvailable(hasMetaMask());
     refreshHardhatNode();
@@ -188,7 +211,37 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setErrorMessage(null);
   };
 
-  // Primary Connect MetaMask button action
+  const reportNonceMismatch = useCallback((info: NonceMismatchInfo) => {
+    setNonceMismatch(info);
+  }, []);
+
+  const autoSyncNonce = useCallback(async (): Promise<boolean> => {
+    if (!nonceMismatch) return false;
+    const ok = await syncHardhatNonceWithMetaMask(
+      nonceMismatch.address,
+      nonceMismatch.cachedMetaMaskNonce
+    );
+    if (ok) {
+      setNonceMismatch(null);
+      setErrorMessage(null);
+      await refreshHardhatNode();
+    }
+    return ok;
+  }, [nonceMismatch, refreshHardhatNode]);
+
+  const confirmManualNonceClear = useCallback(() => {
+    clearCachedMetaMaskNonce();
+    setNonceMismatch(null);
+    setErrorMessage(null);
+    refreshHardhatNode();
+  }, [refreshHardhatNode]);
+
+  const inspectTransaction = useCallback((txHash: string) => {
+    if (txHash) {
+      setInspectedTxHash(txHash);
+    }
+  }, []);
+
   const connectMetaMask = useCallback(async (): Promise<boolean> => {
     setIsConnecting(true);
     setErrorMessage(null);
@@ -212,17 +265,22 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return false;
         }
 
+        if (res.nonceMismatch) {
+          setNonceMismatch(res.nonceMismatch);
+        }
+
         setChainId(HARDHAT_CHAIN_ID);
 
         if (res.account && res.account.isHumanFacing) {
           setActiveAddress(res.account.address);
           setIsConnected(true);
-          setIsAuthModalOpen(false);
+          if (!res.nonceMismatch) {
+            setIsAuthModalOpen(false);
+          }
           setIsConnecting(false);
           return true;
         }
 
-        // Default to Admin if connected with another imported address
         setActiveAddress(humanWallets[0].address);
         setIsConnected(true);
         setIsAuthModalOpen(false);
@@ -245,7 +303,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return false;
   }, [humanWallets, refreshHardhatNode]);
 
-  // Role Card Selection (matches Freelance-Milestone-Escrow reference flow)
   const selectRoleDirect = useCallback(
     async (targetAccount: WalletAccount): Promise<boolean> => {
       setIsConnecting(true);
@@ -268,6 +325,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
             setIsConnecting(false);
             return false;
+          }
+          if (res.nonceMismatch) {
+            setNonceMismatch(res.nonceMismatch);
           }
         }
 
@@ -345,6 +405,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         latestBlock,
         isMetaMaskAvailable,
         mismatchInfo,
+        nonceMismatch,
         errorMessage,
         isConnecting,
         isAuthModalOpen,
@@ -354,6 +415,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         openAuthModal,
         closeAuthModal,
         clearMismatch,
+        reportNonceMismatch,
+        autoSyncNonce,
+        confirmManualNonceClear,
+        inspectTransaction,
         refreshHardhatNode,
         connectMetaMask,
         selectRoleDirect,
@@ -365,6 +430,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }}
     >
       {children}
+      <TransactionReceiptModal
+        txHash={inspectedTxHash}
+        onClose={() => setInspectedTxHash(null)}
+      />
     </WalletContext.Provider>
   );
 };

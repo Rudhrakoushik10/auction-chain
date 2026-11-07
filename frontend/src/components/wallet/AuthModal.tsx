@@ -13,6 +13,7 @@ import {
 import { useWallet } from '../../context/WalletContext';
 import { shortenAddress } from '../../lib/crypto';
 import { WalletAccount } from '../../types/auction';
+import { NonceMismatchBanner } from './NonceMismatchBanner';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -23,6 +24,9 @@ export const AuthModal: React.FC = () => {
     selectRoleDirect,
     isConnecting,
     errorMessage,
+    nonceMismatch,
+    autoSyncNonce,
+    confirmManualNonceClear,
     switchNetworkToHardhat,
     isCorrectNetwork,
     chainId,
@@ -111,6 +115,15 @@ export const AuthModal: React.FC = () => {
                 <strong>Retry Connection</strong>.
               </p>
             </div>
+          )}
+
+          {/* MetaMask Nonce Mismatch Warning (When Hardhat Terminal was closed & reopened) */}
+          {isNodeOnline && nonceMismatch && (
+            <NonceMismatchBanner
+              mismatch={nonceMismatch}
+              onAutoSyncNonce={autoSyncNonce}
+              onConfirmManualClear={confirmManualNonceClear}
+            />
           )}
 
           {/* Network Mismatch Warning */}

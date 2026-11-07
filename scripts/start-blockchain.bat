@@ -10,7 +10,11 @@ echo.
 
 pushd blockchain
 if not exist "node_modules\@nomicfoundation\hardhat-ethers" (
-    echo [Blockchain] Installing required Hardhat Ethers plugins...
+    echo [Blockchain] Installing Hardhat Ethers plugins...
+    call npm install
+)
+if not exist "node_modules\@openzeppelin\contracts" (
+    echo [Blockchain] Installing OpenZeppelin Contracts v5...
     call npm install
 )
 call npm start

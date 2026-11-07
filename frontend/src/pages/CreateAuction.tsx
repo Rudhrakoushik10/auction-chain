@@ -18,6 +18,7 @@ import {
   predictVehiclePrice,
   registerPredictionOnOracle,
 } from '../services/api/aiService';
+import { executeMetaMaskTransaction } from '../services/blockchain/walletService';
 import vehicleSuvImg from '../assets/images/vehicle-suv.jpg';
 import vehicleCoupeImg from '../assets/images/vehicle-coupe.jpg';
 import vehicleSedanImg from '../assets/images/vehicle-sedan.jpg';
@@ -38,6 +39,8 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     openAuthModal,
     switchNetworkToHardhat,
     authorizedOracleAddress,
+    reportNonceMismatch,
+    inspectTransaction,
   } = useWallet();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -206,20 +209,39 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
   const handleSignAndCreateAuction = async () => {
     if (!wallet || !aiRecord) return;
+    setTermsError(null);
     setDeployTxStage('waiting_approval');
-    await new Promise((r) => setTimeout(r, 160));
+
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: 0,
+    });
+
+    if (!txRes.success) {
+      setDeployTxStage('idle');
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      setTermsError(txRes.error || 'Failed to publish auction transaction.');
+      return;
+    }
+
     setDeployTxStage('submitted');
-    await new Promise((r) => setTimeout(r, 160));
+    await new Promise((r) => setTimeout(r, 120));
     setDeployTxStage('pending');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
     setDeployTxStage('confirmed');
 
     const now = Date.now();
     const commitEnd = new Date(now + commitMinutes * 60 * 1000).toISOString();
     const revealEnd = new Date(now + (commitMinutes + revealMinutes) * 60 * 1000).toISOString();
-    const createTxHash = generateDeterministicTxHash(
-      `CREATE:${nextNumericId}:${wallet.address}:${aiRecord.product_data_hash}:${now}`
-    );
+    const createTxHash =
+      txRes.receipt?.txHash ||
+      generateDeterministicTxHash(
+        `CREATE:${nextNumericId}:${wallet.address}:${aiRecord.product_data_hash}:${now}`
+      );
+    const createBlockNumber = txRes.receipt?.blockNumber || aiRecord.oracle_block_number + 1;
 
     const imgUrl =
       selectedImagePreset === 'suv'
@@ -265,7 +287,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           id: `EVT-${100 + nextNumericId}-2`,
           eventName: 'AuctionCreated',
           txHash: createTxHash,
-          blockNumber: aiRecord.oracle_block_number + 1,
+          blockNumber: createBlockNumber,
           timestamp: new Date(now).toISOString(),
           actorAddress: wallet.address,
           summary: `Seller created Vehicle Auction #${nextNumericId} (Start: ${Number(
