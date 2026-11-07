@@ -1,15 +1,5 @@
 import React from 'react';
-import {
-  Gavel,
-  BookOpen,
-  Calculator,
-  ShieldCheck,
-  Info,
-  Wallet,
-  Home,
-} from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
-import enhancedLogoUrl from '../../assets/images/auctionchain_logo.jpg';
 
 export type PublicNavTab =
   | 'home'
@@ -22,54 +12,39 @@ export type PublicNavTab =
 interface PublicHeaderProps {
   activeTab: PublicNavTab;
   setActiveTab: (tab: PublicNavTab) => void;
+  onOpenDashboard?: () => void;
 }
 
-export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeTab, setActiveTab }) => {
-  const { openAuthModal } = useWallet();
+export const PublicHeader: React.FC<PublicHeaderProps> = ({
+  activeTab,
+  setActiveTab,
+  onOpenDashboard,
+}) => {
+  const { isConnected, wallet, openAuthModal } = useWallet();
 
-  const navItems: { id: PublicNavTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'home', label: 'Home', icon: <Home className="w-4 h-4" /> },
-    { id: 'explore', label: 'Explore Auctions', icon: <Gavel className="w-4 h-4" /> },
-    { id: 'how-it-works', label: 'How It Works', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'ai-estimator', label: 'AI Price Estimator', icon: <Calculator className="w-4 h-4" /> },
-    { id: 'security', label: 'Security & Transparency', icon: <ShieldCheck className="w-4 h-4" /> },
-    { id: 'about', label: 'About Us', icon: <Info className="w-4 h-4" /> },
+  const navItems: { id: PublicNavTab; label: string }[] = [
+    { id: 'home', label: 'Home' },
+    { id: 'explore', label: 'Explore Auctions' },
+    { id: 'how-it-works', label: 'How It Works' },
+    { id: 'ai-estimator', label: 'AI Price Estimator' },
+    { id: 'security', label: 'Security & Transparency' },
+    { id: 'about', label: 'About Us' },
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#090D1A] text-white border-b border-[#1E293B] shadow-[0_4px_25px_rgba(0,0,0,0.5)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-        {/* Left: Brand Logo & Name */}
+    <header className="sticky top-0 z-40 w-full bg-[#090D1A]/95 backdrop-blur-sm border-b border-[#1E293B]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
+        {/* Zone 1: Single-line Brand Wordmark */}
         <button
           type="button"
           onClick={() => setActiveTab('home')}
-          className="flex items-center gap-3.5 text-left group focus:outline-none cursor-pointer shrink-0"
+          className="text-lg font-bold tracking-tight text-white hover:text-slate-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] rounded"
         >
-          <div className="relative h-13 w-13 rounded-2xl bg-[#0F172A] p-1 shadow-[0_0_25px_rgba(6,182,212,0.45)] ring-2 ring-[#06B6D4] border border-[#2563EB]/40 flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_35px_rgba(6,182,212,0.7)] group-hover:ring-[#38BDF8]">
-            <img
-              src={enhancedLogoUrl}
-              alt="AuctionChain Logo"
-              className="h-full w-full object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src =
-                  '/public/assets/aistudio/240_F_1121784514_Q6OwYEhb7qcBUqrLWLBNtkmP8TiX12Jx_3c2efe6e.jpg';
-              }}
-            />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold tracking-tight text-white">
-                Auction<span className="text-[#06B6D4]">Chain</span>
-              </span>
-            </div>
-            <p className="text-[11px] font-mono tracking-widest uppercase text-[#06B6D4]">
-              Predict · Bid · Verify
-            </p>
-          </div>
+          AuctionChain
         </button>
 
-        {/* Center: Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 bg-white/5 p-1.5 rounded-xl border border-white/10">
+        {/* Zone 2: Clean single-line typography navigation links */}
+        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -77,34 +52,42 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeTab, setActive
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`py-5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   isActive
-                    ? 'bg-[#2563EB] text-white shadow-sm'
-                    : 'text-[#E2E8F0] hover:text-white hover:bg-white/10'
+                    ? 'border-[#2563EB] text-white font-semibold'
+                    : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
-                {item.icon}
-                <span>{item.label}</span>
+                {item.label}
               </button>
             );
           })}
         </nav>
 
-        {/* Right: Connect Wallet Button (Strictly No Login / Register / Sign Up) */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={openAuthModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2563EB] hover:bg-blue-600 transition-all shadow-md shadow-[#2563EB]/30 cursor-pointer"
-          >
-            <Wallet className="w-4 h-4" />
-            <span>Connect Wallet</span>
-          </button>
+        {/* Zone 3: Single Primary Action */}
+        <div className="flex items-center gap-3 shrink-0">
+          {isConnected && wallet && onOpenDashboard ? (
+            <button
+              type="button"
+              onClick={onOpenDashboard}
+              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              {wallet.roleTitle} Dashboard
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openAuthModal}
+              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              Connect Wallet
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Mobile Center Navigation */}
-      <div className="lg:hidden flex items-center gap-1 overflow-x-auto px-4 py-2 bg-[#101B3D]/95 border-t border-white/10">
+      {/* Mobile / Tablet Navigation Bar */}
+      <div className="lg:hidden flex items-center gap-5 overflow-x-auto px-4 py-2.5 bg-[#090D1A] border-t border-[#1E293B]">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
@@ -112,12 +95,13 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeTab, setActive
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer ${
-                isActive ? 'bg-[#2563EB] text-white' : 'text-slate-300 hover:bg-white/10'
+              className={`text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                isActive
+                  ? 'text-white font-semibold underline underline-offset-4 decoration-[#2563EB]'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              {item.icon}
-              <span>{item.label}</span>
+              {item.label}
             </button>
           );
         })}

@@ -1,14 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Search,
-  Filter,
-  Car,
-  Layers,
-  Cpu,
-  Zap,
-  Fuel,
-  Wallet,
-} from 'lucide-react';
+import { Search } from 'lucide-react';
 import { AuctionItem, AuctionPhase } from '../types/auction';
 import { AuctionCard } from '../components/auction/AuctionCard';
 import { useWallet } from '../context/WalletContext';
@@ -20,7 +11,7 @@ interface MarketplaceProps {
 
 export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuction }) => {
   const { isConnected, openAuthModal } = useWallet();
-  const [selectedFuelFilter, setSelectedFuelFilter] = useState<'all' | 'Electric' | 'Hybrid' | 'Diesel' | 'Petrol'>('all');
+  const [selectedFuelFilter, setSelectedFuelFilter] = useState<'all' | 'Gasoline' | 'Electric' | 'Hybrid' | 'Diesel'>('all');
   const [selectedPhase, setSelectedPhase] = useState<'all' | AuctionPhase>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'ai-high' | 'reserve-low'>('newest');
@@ -48,7 +39,10 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
       })
       .sort((a, b) => {
         if (sortBy === 'ai-high') {
-          return b.aiPrediction.predicted_price_inr - a.aiPrediction.predicted_price_inr;
+          return (
+            (b.aiPrediction.predicted_price ?? b.aiPrediction.predicted_price_inr) -
+            (a.aiPrediction.predicted_price ?? a.aiPrediction.predicted_price_inr)
+          );
         }
         if (sortBy === 'reserve-low') {
           return a.reservePriceEth - b.reservePriceEth;
@@ -58,83 +52,69 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
   }, [auctions, selectedFuelFilter, selectedPhase, searchQuery, sortBy]);
 
   return (
-    <div className="space-y-8 pb-16 animate-in fade-in">
-      {/* Header Banner */}
-      <div className="rounded-2xl bg-[#0F172A] text-white p-6 sm:p-8 border border-[#1E293B] shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <span className="text-xs font-mono uppercase tracking-wider text-[#06B6D4]">
-            Vehicle Sealed-Bid Marketplace · Model: vehicle-v1
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold mt-1 text-white">
-            Explore Verified Vehicle Auctions
+    <div className="space-y-8 pb-16">
+      {/* Clean Page Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1E293B] pb-6">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 tabular-nums">
+            <span>Vehicle Sealed-Bid Marketplace</span>
+            <span aria-hidden="true">·</span>
+            <span>{filteredAuctions.length} of {auctions.length} Lots Shown</span>
+            <span aria-hidden="true">·</span>
+            <span>Hardhat #31337</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            Verified Vehicle Auctions
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Every vehicle listing includes an advisory INR resale price prediction anchored on{' '}
-            <code className="text-[#06B6D4]">PriceOracle.sol</code> and settles via commit-reveal in Test ETH on Hardhat Chain ID 31337.
+          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
+            Every vehicle lot includes an advisory USD resale valuation anchored on{' '}
+            <code className="text-slate-200">PriceOracle.sol</code> and settles via commit-reveal in Test ETH.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-[#131E3A] px-4 py-3 rounded-xl border border-[#1E293B] shrink-0">
-          <Cpu className="w-5 h-5 text-[#06B6D4]" />
-          <div className="text-xs">
-            <div className="font-bold text-white">{filteredAuctions.length} Vehicle Listings</div>
-            <div className="text-slate-400 font-mono text-[11px]">Hardhat #31337 Verified</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Guest Mode Callout */}
-      {!isConnected && (
-        <div className="rounded-xl bg-[#131E3A] border border-[#2563EB]/40 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-300">
-            <Wallet className="w-4 h-4 text-[#3B82F6] shrink-0" />
-            <span>
-              Browsing in Guest View: You can freely inspect vehicle specs, AI valuations, and auction countdowns. Connect your MetaMask wallet to submit sealed bids or list a vehicle.
-            </span>
-          </div>
+        {!isConnected && (
           <button
             type="button"
             onClick={openAuthModal}
-            className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+            className="px-4 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white font-semibold text-xs whitespace-nowrap shrink-0 cursor-pointer self-start md:self-auto"
           >
-            Connect Wallet
+            Connect Wallet to Bid
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-4 sm:p-5 shadow-sm space-y-4">
+      {/* Filter & Search Toolbar */}
+      <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-4 space-y-4">
         <div className="flex flex-col lg:flex-row gap-4 justify-between">
-          {/* Drivetrain / Fuel Filter Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {(['all', 'Electric', 'Hybrid', 'Diesel', 'Petrol'] as const).map((fuel) => (
+          {/* Segmented Drivetrain Filter */}
+          <div className="flex items-center gap-1 p-1 bg-[#090D1A] rounded-lg border border-[#1E293B] overflow-x-auto">
+            {(['all', 'Gasoline', 'Electric', 'Hybrid', 'Diesel'] as const).map((fuel) => (
               <button
                 key={fuel}
                 type="button"
                 onClick={() => setSelectedFuelFilter(fuel)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   selectedFuelFilter === fuel
-                    ? 'bg-[#2563EB] text-white shadow-md shadow-[#2563EB]/25'
-                    : 'bg-[#131E3A] text-slate-400 hover:text-white border border-[#1E293B]'
+                    ? 'bg-[#2563EB] text-white'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <Car className="w-3.5 h-3.5" />
-                <span>{fuel === 'all' ? `All Vehicles (${auctions.length})` : `${fuel} Vehicles`}</span>
+                {fuel === 'all' ? `All Vehicles (${auctions.length})` : fuel}
               </button>
             ))}
           </div>
 
-          {/* Phase Filter Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Segmented Phase Filter */}
+          <div className="flex items-center gap-1 p-1 bg-[#090D1A] rounded-lg border border-[#1E293B] overflow-x-auto">
             {(['all', 'Commit', 'Reveal', 'Sold'] as const).map((phase) => (
               <button
                 key={phase}
                 type="button"
                 onClick={() => setSelectedPhase(phase)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   selectedPhase === phase
-                    ? 'bg-[#7C3AED] text-white shadow-sm'
-                    : 'bg-[#131E3A] text-slate-400 hover:text-white border border-[#1E293B]'
+                    ? 'bg-[#1E293B] text-white'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {phase === 'all' ? 'All Phases' : phase}
@@ -144,27 +124,30 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
         </div>
 
         {/* Search Input & Sort Selector */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-[#1E293B]">
+        <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-[#1E293B]">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by brand, model, variant, or auction ID..."
+              placeholder="Search by make, model, variant, or lot ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] text-xs font-medium text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs font-medium text-white placeholder-slate-500 focus:outline-none focus:border-[#2563EB]"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 whitespace-nowrap">Sort:</span>
+            <label htmlFor="marketplace-sort" className="text-xs text-slate-400 whitespace-nowrap">
+              Sort by:
+            </label>
             <select
+              id="marketplace-sort"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 rounded-xl border border-[#1E293B] bg-[#131E3A] text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+              className="px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs font-medium text-white focus:outline-none focus:border-[#2563EB]"
             >
               <option value="newest">Newest First</option>
-              <option value="ai-high">Highest AI Valuation (INR)</option>
+              <option value="ai-high">Highest AI Valuation (USD)</option>
               <option value="reserve-low">Lowest Reserve (ETH)</option>
             </select>
           </div>
@@ -173,12 +156,26 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
 
       {/* Vehicle Auction Cards Grid */}
       {filteredAuctions.length === 0 ? (
-        <div className="text-center py-16 bg-[#0F172A] rounded-2xl border border-dashed border-[#1E293B] p-8 space-y-3">
-          <Car className="w-10 h-10 text-slate-600 mx-auto" />
-          <h3 className="text-base font-bold text-white">No Vehicle Auctions Match Your Filters</h3>
+        <div className="text-center py-16 bg-[#0F172A] rounded-xl border border-[#1E293B] p-8 space-y-3">
+          <h3 className="text-base font-semibold text-white">
+            {auctions.length === 0 ? 'No Vehicle Auctions Deployed Yet' : 'No Vehicle Lots Match Your Filters'}
+          </h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Try adjusting your search criteria, drivetrain filter, or auction phase.
+            {auctions.length === 0
+              ? 'Connect as Seller (Account 1) to create a new vehicle auction lot.'
+              : 'Try clearing your search query or switching the drivetrain and phase filters.'}
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedFuelFilter('all');
+              setSelectedPhase('all');
+              setSearchQuery('');
+            }}
+            className="px-4 py-2 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-xs font-medium text-white transition-colors cursor-pointer"
+          >
+            Reset Filters
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

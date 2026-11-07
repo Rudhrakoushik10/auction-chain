@@ -20,20 +20,51 @@ import { AboutUsPage } from './pages/public/AboutUsPage';
 import { SellerDashboard } from './pages/seller/SellerDashboard';
 import { BidderDashboard } from './pages/bidder/BidderDashboard';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { INITIAL_AUCTIONS } from './lib/mockData';
 import { AuctionItem, LocalRevealBackupSecret } from './types/auction';
 import {
-  computeCommitmentHash,
   generateDeterministicTxHash,
   shortenAddress,
 } from './lib/crypto';
 
+const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v1';
+const SECRETS_STORAGE_KEY = 'auctionchain_reveal_secrets_v1';
+
 function AuctionChainAppContent() {
   const { isConnected, wallet, adjustBalance } = useWallet();
   const [publicTab, setPublicTab] = useState<PublicNavTab>('home');
-  const [auctions, setAuctions] = useState<AuctionItem[]>(INITIAL_AUCTIONS);
+  const [auctions, setAuctions] = useState<AuctionItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(AUCTIONS_STORAGE_KEY);
+      return saved ? (JSON.parse(saved) as AuctionItem[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
-  const [savedSecrets, setSavedSecrets] = useState<LocalRevealBackupSecret[]>([]);
+  const [savedSecrets, setSavedSecrets] = useState<LocalRevealBackupSecret[]>(() => {
+    try {
+      const saved = localStorage.getItem(SECRETS_STORAGE_KEY);
+      return saved ? (JSON.parse(saved) as LocalRevealBackupSecret[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(AUCTIONS_STORAGE_KEY, JSON.stringify(auctions));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [auctions]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(SECRETS_STORAGE_KEY, JSON.stringify(savedSecrets));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [savedSecrets]);
 
   const selectedAuction = auctions.find((a) => a.id === selectedAuctionId) || null;
 
@@ -388,6 +419,7 @@ function AuctionChainAppContent() {
         />
       ) : (
         <AuthenticatedHeader
+          events={auctions.flatMap((a) => a.events)}
           onLogoClick={() => {
             setSelectedAuctionId(null);
           }}

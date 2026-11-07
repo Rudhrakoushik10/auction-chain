@@ -1,4 +1,4 @@
-import { shortenAddress, formatInr } from '../lib/crypto';
+import { shortenAddress, formatInr, formatUsd } from '../lib/crypto';
 
 export function formatAddress(address: string, chars = 4): string {
   if (!address || address.length < 10) return address;
@@ -17,4 +17,4 @@ export function formatTimeRemaining(isoDeadline: string): string {
   return `${mins}m ${secs}s`;
 }
 
-export { shortenAddress, formatInr };
+export { shortenAddress, formatInr, formatUsd };

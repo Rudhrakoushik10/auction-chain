@@ -1,0 +1,92 @@
+==============================================================================
+AuctionChain Vehicle Price Prediction - Evaluation Report
+Generated: 2026-11-07T10:12:01+00:00
+==============================================================================
+
+DATASET
+  Rows: 4009   Columns: 12
+  Market: United States (US listings, prices in USD, mileage in miles)
+  Currency: USD   Mileage unit: mi
+  Price range: $2,000 - $2,954,083 (median $31,000)
+  Mileage range: 100 - 405,000 miles (median 52,775)
+  Model years: 1974 - 2024
+
+SPLIT (grouped by vehicle signature to prevent duplicate-listing leakage)
+  train       :  2801 rows
+  validation  :   602 rows
+  test        :   606 rows
+
+PREPROCESSING DECISIONS
+  - Prices are US dollars and mileage is in miles (verified from '$' and 'mi.' formatting).
+  - The 'clean_title' column only contains 'Yes' for 3413 rows and is missing for 596 rows; it has no usable variance and missingness is correlated with listing source, so it is excluded from model features.
+  - The fuel_type column uses '–' and 'not supported' as placeholders; these are treated as unknown and inferred as Electric when the engine description is electric.
+  - Brand values 'Land', 'Aston' and 'Alfa' are truncated forms of Land Rover, Aston Martin and Alfa Romeo; they are repaired using the first token of the model column.
+  - The engine column is free text (1146 unique strings). It is parsed into horsepower, displacement, cylinder count, forced-induction and electric indicators.
+  - One Maserati Quattroporte (2005) is listed at $2,954,083, which is implausible for the model and is retained as an anomaly rather than silently deleted. MAE training limits its impact; metrics with and without outliers are discussed in the evaluation report.
+  - No exact duplicate rows exist. Three vehicle keys appear twice (6 rows), likely duplicate listings; a grouped split keeps them in the same partition to prevent leakage.
+
+MODEL COMPARISON (validation used for tuning; test held out from selection)
+Model                   Val MAE   Test MAE    Test RMSE  Test R2 Test MAPE   Size MB  1-row ms       Rows/s Features
+--------------------------------------------------------------------------------------------------------------------
+LightGBM                6789.74    9702.14     25631.59   0.7899    20.05%      2.40      9.77        33069       19
+CatBoost                8071.77   10372.62     24858.35   0.8024    24.97%      0.92      0.91       197561       18
+Random Forest           9976.53   13263.03     29916.61   0.7138    28.69%     20.63     32.57        18273       19
+Linear Regression      17438.79   21040.01     37385.72   0.5531    80.31%      0.06      5.25        95763       19
+  Note: candidate rows are trained on the train split only; the final model is refit on train + validation, so its test metrics can differ slightly. The test set was never used for selection.
+  Note: CatBoost has a slightly higher test R2 but worse MAE and MAPE; selection prioritized validation MAE for the advisory-pricing objective.
+
+SELECTED MODEL
+  Algorithm: LightGBM (lightgbm)
+  Feature set: full (19 features)
+  Why: LightGBM selected because it has the best validation MAE (6789.74), and among the competitive models it has the smallest artifact (2.40 MB) followed by lowest single-row latency (9.77 ms).
+  Artifact: vehicle_price_model.txt
+  Hyperparameters: {'num_leaves': 31, 'learning_rate': 0.03, 'n_estimators': 900, 'objective': 'regression_l1', 'metric': 'mae', 'trees_used': 890, 'early_stopping_rounds': 50, 'iterations': 934}
+
+FINAL MODEL (refit on train + validation, evaluated once on the isolated test set)
+  Test MAE:  $9,484.57
+  Test RMSE: $27,311.06
+  Test R2:   0.7615
+  Test MAPE: 19.35%
+  Test median absolute error: $3,854.70
+  Test rows: 606
+  Training MAE (fit check on train + validation): $6,964.06
+  Note: training R2 is not comparable with test R2 because the train + validation split contains the single $2.95M outlier, which inflates target variance; the isolated test split does not.
+  Test metrics excluding top 0.5% price outliers (4 rows above $417,061): MAE $7,862.64, RMSE $15,450.49, R2 0.8571, MAPE 19.16%
+  Residual quantiles (actual - predicted): p05 $-13,376, p10 $-8,848, p25 $-3,820, p50 $-85, p75 $3,963, p90 $11,434, p95 $27,890
+
+EFFICIENCY
+  Model file size: 2.5371 MB
+  Loaded-model memory (fresh serving process RSS delta): 5.95 MB
+  Model load time: 32.7 ms
+  Single-row inference: 11.533 ms mean, 12.814 ms p95
+  Batch inference: 606 rows in 23.57 ms (25,708 rows/s)
+  Execution: CPU only
+
+TOP FEATURE IMPORTANCE
+  mileage                    44281.7328
+  horsepower                 38651.7768
+  vehicle_age                36556.7055
+  mileage_per_year           26811.8519
+  brand                      22757.9858
+  displacement_l             17774.8670
+  engine_family               6806.3517
+  transmission_speeds         5947.7876
+  exterior_color              5523.8775
+  interior_color              3464.9619
+  accident_history            2859.9455
+  cylinders                   2675.6851
+  model                       1961.3207
+  fuel_type                   1494.4970
+  is_turbo                    1140.0925
+
+SUITABILITY ASSESSMENT
+  MODERATELY SUITABLE as an advisory reference. It captures the main price drivers but has material errors for some vehicles. Use as a guide only, with human review for high-value or unusual listings.
+
+CAVEATS
+  - Predictions are advisory only and are not a guaranteed selling price.
+  - Unsupported brands/models are flagged as out-of-distribution; their predictions are less reliable.
+  - The dataset is US-market, USD, miles. Do not reuse for another market without retraining.
+  - The model should be retrained periodically (and the reference year updated) as market prices move.
+  - Extreme exotics and one implausible Maserati listing remain in the data; see outlier metrics above.
+
+==============================================================================

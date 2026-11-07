@@ -1,8 +1,0 @@
-{
-  "name": "Remix AuctionChain",
-  "description": "Decentralized cryptographic sealed-bid auction platform with Gemini AI valuation, game-theoretic bidding optimization, and real-time anti-collusion fraud detection.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

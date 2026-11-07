@@ -18,21 +18,21 @@
     --bg-surface: #0F172A;
     --bg-card: #131E3A;
     --border-soft: #1E293B;
-    --accent-blue: #3B82F6;
-    --accent-violet: #8B5CF6;
-    --accent-cyan: #06B6D4;
+    --accent-blue: #2563EB;
   }
 
   body {
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #090D1A;
     color: #F8FAFC;
+    letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.015em;
   }
 
   code, pre, .font-mono {
@@ -54,5 +54,16 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #334155;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

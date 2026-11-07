@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { HARDHAT_WALLETS, HARDHAT_CHAIN_ID, HUMAN_ROLE_WALLETS, ORACLE_BACKGROUND_ACCOUNT } from '../../lib/mockData';
+import { HARDHAT_WALLETS, HARDHAT_CHAIN_ID, HUMAN_ROLE_WALLETS, ORACLE_BACKGROUND_ACCOUNT } from '../../lib/hardhatConfig';
 import { WalletAccount } from '../../types/auction';
 
 declare global {

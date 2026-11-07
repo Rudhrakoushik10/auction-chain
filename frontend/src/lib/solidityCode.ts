@@ -3,15 +3,15 @@ pragma solidity ^0.8.24;
 
 /**
  * @title PriceOracle
- * @notice On-chain registry for AI vehicle resale price predictions (stored in integer paise = INR * 100)
+ * @notice On-chain registry for AI vehicle resale price predictions (stored in integer cents = USD * 100)
  *         and canonical vehicle data hashes for the AuctionChain platform.
  */
 contract PriceOracle {
     struct PredictionRecord {
         uint256 predictionId;
-        uint256 predictedPricePaise; // INR * 100 (integer paise)
+        uint256 predictedPricePaise; // USD * 100 (integer cents)
         bytes32 productDataHash;     // Canonical hash of normalized vehicle JSON
-        string modelVersion;         // "vehicle-v1"
+        string modelVersion;         // "1.0.0"
         uint256 timestamp;
         address oracleAddress;
         bool exists;

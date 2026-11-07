@@ -8,7 +8,7 @@ import {
   HARDHAT_CHAIN_ID,
   PRICE_ORACLE_CONTRACT_ADDRESS,
   SEALED_AUCTION_CONTRACT_ADDRESS,
-} from '../lib/mockData';
+} from '../lib/hardhatConfig';
 import {
   hasMetaMask,
   connectMetaMaskWithEthers,

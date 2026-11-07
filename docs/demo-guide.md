@@ -1,7 +1,7 @@
-# AuctionChain — 4-Server Live Demo Guide (With Automated Smart Contract Deployment)
+# AuctionChain — 4-Server Execution Guide (With Automated Smart Contract Deployment)
 
 ## Role Account Structure (Hardhat Local Node — Chain ID 31337)
-The platform strictly uses five deterministic Hardhat accounts:
+The platform uses five deterministic Hardhat accounts:
 
 | Account | Role | Responsibility | Deterministic Hardhat Address | Default Private Key |
 |---|---|---|---|---|
@@ -21,15 +21,15 @@ scripts/start-blockchain.bat
 # Equivalent to:
 cd blockchain && npm start
 ```
-*Boots Hardhat local network on `http://127.0.0.1:8545` (Chain ID 31337) and **automatically** deploys `PriceOracle.sol` (with Account 4 authorized) and `Auction.sol`, writing addresses to `frontend/src/contracts/contractAddresses.json`.*
+*Boots Hardhat local network on `http://127.0.0.1:8545` (Chain ID 31337) and automatically deploys `PriceOracle.sol` (with Account 4 authorized) and `Auction.sol`, writing addresses to `frontend/src/contracts/contractAddresses.json`.*
 
-### Server 2: Backend API & Vehicle AI Valuation Engine (`backend/`)
+### Server 2: Backend API & LightGBM v1.0.0 Valuation Engine (`backend/`)
 ```bash
 scripts/start-backend.bat
 # Equivalent to:
-cd backend && uvicorn app.main:app --reload --port 8000
+cd backend && uvicorn src.api.main:app --reload --port 8000
 ```
-*Serves FastAPI endpoints (`/api/predict-price` and `/api/health`) powered by the `vehicle-v1` ML valuation pipeline.*
+*Serves FastAPI endpoints (`GET /health` and `POST /predict`) powered by the `LightGBM v1.0.0` (`regression_l1`, 934 trees) vehicle price prediction pipeline.*
 
 ### Server 3: Autonomous Oracle Server (`oracle/`)
 ```bash
@@ -37,12 +37,12 @@ scripts/start-oracle.bat
 # Equivalent to:
 cd oracle && python -m oracle.main
 ```
-*Listens for vehicle auction events, queries the `backend` AI valuation service, and signs predictions onto `PriceOracle.sol` using Account 4 (`0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65`).*
+*Listens for vehicle auction events, queries the `backend` valuation service, and signs predictions onto `PriceOracle.sol` using Account 4 (`0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65`).*
 
 ### Server 4: Frontend Web Application (`frontend/`)
 ```bash
 scripts/start-frontend.bat
 # Equivalent to:
-cd frontend && npm run dev
+npm run dev
 ```
 *Runs the React + TypeScript + Vite Web3 interface on `http://localhost:3000`.*

@@ -1,8 +1,31 @@
+# Dependencies
 node_modules/
-build/
+frontend/node_modules/
+blockchain/node_modules/
+
+# Build & compilation artifacts
 dist/
-coverage/
+frontend/dist/
+blockchain/artifacts/
+blockchain/cache/
+server.js
+
+# Python virtual environments & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# IDE & OS files
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
 *.log
-.env*
-!.env.example
+
+# Local workspace metadata
+metadata.json
+

@@ -1,180 +1,128 @@
 import React from 'react';
-import {
-  ShieldCheck,
-  Lock,
-  Database,
-  Cpu,
-  CheckCircle2,
-  AlertCircle,
-  FileCode,
-  ArrowRight,
-} from 'lucide-react';
-import { useWallet } from '../../context/WalletContext';
+import { CheckCircle2 } from 'lucide-react';
 
 export const SecurityTransparencyPage: React.FC = () => {
-  const { openAuthModal } = useWallet();
-
   return (
-    <div className="space-y-12 pb-16 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-4 pt-4">
-        <span className="text-xs font-mono font-bold tracking-widest uppercase px-3 py-1 rounded bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20">
-          Trust & Cryptographic Proofs
-        </span>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-[#101B3D] tracking-tight">
+    <div className="space-y-12 pb-16">
+      {/* Page Header */}
+      <div className="border-b border-[#1E293B] pb-6 space-y-2">
+        <div className="text-xs font-mono text-slate-400">
+          Cryptographic Guarantees & Escrow Architecture
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
           Security & Transparency
         </h1>
-        <p className="text-base text-slate-600 leading-relaxed">
-          How AuctionChain protects bidders from front-running, safeguards seller reserves, and ensures verifiable mathematical fairness through Solidity smart contracts and decentralized oracle proofs.
+        <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
+          How AuctionChain prevents mempool front-running, enforces seller reserve thresholds, and anchors off-chain AI valuations on Hardhat Chain ID 31337.
         </p>
       </div>
 
-      {/* Grid of Security Architecture */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Smart-Contract Execution */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 space-y-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center">
-            <FileCode className="w-5 h-5" />
-          </div>
-          <h2 className="text-xl font-bold text-[#101B3D]">1. Smart-Contract Execution</h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            All auction operations are executed deterministically on-chain by <span className="font-mono text-xs font-bold text-[#2563EB]">SealedAuction.sol</span>. Built with Solidity 0.8.20 and OpenZeppelin security standards:
+      {/* 4 Core Security Guarantees */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+          <div className="text-xs font-mono text-slate-400">01. Smart Contract Execution</div>
+          <h2 className="text-base font-semibold text-white">
+            Deterministic Escrow & Reentrancy Protection
+          </h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            All state transitions execute deterministically on <code className="text-slate-200">SealedAuction.sol</code>:
           </p>
-          <ul className="space-y-2 text-xs text-slate-700">
+          <ul className="space-y-2 text-xs text-slate-300">
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong className="text-[#101B3D]">ReentrancyGuard:</strong> Prevents recursive state manipulation during bidder deposit refunds and seller proceeds withdrawal.</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span><strong className="text-white">Pull-Over-Push Refunds:</strong> Losing bidders and sellers claim funds individually via pull calls, preventing fallback denial-of-service vectors.</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong className="text-[#101B3D]">Pull-over-Push Payments:</strong> Winning bids and refund deposits are claimed via pull requests, preventing denial-of-service fallback attacks.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong className="text-[#101B3D]">Strict Role-to-Address Access Control:</strong> Deployer, Seller, and Oracle privileges are cryptographically validated on every state transition.</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span><strong className="text-white">Self-Bid Prevention:</strong> Contract reverts with <code className="text-slate-200">SellerCannotBidOnOwnAuction()</code> if the listing creator attempts to submit a commitment.</span>
             </li>
           </ul>
-        </div>
+        </section>
 
-        {/* Sealed-Bid Confidentiality */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 space-y-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-[#6D28D9] flex items-center justify-center">
-            <Lock className="w-5 h-5" />
-          </div>
-          <h2 className="text-xl font-bold text-[#101B3D]">2. Sealed-Bid Confidentiality</h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Unlike public English auctions where bids are exposed in real time, AuctionChain implements an immutable two-phase commit-reveal protocol:
+        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+          <div className="text-xs font-mono text-slate-400">02. Sealed-Bid Confidentiality</div>
+          <h2 className="text-base font-semibold text-white">
+            Keccak-256 Commit-Reveal Protocol
+          </h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            During the commitment window, only a one-way 32-byte hash and uniform ETH deposit are transmitted on-chain:
           </p>
-          <div className="bg-[#101B3D] text-slate-200 p-4 rounded-xl font-mono text-xs space-y-1">
-            <div className="text-[#06B6D4]">// Cryptographic Commitment Hash</div>
-            <div>commitment = keccak256(abi.encodePacked(auctionId, bidder, bidAmount, salt));</div>
+          <div className="p-3.5 rounded-lg bg-[#090D1A] border border-[#1E293B] font-mono text-xs text-slate-200 overflow-x-auto">
+            commitment = keccak256(abi.encode(auctionId, bidder, bidAmountWei, salt));
           </div>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            During the commitment window, miners, sellers, and competitors can only observe the 32-byte hash and fixed collateral. Bid values remain 100% mathematically hidden until the reveal phase opens.
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Because every participant locks the exact same fixed collateral deposit, observers cannot infer bid amounts from transaction value until the reveal window opens.
           </p>
-        </div>
+        </section>
 
-        {/* Blockchain Transaction Records */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 space-y-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-cyan-50 text-[#06B6D4] flex items-center justify-center">
-            <Database className="w-5 h-5" />
-          </div>
-          <h2 className="text-xl font-bold text-[#101B3D]">3. Blockchain Transaction Records</h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Every step in an auction’s lifecycle emits an immutable EVM event with full transaction receipt, block timestamp, and cryptographic proof:
+        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+          <div className="text-xs font-mono text-slate-400">03. Oracle Attestation</div>
+          <h2 className="text-base font-semibold text-white">
+            Canonical Feature Hashing on PriceOracle.sol
+          </h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Smart contracts cannot execute gradient-boosted decision trees directly. Instead, the background Oracle service (Account 4) normalizes vehicle attributes into canonical JSON, computes a SHA-256 <code className="text-slate-200">product_data_hash</code>, and signs the integer USD cents valuation onto <code className="text-slate-200">PriceOracle.sol</code>.
           </p>
-          <div className="space-y-1.5 text-xs">
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] flex items-center justify-between">
-              <span className="font-mono font-semibold text-[#101B3D]">AuctionCreated</span>
-              <span className="text-slate-500">Seller address, starting bid, commit & reveal deadlines</span>
-            </div>
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] flex items-center justify-between">
-              <span className="font-mono font-semibold text-[#101B3D]">BidCommitted</span>
-              <span className="text-slate-500">Bidder address, 32-byte hash, deposited collateral</span>
-            </div>
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] flex items-center justify-between">
-              <span className="font-mono font-semibold text-[#101B3D]">BidRevealed</span>
-              <span className="text-slate-500">Decrypted bid amount, hash verification confirmation</span>
-            </div>
-          </div>
-        </div>
+        </section>
 
-        {/* Oracle's Role */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 space-y-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Cpu className="w-5 h-5" />
-          </div>
-          <h2 className="text-xl font-bold text-[#101B3D]">4. The Oracle’s Role</h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Smart contracts cannot directly call off-chain Python ML models without compromising blockchain consensus. AuctionChain solves this via an authorized Oracle worker:
+        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+          <div className="text-xs font-mono text-slate-400">04. Immutable Audit Trail</div>
+          <h2 className="text-base font-semibold text-white">
+            Verifiable On-Chain Event Logs
+          </h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Every prediction registration, lot deployment, sealed commitment, hash reveal, finalization, and refund emits an indexed Solidity event with block number and transaction hash for full auditability.
           </p>
-          <ul className="space-y-2 text-xs text-slate-700">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>The Oracle runs as an isolated background server (<span className="font-mono">oracle/</span>, Account 4).</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>It canonicalizes vehicle attributes into standard sorted JSON and computes a SHA-256 data hash.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>Only the authorized address (`0x15d34...6A65`) can write verified valuations to <span className="font-mono">PriceOracle.sol</span>.</span>
-            </li>
-          </ul>
-        </div>
+        </section>
       </div>
 
-      {/* On-Chain vs Off-Chain Data Storage Breakdown Table */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 shadow-sm space-y-4">
-        <h2 className="text-lg font-bold text-[#101B3D]">
-          What Information is Stored On-Chain vs. Off-Chain?
-        </h2>
+      {/* On-Chain vs Off-Chain Data Storage Table */}
+      <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#1E293B]">
+          <h2 className="text-base font-semibold text-white">
+            On-Chain vs. Off-Chain Data Architecture
+          </h2>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead className="bg-[#101B3D] text-white">
+            <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
               <tr>
-                <th className="p-3 rounded-l-lg">Data Component</th>
-                <th className="p-3">Storage Location</th>
-                <th className="p-3">Privacy / Visibility</th>
-                <th className="p-3 rounded-r-lg">Security Guarantee</th>
+                <th className="py-3 px-4 font-medium">Data Component</th>
+                <th className="py-3 px-4 font-medium">Storage Location</th>
+                <th className="py-3 px-4 font-medium">Visibility</th>
+                <th className="py-3 px-4 font-medium">Integrity Mechanism</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#1E293B] text-slate-300">
               <tr>
-                <td className="p-3 font-semibold text-[#101B3D]">Bid Value & Secret Salt</td>
-                <td className="p-3 font-mono text-slate-600">Client Local / Memory</td>
-                <td className="p-3 text-emerald-700 font-semibold">100% Confidential until Reveal</td>
-                <td className="p-3 text-slate-600">Known only to the bidder; never leaves the browser in commit phase</td>
+                <td className="py-3 px-4 font-semibold text-white">Bid Amount & 32-Byte Salt</td>
+                <td className="py-3 px-4 font-mono text-slate-400">Bidder Client / Local JSON</td>
+                <td className="py-3 px-4 text-emerald-400 font-medium">Private until Reveal</td>
+                <td className="py-3 px-4 text-slate-400">Never transmitted in plaintext during Commit phase</td>
               </tr>
               <tr>
-                <td className="p-3 font-semibold text-[#101B3D]">Commitment Hash</td>
-                <td className="p-3 font-mono text-slate-600">SealedAuction.sol (On-Chain)</td>
-                <td className="p-3 text-blue-700 font-semibold">Public (One-Way Hash)</td>
-                <td className="p-3 text-slate-600">Mathematically irreversible without the secret salt</td>
+                <td className="py-3 px-4 font-semibold text-white">Commitment Hash</td>
+                <td className="py-3 px-4 font-mono text-slate-400">SealedAuction.sol</td>
+                <td className="py-3 px-4">Public 32-byte hash</td>
+                <td className="py-3 px-4 text-slate-400">Verified against plaintext bid + salt on reveal</td>
               </tr>
               <tr>
-                <td className="p-3 font-semibold text-[#101B3D]">Collateral Deposit (ETH)</td>
-                <td className="p-3 font-mono text-slate-600">Smart Contract Escrow</td>
-                <td className="p-3 text-slate-700">Public balance</td>
-                <td className="p-3 text-slate-600">Locked in contract; refunded to losing bidders automatically</td>
+                <td className="py-3 px-4 font-semibold text-white">Collateral Deposit (ETH)</td>
+                <td className="py-3 px-4 font-mono text-slate-400">SealedAuction.sol Escrow</td>
+                <td className="py-3 px-4">Public uniform amount</td>
+                <td className="py-3 px-4 text-slate-400">Credited to winner or refunded via pull claim</td>
               </tr>
               <tr>
-                <td className="p-3 font-semibold text-[#101B3D]">Vehicle Images & Heavy Specs</td>
-                <td className="p-3 font-mono text-slate-600">IPFS / Decentralized Storage</td>
-                <td className="p-3 text-slate-700">Public metadata</td>
-                <td className="p-3 text-slate-600">Content-addressed via IPFS CID hash</td>
-              </tr>
-              <tr>
-                <td className="p-3 font-semibold text-[#101B3D]">AI Prediction & Proof</td>
-                <td className="p-3 font-mono text-slate-600">PriceOracle.sol (On-Chain)</td>
-                <td className="p-3 text-slate-700">Public on-chain record</td>
-                <td className="p-3 text-slate-600">Signed with ECDSA by authorized Oracle private key</td>
+                <td className="py-3 px-4 font-semibold text-white">AI Valuation & Spec Hash</td>
+                <td className="py-3 px-4 font-mono text-slate-400">PriceOracle.sol</td>
+                <td className="py-3 px-4">Public on-chain record</td>
+                <td className="py-3 px-4 text-slate-400">Restricted to authorized Oracle signer address</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

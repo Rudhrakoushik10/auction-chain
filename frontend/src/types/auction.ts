@@ -7,15 +7,23 @@ export type UserRole = 'guest' | 'seller' | 'bidder' | 'oracle' | 'admin';
 export interface VehicleAttributes {
   brand: string;
   model: string;
-  manufacturing_year: number;
-  mileage_km: number;
-  fuel_type: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
-  transmission: 'Manual' | 'Automatic';
-  condition: 'Like New' | 'Excellent' | 'Good' | 'Fair';
-  original_price_inr: number;
+  year: number;
+  mileage: number; // Odometer reading in miles (US dataset)
+  fuel_type?: string; // Gasoline, Diesel, Hybrid, Plug-in Hybrid, Electric, E85 Flex Fuel
+  engine_type?: string; // Free-text engine description, e.g. "3.5L V6 400hp Twin Turbo"
+  transmission?: string; // e.g. "10-Speed Automatic", "8-Speed Automatic", "Single-Speed"
+  exterior_color?: string;
+  interior_color?: string;
+  accident_history?: boolean | string | null;
+  clean_title?: boolean | string | null;
+  // Backward-compatible optional aliases
+  manufacturing_year?: number;
+  mileage_km?: number;
+  condition?: string;
+  original_price_inr?: number;
 }
 
-export type CategoryAttributes = VehicleAttributes | Record<string, string | number>;
+export type CategoryAttributes = VehicleAttributes | Record<string, string | number | boolean | null>;
 
 export interface ModelEvaluationMetrics {
   mae: number;
@@ -28,10 +36,14 @@ export interface ModelEvaluationMetrics {
 export interface AIPredictionRecord {
   prediction_id: number;
   category: ProductCategory;
-  predicted_price_inr: number;
-  predicted_price_paise: number;
-  currency: 'INR';
-  model_version: string; // "vehicle-v1"
+  predicted_price: number; // USD predicted price from LightGBM v1.0.0
+  predicted_price_inr: number; // Alias kept equal to predicted_price (USD) for component compatibility
+  predicted_price_paise: number; // Integer cents (Math.round(predicted_price * 100)) for PriceOracle.sol
+  currency: 'USD' | 'INR';
+  model_version: string; // "1.0.0"
+  in_training_distribution?: boolean;
+  warnings?: string[];
+  inference_ms?: number;
   prediction_timestamp: number;
   product_data_hash: string;
   canonical_json: string;
@@ -98,7 +110,7 @@ export interface AuctionItem {
   sellerAddress: string;
   sellerEns: string;
   contractAddress: string;
-  attributes: Record<string, string | number>;
+  attributes: Record<string, string | number | boolean | null>;
   aiPrediction: AIPredictionRecord;
   // Auction Terms in Test ETH (Chain ID 31337)
   startingBidEth: number;
@@ -137,13 +149,13 @@ export interface LocalRevealBackupSecret {
 export interface WalletAccount {
   address: string;
   ens: string;
-  label: string; // e.g. "Account 1 — Admin", "Account 2 — Seller"
-  accountNumber: number; // 1, 2, 3, 4, 5
-  accountIndex: number; // 0, 1, 2, 3, 4 (Hardhat index)
-  role: UserRole; // 'admin' | 'seller' | 'bidder' | 'oracle'
-  roleTitle: string; // "Administrator", "Vehicle Seller", "Vehicle Bidder"
+  label: string;
+  accountNumber: number;
+  accountIndex: number;
+  role: UserRole;
+  roleTitle: string;
   bidderIdentifier?: 'Bidder 1' | 'Bidder 2';
-  connectButtonText: string; // "Connect as Admin", "Connect as Seller", etc.
+  connectButtonText: string;
   balanceEth: number;
   badgeColor: string;
   description: string;

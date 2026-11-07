@@ -5,22 +5,18 @@ import {
   Gavel,
   Cpu,
   Database,
+  FileCode,
   Activity,
   UserCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LogOut,
   CheckCircle2,
   AlertTriangle,
-  ExternalLink,
-  ShieldCheck,
-  FileCode,
-  Terminal,
-  LogOut,
-  RefreshCw,
-  Search,
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
-import { shortenAddress } from '../../lib/crypto';
-import contractAddresses from '../../contracts/contractAddresses.json';
+import { formatInr, shortenAddress } from '../../lib/crypto';
 
 export type AdminNavTab =
   | 'dashboard'
@@ -49,53 +45,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     authorizedOracleAddress,
     oracleContractAddress,
     auctionContractAddress,
+    updateAuthorizedOracle,
   } = useWallet();
 
   const [activeTab, setActiveTab] = useState<AdminNavTab>('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [newOracleInput, setNewOracleInput] = useState(authorizedOracleAddress);
+  const [oracleStatusMsg, setOracleStatusMsg] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   if (!wallet) return null;
 
-  const totalCommitments = auctions.reduce((sum, a) => sum + (a.commitments?.length || 0), 0);
   const activeAuctions = auctions.filter((a) => a.phase === 'Commit' || a.phase === 'Reveal');
-  const completedAuctions = auctions.filter((a) => a.phase === 'Sold' || a.phase === 'No Sale');
+  const allEvents = auctions.flatMap((a) => a.events);
 
   const sidebarItems: { id: AdminNavTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'roles', label: 'User & Role Overview', icon: <Users className="w-4 h-4" /> },
-    { id: 'auctions', label: 'Auction Management', icon: <Gavel className="w-4 h-4" /> },
-    { id: 'oracle', label: 'Oracle Management', icon: <Cpu className="w-4 h-4" /> },
-    { id: 'blockchain', label: 'Blockchain Records', icon: <Database className="w-4 h-4" /> },
-    { id: 'model', label: 'AI Model Information', icon: <FileCode className="w-4 h-4" /> },
-    { id: 'system', label: 'System Activity', icon: <Activity className="w-4 h-4" /> },
-    { id: 'account', label: 'Account Information', icon: <UserCheck className="w-4 h-4" /> },
+    { id: 'dashboard', label: 'Platform Overview', icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
+    { id: 'oracle', label: 'Oracle Management', icon: <Cpu className="w-4 h-4 shrink-0" /> },
+    { id: 'auctions', label: 'Auction Registry', icon: <Gavel className="w-4 h-4 shrink-0" /> },
+    { id: 'roles', label: 'Role Accounts', icon: <Users className="w-4 h-4 shrink-0" /> },
+    { id: 'blockchain', label: 'Event Audit Log', icon: <Database className="w-4 h-4 shrink-0" /> },
+    { id: 'model', label: 'ML Model Spec', icon: <FileCode className="w-4 h-4 shrink-0" /> },
+    { id: 'system', label: 'Service Topology', icon: <Activity className="w-4 h-4 shrink-0" /> },
+    { id: 'account', label: 'Admin Account', icon: <UserCheck className="w-4 h-4 shrink-0" /> },
   ];
 
+  const handleUpdateOracleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newOracleInput.trim();
+    if (!trimmed.startsWith('0x') || trimmed.length !== 42) {
+      setOracleStatusMsg({
+        type: 'error',
+        text: 'Invalid address: Please enter a 42-character 0x hexadecimal Ethereum address.',
+      });
+      return;
+    }
+    const ok = updateAuthorizedOracle(trimmed);
+    if (ok) {
+      setOracleStatusMsg({
+        type: 'success',
+        text: `Transaction confirmed: Authorized Oracle signer updated on PriceOracle.sol to ${shortenAddress(trimmed)}.`,
+      });
+    } else {
+      setOracleStatusMsg({
+        type: 'error',
+        text: 'Revert: Only the Contract Administrator (Account 0) can update the authorized Oracle signer.',
+      });
+    }
+  };
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-8rem)] pb-16 animate-in fade-in">
-      {/* Dark Blockchain Role-Specific Sidebar (8 Items) */}
-      <aside className="w-full lg:w-64 bg-[#0F172A] rounded-2xl border border-[#1E293B] p-4 flex flex-col justify-between shrink-0 shadow-lg h-fit">
-        <div className="space-y-6">
-          {/* User Profile Capsule */}
-          <div className="p-3.5 rounded-xl bg-[#131E3A] border border-[#1E293B] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                Administrator
-              </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white truncate">{wallet.label}</div>
-              <div className="text-[11px] font-mono text-slate-400 truncate">
-                {shortenAddress(wallet.address)}
-              </div>
-            </div>
-            <div className="pt-1.5 border-t border-[#1E293B] flex items-center justify-between text-xs">
-              <span className="text-slate-400">Governance:</span>
-              <span className="font-mono font-bold text-[#06B6D4]">Hardhat Account 0</span>
-            </div>
+    <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-8rem)] pb-16">
+      {/* Collapsible Role Sidebar */}
+      <aside
+        className={`w-full ${
+          isSidebarCollapsed ? 'lg:w-16' : 'lg:w-60'
+        } bg-[#0F172A] rounded-xl border border-[#1E293B] p-3 flex flex-col justify-between shrink-0 h-fit transition-all duration-150`}
+      >
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#1E293B]">
+            {!isSidebarCollapsed && (
+              <span className="text-xs font-mono text-slate-400">Admin Console</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="hidden lg:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#131E3A] transition-colors cursor-pointer"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="w-4 h-4" />
+              ) : (
+                <PanelLeftClose className="w-4 h-4" />
+              )}
+            </button>
           </div>
 
-          {/* Navigation Links */}
           <nav className="space-y-1">
             {sidebarItems.map((item) => {
               const isActive = activeTab === item.id;
@@ -104,319 +131,457 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  title={item.label}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
-                      : 'text-slate-300 hover:text-white hover:bg-[#131E3A]'
+                      ? 'bg-[#2563EB] text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-[#131E3A]'
                   }`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                 </button>
               );
             })}
           </nav>
         </div>
 
-        {/* Bottom Disconnect */}
-        <div className="pt-4 border-t border-[#1E293B] mt-6">
+        <div className="pt-3 border-t border-[#1E293B] mt-4">
           <button
             type="button"
             onClick={disconnectWallet}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer"
+            title="Disconnect Wallet"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Disconnect Wallet</span>
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!isSidebarCollapsed && <span>Disconnect</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 space-y-6">
-        {/* 1. Dashboard View */}
+      <div className="flex-1 min-w-0 space-y-6">
+        {/* 1. Platform Overview */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6 animate-in fade-in">
-            {/* Top Metric Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-[#0F172A] p-4 rounded-2xl border border-[#1E293B] space-y-1">
-                <span className="text-xs text-slate-400">Preconfigured Roles</span>
-                <div className="text-2xl font-bold text-white">4 Human</div>
-                <div className="text-[10px] text-slate-500 font-mono">+ 1 Background Oracle</div>
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E293B] pb-5">
+              <div>
+                <h1 className="text-xl font-bold text-white">Platform Governance & Monitoring</h1>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Contract deployment state, authorized Oracle signer verification, and auction registry on Hardhat #31337.
+                </p>
               </div>
-              <div className="bg-[#0F172A] p-4 rounded-2xl border border-[#1E293B] space-y-1">
-                <span className="text-xs text-[#3B82F6]">Total Auctions</span>
-                <div className="text-2xl font-bold text-[#3B82F6]">{auctions.length}</div>
-                <div className="text-[10px] text-slate-500 font-mono">{activeAuctions.length} currently active</div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('oracle')}
+                className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
+              >
+                Manage PriceOracle.sol
+              </button>
+            </div>
+
+            {/* 4 Key Operational KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#1E293B] bg-[#0F172A] rounded-xl border border-[#1E293B] font-mono tabular-nums">
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Deployed Lots</div>
+                <div className="text-2xl font-bold text-white mt-1">{auctions.length}</div>
               </div>
-              <div className="bg-[#0F172A] p-4 rounded-2xl border border-[#1E293B] space-y-1">
-                <span className="text-xs text-emerald-400">Oracle Status</span>
-                <div className="text-2xl font-bold text-emerald-400">Synced</div>
-                <div className="text-[10px] text-slate-500 font-mono">Terminal 4 Active</div>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Active Windows</div>
+                <div className="text-2xl font-bold text-[#3B82F6] mt-1">{activeAuctions.length}</div>
               </div>
-              <div className="bg-[#0F172A] p-4 rounded-2xl border border-[#1E293B] space-y-1">
-                <span className="text-xs text-[#06B6D4]">Hardhat Localhost</span>
-                <div className="text-2xl font-bold text-[#06B6D4]">Chain 31337</div>
-                <div className="text-[10px] text-slate-500 font-mono">RPC: 8545</div>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Emitted Events</div>
+                <div className="text-2xl font-bold text-white mt-1">{allEvents.length}</div>
+              </div>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Chain ID</div>
+                <div className="text-2xl font-bold text-emerald-400 mt-1">{chainId}</div>
               </div>
             </div>
 
-            {/* Platform Overview */}
-            <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-4">
-              <h3 className="text-base font-bold text-white">Smart Contract Deployment Overview</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B] space-y-1">
-                  <div className="text-slate-400">SealedAuction.sol Contract</div>
-                  <div className="text-white font-bold">{auctionContractAddress}</div>
-                  <div className="text-[10px] text-emerald-400">● Deployed & Operational</div>
-                </div>
-                <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B] space-y-1">
-                  <div className="text-slate-400">PriceOracle.sol Contract</div>
-                  <div className="text-white font-bold">{oracleContractAddress}</div>
-                  <div className="text-[10px] text-emerald-400">● Authorized Signer: {shortenAddress(authorizedOracleAddress)}</div>
-                </div>
+            {/* Deployed Contracts Table */}
+            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#1E293B]">
+                <h2 className="text-sm font-semibold text-white">Deployed Smart Contracts</h2>
               </div>
-            </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                    <tr>
+                      <th className="py-3 px-4 font-medium">Contract</th>
+                      <th className="py-3 px-4 font-medium">Address</th>
+                      <th className="py-3 px-4 font-medium">Configuration / Owner</th>
+                      <th className="py-3 px-4 font-medium text-right">State</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1E293B] font-mono">
+                    <tr>
+                      <td className="py-3.5 px-4 font-semibold text-white">SealedAuction.sol</td>
+                      <td className="py-3.5 px-4 text-slate-300">{auctionContractAddress}</td>
+                      <td className="py-3.5 px-4 font-sans text-slate-400">
+                        Commit-reveal escrow linked to PriceOracle.sol
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-sans text-emerald-400 font-medium">
+                        Operational
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-3.5 px-4 font-semibold text-white">PriceOracle.sol</td>
+                      <td className="py-3.5 px-4 text-slate-300">{oracleContractAddress}</td>
+                      <td className="py-3.5 px-4 text-slate-400">
+                        Signer: {shortenAddress(authorizedOracleAddress)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-sans text-emerald-400 font-medium">
+                        Synced
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         )}
 
-        {/* 2. User & Role Overview (Section 8: 4 human roles + 1 oracle background) */}
-        {activeTab === 'roles' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">Preconfigured User & Role Overview</h2>
-              <p className="text-xs text-slate-400">
-                Four human-facing accounts and one autonomous background Oracle service
+        {/* 2. Oracle Management (Interactive Authorized Signer Configuration) */}
+        {activeTab === 'oracle' && (
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+            <div className="border-b border-[#1E293B] pb-4">
+              <h2 className="text-base font-semibold text-white">
+                PriceOracle.sol Signer Configuration
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Inspect or rotate the authorized ECDSA Oracle signer address permitted to call <code className="text-slate-200">registerPrediction()</code>.
               </p>
             </div>
 
-            <div className="space-y-3">
-              {humanWallets.map((acct) => (
-                <div
-                  key={acct.address}
-                  className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{acct.label}</span>
-                      <span
-                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded text-white"
-                        style={{ backgroundColor: acct.badgeColor }}
-                      >
-                        {acct.roleTitle}
-                      </span>
-                    </div>
-                    <div className="font-mono text-slate-400">{acct.address}</div>
-                    <p className="text-slate-400 text-[11px]">{acct.description}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-mono font-bold text-[#06B6D4]">{acct.balanceEth.toFixed(1)} ETH</span>
-                    <div className="text-[10px] text-slate-500 font-mono">Signer #{acct.accountIndex}</div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Background Oracle Service */}
-              <div className="bg-[#090D1A] p-4 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-emerald-400">Account 4 — Oracle (Background Worker)</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/50 text-emerald-300 border border-emerald-500/30">
-                      Service Only
-                    </span>
-                  </div>
-                  <div className="font-mono text-slate-400">0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</div>
-                  <p className="text-slate-400 text-[11px]">Submits AI predictions on-chain. Background service only, not a human-facing account.</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-emerald-400">Authorized Signer</span>
-                </div>
+            {oracleStatusMsg && (
+              <div
+                className={`p-4 rounded-lg border text-xs flex items-start gap-2.5 ${
+                  oracleStatusMsg.type === 'success'
+                    ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
+                    : 'bg-rose-950/30 border-rose-500/30 text-rose-200'
+                }`}
+              >
+                {oracleStatusMsg.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <span>{oracleStatusMsg.text}</span>
               </div>
-            </div>
-          </div>
+            )}
+
+            <dl className="divide-y divide-[#1E293B] text-xs">
+              <div className="py-3 flex justify-between gap-4">
+                <dt className="text-slate-400">PriceOracle.sol Contract Address</dt>
+                <dd className="font-mono text-white">{oracleContractAddress}</dd>
+              </div>
+              <div className="py-3 flex justify-between gap-4">
+                <dt className="text-slate-400">Current Authorized Oracle Signer</dt>
+                <dd className="font-mono text-emerald-400 font-semibold">{authorizedOracleAddress}</dd>
+              </div>
+              <div className="py-3 flex justify-between gap-4">
+                <dt className="text-slate-400">Default Hardhat Account 4 (Oracle Worker)</dt>
+                <dd className="font-mono text-slate-300">0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</dd>
+              </div>
+            </dl>
+
+            <form onSubmit={handleUpdateOracleSubmit} className="pt-4 border-t border-[#1E293B] space-y-3">
+              <label className="block text-xs font-medium text-slate-300">
+                Update Authorized Oracle Signer Address (setAuthorizedOracle)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={newOracleInput}
+                  onChange={(e) => setNewOracleInput(e.target.value)}
+                  placeholder="0x..."
+                  className="flex-1 px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-xs text-white focus:outline-none focus:border-[#2563EB]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  Update Signer on PriceOracle.sol
+                </button>
+              </div>
+            </form>
+          </section>
         )}
 
-        {/* 3. Auction Management */}
+        {/* 3. Auction Registry Table */}
         {activeTab === 'auctions' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-4">
-            <h2 className="text-lg font-bold text-white">Auction Management & On-Chain Status</h2>
-            <p className="text-xs text-slate-400">
-              Inspect all auctions across the platform. Administrative integrity ensures bids cannot be altered.
-            </p>
-
-            <div className="space-y-3">
-              {auctions.map((auc) => (
-                <div
-                  key={auc.id}
-                  onClick={() => onSelectAuction(auc)}
-                  className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B] flex items-center justify-between cursor-pointer hover:border-[#3B82F6]/40 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{auc.title}</span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#090D1A] text-slate-300">
-                        #{auc.numericId}
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-mono text-slate-400">
-                      Seller: {shortenAddress(auc.sellerAddress)} · Reserve: {auc.reservePriceEth} ETH · Bids: {auc.commitments?.length || 0}
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold uppercase px-2.5 py-1 rounded bg-[#090D1A] text-[#06B6D4] font-mono">
-                    {auc.phase}
-                  </span>
-                </div>
-              ))}
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#1E293B]">
+              <h2 className="text-base font-semibold text-white">Platform Auction Registry</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Read-only administrative inspection of all vehicle auctions on SealedAuction.sol
+              </p>
             </div>
-          </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                  <tr>
+                    <th className="py-3 px-4 font-medium">Lot</th>
+                    <th className="py-3 px-4 font-medium">Seller</th>
+                    <th className="py-3 px-4 font-medium">Phase</th>
+                    <th className="py-3 px-4 font-medium text-right">AI Estimate (USD)</th>
+                    <th className="py-3 px-4 font-medium text-right">Reserve (ETH)</th>
+                    <th className="py-3 px-4 font-medium text-right">Commits</th>
+                    <th className="py-3 px-4 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E293B] font-mono tabular-nums">
+                  {auctions.map((auc) => (
+                    <tr key={auc.id} className="hover:bg-[#131E3A]/50 transition-colors">
+                      <td className="py-3.5 px-4 font-sans font-semibold text-white">
+                        #{auc.numericId} · {auc.title}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">
+                        {shortenAddress(auc.sellerAddress)}
+                      </td>
+                      <td className="py-3.5 px-4 font-sans font-medium text-slate-200">
+                        {auc.phase}
+                      </td>
+                      <td className="py-3.5 px-4 text-right text-slate-200">
+                        {formatInr(auc.aiPrediction.predicted_price ?? auc.aiPrediction.predicted_price_inr)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right text-white">
+                        {auc.reservePriceEth.toFixed(2)} ETH
+                      </td>
+                      <td className="py-3.5 px-4 text-right text-slate-300">
+                        {auc.commitments.length}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-sans">
+                        <button
+                          type="button"
+                          onClick={() => onSelectAuction(auc)}
+                          className="px-2.5 py-1 rounded border border-[#1E293B] hover:border-slate-600 text-slate-200 hover:text-white cursor-pointer"
+                        >
+                          Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
-        {/* 4. Oracle Management */}
-        {activeTab === 'oracle' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">PriceOracle.sol Contract Management</h2>
-              <p className="text-xs text-slate-400">Authorized ECDSA signer configuration and prediction feed logs</p>
+        {/* 4. Role Accounts Table */}
+        {activeTab === 'roles' && (
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#1E293B]">
+              <h2 className="text-base font-semibold text-white">Hardhat Role Directory</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                4 human-facing accounts and 1 autonomous background Oracle service
+              </p>
             </div>
 
-            <div className="bg-[#131E3A] p-5 rounded-xl border border-[#1E293B] space-y-3 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E293B]">
-                <span className="text-slate-400">Oracle Contract Address</span>
-                <span className="font-mono text-white">{oracleContractAddress}</span>
-              </div>
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E293B]">
-                <span className="text-slate-400">Authorized Oracle Signer</span>
-                <span className="font-mono text-emerald-400 font-bold">{authorizedOracleAddress}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Oracle Worker Status</span>
-                <span className="font-mono text-emerald-400">● Active (Terminal 4 Python Relayer)</span>
-              </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                  <tr>
+                    <th className="py-3 px-4 font-medium">Signer</th>
+                    <th className="py-3 px-4 font-medium">Role</th>
+                    <th className="py-3 px-4 font-medium">Address</th>
+                    <th className="py-3 px-4 font-medium text-right">Balance</th>
+                    <th className="py-3 px-4 font-medium">Access Scope</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E293B]">
+                  {humanWallets.map((acct) => (
+                    <tr key={acct.address}>
+                      <td className="py-3.5 px-4 font-semibold text-white">{acct.label}</td>
+                      <td className="py-3.5 px-4 text-slate-300">{acct.roleTitle}</td>
+                      <td className="py-3.5 px-4 font-mono text-slate-400">{acct.address}</td>
+                      <td className="py-3.5 px-4 font-mono text-white text-right tabular-nums">
+                        {acct.balanceEth.toFixed(1)} ETH
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">{acct.description}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-slate-300">
+                      Account 4 — Oracle
+                    </td>
+                    <td className="py-3.5 px-4 text-emerald-400">Background Daemon</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                      0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400 text-right tabular-nums">
+                      10000.0 ETH
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-400">
+                      Relays verified AI predictions to PriceOracle.sol
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* 5. Blockchain Records */}
+        {/* 5. Blockchain Event Audit Log */}
         {activeTab === 'blockchain' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-4">
-            <h2 className="text-lg font-bold text-white">Blockchain Records & Audit Trail</h2>
-            <div className="space-y-2 font-mono text-xs">
-              {auctions.flatMap((a) => a.events).map((evt) => (
-                <div key={evt.id} className="p-3 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                  <div>
-                    <span className="text-[#3B82F6] font-bold">[{evt.eventName}]</span> {evt.summary}
-                  </div>
-                  <span className="text-[10px] text-slate-400">{shortenAddress(evt.txHash)}</span>
-                </div>
-              ))}
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#1E293B]">
+              <h2 className="text-base font-semibold text-white">Global On-Chain Event Log</h2>
             </div>
-          </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                  <tr>
+                    <th className="py-3 px-4 font-medium">Event</th>
+                    <th className="py-3 px-4 font-medium">Summary</th>
+                    <th className="py-3 px-4 font-medium text-right">Block</th>
+                    <th className="py-3 px-4 font-medium text-right">Tx Hash</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E293B]">
+                  {allEvents.map((evt) => (
+                    <tr key={evt.id} className="hover:bg-[#131E3A]/50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-white whitespace-nowrap">
+                        {evt.eventName}
+                      </td>
+                      <td className="py-3 px-4 text-slate-300">{evt.summary}</td>
+                      <td className="py-3 px-4 font-mono text-slate-400 text-right tabular-nums">
+                        #{evt.blockNumber}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-400 text-right tabular-nums">
+                        {shortenAddress(evt.txHash)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
-        {/* 6. AI Model Information */}
+        {/* 6. ML Model Specification */}
         {activeTab === 'model' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">AI Model Information (vehicle-v1)</h2>
-              <p className="text-xs text-slate-400">Trained regression pipeline evaluation metrics</p>
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+            <div className="border-b border-[#1E293B] pb-4">
+              <h2 className="text-base font-semibold text-white">
+                AI Valuation Model Specification (LightGBM v1.0.0)
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Offline evaluation metrics from backend/models/model_metadata.json
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-              <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B]">
-                <span className="text-slate-400">Model Name</span>
-                <div className="text-sm font-bold text-white mt-1">vehicle-v1</div>
+            <dl className="divide-y divide-[#1E293B] text-xs font-mono tabular-nums">
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">Model Version</dt>
+                <dd className="text-white font-semibold">1.0.0 (vehicle_price_model.txt)</dd>
               </div>
-              <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B]">
-                <span className="text-slate-400">R² Score</span>
-                <div className="text-sm font-bold text-emerald-400 mt-1">0.918</div>
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">Estimator Pipeline</dt>
+                <dd className="text-slate-200">LightGBM (regression_l1 · 31 leaves · 934 trees)</dd>
               </div>
-              <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B]">
-                <span className="text-slate-400">Mean Abs Error</span>
-                <div className="text-sm font-bold text-[#06B6D4] mt-1">₹28,500</div>
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">R² Coefficient of Determination</dt>
+                <dd className="text-emerald-400 font-semibold">0.7615 (0.8571 trimmed)</dd>
               </div>
-              <div className="bg-[#131E3A] p-4 rounded-xl border border-[#1E293B]">
-                <span className="text-slate-400">Trained Samples</span>
-                <div className="text-sm font-bold text-purple-400 mt-1">18,900</div>
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">Mean Absolute Error (MAE)</dt>
+                <dd className="text-white">$9,484.57 USD</dd>
               </div>
-            </div>
-          </div>
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">Root Mean Squared Error (RMSE)</dt>
+                <dd className="text-white">$27,311.06 USD</dd>
+              </div>
+              <div className="py-3 flex justify-between">
+                <dt className="font-sans text-slate-400">Training Dataset Volume</dt>
+                <dd className="text-white">4,009 US-market used-car listings</dd>
+              </div>
+            </dl>
+          </section>
         )}
 
-        {/* 7. System Activity */}
+        {/* 7. Service Topology */}
         {activeTab === 'system' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-4">
-            <h2 className="text-lg font-bold text-white">5-Terminal System Activity</h2>
-            <div className="space-y-3 text-xs">
-              <div className="p-3.5 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white">Terminal 1: Blockchain Node</div>
-                  <div className="text-slate-400 font-mono">Hardhat Node on http://127.0.0.1:8545</div>
-                </div>
-                <span className="text-emerald-400 font-mono">● Running</span>
-              </div>
-              <div className="p-3.5 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white">Terminal 2: Smart Contract Deployer</div>
-                  <div className="text-slate-400 font-mono">deployLocal.js configured</div>
-                </div>
-                <span className="text-emerald-400 font-mono">● Deployed</span>
-              </div>
-              <div className="p-3.5 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white">Terminal 3: AI Inference Engine</div>
-                  <div className="text-slate-400 font-mono">FastAPI / vehicle-v1 regression pipeline</div>
-                </div>
-                <span className="text-emerald-400 font-mono">● Ready (Mock Sim Active)</span>
-              </div>
-              <div className="p-3.5 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white">Terminal 4: Oracle Worker</div>
-                  <div className="text-slate-400 font-mono">Python relayer with Account 5 signer</div>
-                </div>
-                <span className="text-emerald-400 font-mono">● Active</span>
-              </div>
-              <div className="p-3.5 bg-[#131E3A] rounded-xl border border-[#1E293B] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white">Terminal 5: Web Frontend</div>
-                  <div className="text-slate-400 font-mono">Vite + React 19 + Ethers.js v6</div>
-                </div>
-                <span className="text-emerald-400 font-mono">● Connected</span>
-              </div>
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#1E293B]">
+              <h2 className="text-base font-semibold text-white">System Service Topology</h2>
             </div>
-          </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                  <tr>
+                    <th className="py-3 px-4 font-medium">Service</th>
+                    <th className="py-3 px-4 font-medium">Directory / Endpoint</th>
+                    <th className="py-3 px-4 font-medium">Role</th>
+                    <th className="py-3 px-4 font-medium text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E293B]">
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-white">1. Hardhat EVM Node</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">http://127.0.0.1:8545</td>
+                    <td className="py-3.5 px-4 text-slate-300">Local blockchain (Chain ID 31337)</td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Active</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-white">2. Contract Deployer</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">blockchain/scripts/deployLocal.js</td>
+                    <td className="py-3.5 px-4 text-slate-300">Deploys PriceOracle.sol & Auction.sol</td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Deployed</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-white">3. AI Inference Service</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">backend/src/api/main.py</td>
+                    <td className="py-3.5 px-4 text-slate-300">FastAPI LightGBM v1.0.0 valuation API</td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Ready</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-white">4. Oracle Relayer</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">oracle/oracle/main.py</td>
+                    <td className="py-3.5 px-4 text-slate-300">Signs predictions with Account 4</td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Active</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-4 font-semibold text-white">5. Web3 Frontend</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">frontend/src</td>
+                    <td className="py-3.5 px-4 text-slate-300">React 19 + Ethers.js v6 interface</td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Connected</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
-        {/* 8. Account Information */}
+        {/* 8. Admin Account */}
         {activeTab === 'account' && (
-          <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">Admin Account Information</h2>
-              <p className="text-xs text-slate-400">Hardhat Account 0 credentials</p>
+          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+            <div className="border-b border-[#1E293B] pb-4">
+              <h2 className="text-base font-semibold text-white">Administrator Profile</h2>
             </div>
-            <div className="bg-[#131E3A] p-5 rounded-xl border border-[#1E293B] space-y-3 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E293B]">
-                <span className="text-slate-400">Role</span>
-                <span className="font-bold text-white">Platform Administrator</span>
+
+            <dl className="divide-y divide-[#1E293B] text-xs">
+              <div className="py-3 flex justify-between">
+                <dt className="text-slate-400">Assigned Role</dt>
+                <dd className="text-white font-semibold">Platform Administrator (Account 0)</dd>
               </div>
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E293B]">
-                <span className="text-slate-400">Public Address</span>
-                <span className="font-mono text-white">{wallet.address}</span>
+              <div className="py-3 flex justify-between">
+                <dt className="text-slate-400">Public Address</dt>
+                <dd className="text-white font-mono">{wallet.address}</dd>
               </div>
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E293B]">
-                <span className="text-slate-400">Network</span>
-                <span className="font-mono text-emerald-400">Hardhat (31337)</span>
+              <div className="py-3 flex justify-between">
+                <dt className="text-slate-400">Chain ID</dt>
+                <dd className="text-white font-mono">{chainId}</dd>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={disconnectWallet}
-              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Disconnect Wallet</span>
-            </button>
-          </div>
+            </dl>
+          </section>
         )}
-      </main>
+      </div>
     </div>
   );
 };

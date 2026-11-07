@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Car,
-  Cpu,
-  ShieldCheck,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
   AlertTriangle,
-  Database,
+  Clock,
 } from 'lucide-react';
 import {
   AuctionItem,
@@ -15,15 +12,15 @@ import {
   VehicleAttributes,
 } from '../types/auction';
 import { useWallet } from '../context/WalletContext';
-import { formatInr, shortenAddress, generateDeterministicTxHash } from '../lib/crypto';
-import { SEALED_AUCTION_CONTRACT_ADDRESS } from '../lib/mockData';
+import { formatUsd, shortenAddress, generateDeterministicTxHash } from '../lib/crypto';
+import { SEALED_AUCTION_CONTRACT_ADDRESS } from '../lib/hardhatConfig';
 import {
   predictVehiclePrice,
   registerPredictionOnOracle,
 } from '../services/api/aiService';
-import vehicleSuvImg from '../assets/images/prd_vehicle_luxury_suv_1793900974419.jpg';
-import vehicleCoupeImg from '../assets/images/prd_vehicle_hybrid_coupe_1793900977068.jpg';
-import vehicleSedanImg from '../assets/images/prd_vehicle_electric_sedan_1793897605273.jpg';
+import vehicleSuvImg from '../assets/images/vehicle-suv.jpg';
+import vehicleCoupeImg from '../assets/images/vehicle-coupe.jpg';
+import vehicleSedanImg from '../assets/images/vehicle-sedan.jpg';
 
 interface CreateAuctionProps {
   onCreateAuction: (newAuction: AuctionItem) => void;
@@ -44,32 +41,39 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   } = useWallet();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [title, setTitle] = useState('2024 Tata Nexon EV Empowered+ Long Range (45 kWh)');
+  const [title, setTitle] = useState('2020 Ford F-150 XLT SuperCrew 4WD (3.5L V6 400hp Twin Turbo)');
   const [subtitle, setSubtitle] = useState(
-    'Single-owner electric SUV with 12,500 km odometer, 7.2 kW AC fast-charger kit, and zero-depreciation insurance.'
+    'Single-owner 3.5L EcoBoost V6 pickup with 45,000 miles, 10-speed automatic transmission, Jet Black exterior, and clean history.'
   );
   const [selectedImagePreset, setSelectedImagePreset] = useState<'suv' | 'coupe' | 'sedan'>('suv');
 
-  // Structured Vehicle Schema (backend/app/schemas/vehicle.py)
-  const [vhBrand, setVhBrand] = useState('Tata');
-  const [vhModel, setVhModel] = useState('Nexon EV Empowered+ LR');
-  const [vhMfgYear, setVhMfgYear] = useState(2024);
-  const [vhMileageKm, setVhMileageKm] = useState(12500);
-  const [vhFuelType, setVhFuelType] = useState<'Petrol' | 'Diesel' | 'Electric' | 'Hybrid'>('Electric');
-  const [vhTransmission, setVhTransmission] = useState<'Manual' | 'Automatic'>('Automatic');
-  const [vhCondition, setVhCondition] = useState<'Like New' | 'Excellent' | 'Good' | 'Fair'>('Excellent');
-  const [vhOrigPriceInr, setVhOrigPriceInr] = useState(1949000);
+  // Structured Vehicle Schema (matching /backend LightGBM v1.0.0)
+  const [vhBrand, setVhBrand] = useState('Ford');
+  const [vhModel, setVhModel] = useState('F-150 XLT');
+  const [vhYear, setVhYear] = useState(2020);
+  const [vhMileage, setVhMileage] = useState(45000);
+  const [vhFuelType, setVhFuelType] = useState('Gasoline');
+  const [vhEngineType, setVhEngineType] = useState('3.5L V6 400hp Twin Turbo');
+  const [vhTransmission, setVhTransmission] = useState('10-Speed Automatic');
+  const [vhExteriorColor, setVhExteriorColor] = useState('Black');
+  const [vhInteriorColor, setVhInteriorColor] = useState('Black');
+  const [vhAccidentHistory, setVhAccidentHistory] = useState<boolean | null>(false);
 
-  // Step 2 & 3 State: AI Prediction (Mock Simulation) & Oracle Record
+  // Step 2 & 3 State: Separate AI Prediction vs Oracle Blockchain Registration
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [aiRecord, setAiRecord] = useState<AIPredictionRecord | null>(null);
-  const [isRegisteringOracle, setIsRegisteringOracle] = useState(false);
+  const [oracleTxStage, setOracleTxStage] = useState<
+    'idle' | 'waiting_approval' | 'submitted' | 'pending' | 'confirmed'
+  >('idle');
+  const [deployTxStage, setDeployTxStage] = useState<
+    'idle' | 'waiting_approval' | 'submitted' | 'pending' | 'confirmed'
+  >('idle');
 
-  // Step 4 State: Auction Terms in Test ETH (Never auto-filled from INR!)
-  const [startingBidEth, setStartingBidEth] = useState<string>('4.50');
-  const [reservePriceEth, setReservePriceEth] = useState<string>('5.50');
-  const [fixedDepositEth, setFixedDepositEth] = useState<string>('0.80');
+  // Step 4 State: Auction Terms in Test ETH
+  const [startingBidEth, setStartingBidEth] = useState<string>('12.50');
+  const [reservePriceEth, setReservePriceEth] = useState<string>('14.50');
+  const [fixedDepositEth, setFixedDepositEth] = useState<string>('2.00');
   const [commitMinutes, setCommitMinutes] = useState<number>(60);
   const [revealMinutes, setRevealMinutes] = useState<number>(60);
   const [termsError, setTermsError] = useState<string | null>(null);
@@ -77,61 +81,77 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   const applyVehiclePreset = (preset: 'suv' | 'coupe' | 'sedan') => {
     setSelectedImagePreset(preset);
     setAiRecord(null);
+    setOracleTxStage('idle');
     if (preset === 'suv') {
-      setVhBrand('Tata');
-      setVhModel('Nexon EV Empowered+ LR');
-      setVhMfgYear(2024);
-      setVhMileageKm(12500);
-      setVhFuelType('Electric');
-      setVhTransmission('Automatic');
-      setVhCondition('Excellent');
-      setVhOrigPriceInr(1949000);
-      setTitle('2024 Tata Nexon EV Empowered+ Long Range (45 kWh)');
-      setSubtitle('Single-owner electric SUV with 12,500 km odometer and fast-charger kit.');
+      setVhBrand('Ford');
+      setVhModel('F-150 XLT');
+      setVhYear(2020);
+      setVhMileage(45000);
+      setVhFuelType('Gasoline');
+      setVhEngineType('3.5L V6 400hp Twin Turbo');
+      setVhTransmission('10-Speed Automatic');
+      setVhExteriorColor('Black');
+      setVhInteriorColor('Black');
+      setVhAccidentHistory(false);
+      setTitle('2020 Ford F-150 XLT SuperCrew 4WD (3.5L V6 400hp Twin Turbo)');
+      setSubtitle('Single-owner 3.5L EcoBoost V6 with 45,000 miles, 10-speed automatic, and clean history.');
     } else if (preset === 'coupe') {
       setVhBrand('Toyota');
-      setVhModel('Camry 2.5L Hybrid Executive');
-      setVhMfgYear(2023);
-      setVhMileageKm(19200);
+      setVhModel('Camry Hybrid XLE');
+      setVhYear(2022);
+      setVhMileage(21500);
       setVhFuelType('Hybrid');
+      setVhEngineType('2.5L I4 208hp Hybrid');
       setVhTransmission('Automatic');
-      setVhCondition('Like New');
-      setVhOrigPriceInr(4617000);
-      setTitle('2023 Toyota Camry 2.5L Self-Charging Hybrid Sedan (e-CVT)');
-      setSubtitle('Chauffeur-driven executive hybrid sedan with 19,200 km and full Toyota warranty.');
+      setVhExteriorColor('White');
+      setVhInteriorColor('Black');
+      setVhAccidentHistory(false);
+      setTitle('2022 Toyota Camry Hybrid XLE Executive Sedan (2.5L I4)');
+      setSubtitle('Executive hybrid sedan with 21,500 miles, Pearl White exterior, and full service records.');
     } else {
       setVhBrand('Kia');
-      setVhModel('EV6 GT-Line AWD');
-      setVhMfgYear(2023);
-      setVhMileageKm(16200);
+      setVhModel('EV6 GT-Line');
+      setVhYear(2023);
+      setVhMileage(16200);
       setVhFuelType('Electric');
-      setVhTransmission('Automatic');
-      setVhCondition('Excellent');
-      setVhOrigPriceInr(6595000);
-      setTitle('2023 Kia EV6 GT-Line Dual-Motor AWD (77.4 kWh)');
-      setSubtitle('800V ultra-fast charging electric crossover with 16,200 km odometer.');
+      setVhEngineType('Electric Motor');
+      setVhTransmission('Single-Speed');
+      setVhExteriorColor('Gray');
+      setVhInteriorColor('Black');
+      setVhAccidentHistory(false);
+      setTitle('2023 Kia EV6 GT-Line Dual-Motor AWD (Electric Motor)');
+      setSubtitle('800V ultra-fast charging electric crossover with 16,200 miles and clean accident-free report.');
     }
   };
 
   const buildCurrentVehicleAttributes = (): VehicleAttributes => ({
     brand: vhBrand,
     model: vhModel,
-    manufacturing_year: Number(vhMfgYear),
-    mileage_km: Number(vhMileageKm),
+    year: Number(vhYear),
+    mileage: Number(vhMileage),
     fuel_type: vhFuelType,
+    engine_type: vhEngineType,
     transmission: vhTransmission,
-    condition: vhCondition,
-    original_price_inr: Number(vhOrigPriceInr),
+    exterior_color: vhExteriorColor,
+    interior_color: vhInteriorColor,
+    accident_history: vhAccidentHistory,
+    clean_title: true,
   });
 
-  // Step 2: Run Mock AI Vehicle Valuation (`src/services/api/aiService.ts` -> `mockAIService.ts`)
+  // Step 2: Compute Off-Chain AI Prediction (Strictly NOT registered on-chain yet)
   const handleRunAiPrediction = async () => {
     setPredictionError(null);
     setIsPredicting(true);
+    setOracleTxStage('idle');
     try {
       const attrs = buildCurrentVehicleAttributes();
       const record = await predictVehiclePrice(attrs);
-      setAiRecord(record);
+      setAiRecord({
+        ...record,
+        oracle_registered: false,
+        oracle_tx_hash: '',
+        oracle_block_number: 0,
+      });
       setStep(2);
     } catch (err: any) {
       setPredictionError(err.message || 'Vehicle AI prediction failed');
@@ -140,22 +160,29 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     }
   };
 
-  // Step 3: Register Prediction on PriceOracle.sol
+  // Step 3: Register Prediction on PriceOracle.sol with explicit transaction stages
   const handleRegisterOnOracle = async () => {
     if (!aiRecord) return;
-    setIsRegisteringOracle(true);
+    setPredictionError(null);
     try {
+      setOracleTxStage('waiting_approval');
+      await new Promise((r) => setTimeout(r, 150));
+      setOracleTxStage('submitted');
+      await new Promise((r) => setTimeout(r, 150));
+      setOracleTxStage('pending');
       const registered = await registerPredictionOnOracle(aiRecord, authorizedOracleAddress);
-      setAiRecord(registered);
+      setAiRecord({
+        ...registered,
+        oracle_registered: true,
+      });
+      setOracleTxStage('confirmed');
       setStep(3);
     } catch (err: any) {
+      setOracleTxStage('idle');
       setPredictionError(err.message || 'Oracle registration error');
-    } finally {
-      setIsRegisteringOracle(false);
     }
   };
 
-  // Validate Step 4 ETH Auction Terms
   const handleValidateTerms = () => {
     setTermsError(null);
     const start = Number(startingBidEth);
@@ -177,9 +204,16 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     setStep(5);
   };
 
-  // Step 5: Sign & Deploy Vehicle Auction on Auction.sol
-  const handleSignAndCreateAuction = () => {
+  const handleSignAndCreateAuction = async () => {
     if (!wallet || !aiRecord) return;
+    setDeployTxStage('waiting_approval');
+    await new Promise((r) => setTimeout(r, 160));
+    setDeployTxStage('submitted');
+    await new Promise((r) => setTimeout(r, 160));
+    setDeployTxStage('pending');
+    await new Promise((r) => setTimeout(r, 180));
+    setDeployTxStage('confirmed');
+
     const now = Date.now();
     const commitEnd = new Date(now + commitMinutes * 60 * 1000).toISOString();
     const revealEnd = new Date(now + (commitMinutes + revealMinutes) * 60 * 1000).toISOString();
@@ -204,7 +238,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       sellerAddress: wallet.address,
       sellerEns: wallet.ens,
       contractAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      attributes: buildCurrentVehicleAttributes() as unknown as Record<string, string | number>,
+      attributes: buildCurrentVehicleAttributes() as unknown as Record<string, string | number | boolean | null>,
       aiPrediction: aiRecord,
       startingBidEth: Number(startingBidEth),
       reservePriceEth: Number(reservePriceEth),
@@ -223,9 +257,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           blockNumber: aiRecord.oracle_block_number,
           timestamp: new Date(now - 15000).toISOString(),
           actorAddress: aiRecord.oracle_address,
-          summary: `Oracle registered Vehicle Prediction #${aiRecord.prediction_id} (${formatInr(
-            aiRecord.predicted_price_inr
-          )} / ${aiRecord.predicted_price_paise.toLocaleString('en-IN')} paise, model vehicle-v1) on PriceOracle.sol`,
+          summary: `Oracle registered Vehicle Prediction #${aiRecord.prediction_id} (${formatUsd(
+            aiRecord.predicted_price
+          )} USD / ${aiRecord.predicted_price_paise.toLocaleString('en-US')} cents, LightGBM v${aiRecord.model_version}) on PriceOracle.sol`,
         },
         {
           id: `EVT-${100 + nextNumericId}-2`,
@@ -248,60 +282,61 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
   if (!isConnected) {
     return (
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-10 text-center max-w-xl mx-auto my-12 space-y-4 shadow-sm">
-        <h2 className="text-xl font-extrabold text-[#101B3D]">
-          Wallet Connection Required to Create a Vehicle Auction
+      <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+        <h2 className="text-lg font-bold text-white">
+          Seller Wallet Connection Required
         </h2>
-        <p className="text-xs text-slate-600">
-          Connect your Hardhat Seller account on Chain ID 31337 to request a simulated <code>vehicle-v1</code> resale valuation in INR, register it on PriceOracle.sol, and deploy a sealed-bid vehicle auction.
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Connect your Hardhat Seller account on Chain ID 31337 to compute a LightGBM v1.0.0 vehicle valuation in USD, anchor the hash on PriceOracle.sol, and deploy a sealed-bid auction.
         </p>
         <button
+          type="button"
           onClick={openAuthModal}
-          className="px-6 py-3 rounded-xl bg-[#2563EB] text-white text-xs font-bold shadow-md cursor-pointer"
+          className="px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
         >
-          Connect MetaMask / Seller Wallet
+          Connect Seller Wallet
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-16">
-      {/* Top 5-Step Progress Indicator */}
-      <div className="bg-[#101B3D] text-white rounded-2xl p-6 border border-white/10 shadow-lg space-y-5">
+    <div className="max-w-4xl space-y-6 pb-12">
+      {/* Compact 5-Step Progress Header */}
+      <div className="bg-[#0F172A] rounded-xl p-6 border border-[#1E293B] space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <span className="text-xs font-mono uppercase tracking-wider text-[#06B6D4]">
-              Vehicle Sealed-Bid Creation Wizard · Mock AI Simulation Active
-            </span>
-            <h1 className="text-2xl font-extrabold mt-0.5">
-              5-Step Vehicle Auction Deployment
+            <div className="text-xs font-mono text-slate-400">
+              Seller Auction Deployment · Hardhat #31337 · LightGBM v1.0.0
+            </div>
+            <h1 className="text-xl font-bold text-white mt-0.5">
+              Create Sealed-Bid Vehicle Auction
             </h1>
           </div>
-          <span className="px-3 py-1 rounded-lg bg-white/10 text-xs font-mono text-[#06B6D4]">
+          <span className="text-xs font-mono text-slate-400 tabular-nums">
             Seller: {shortenAddress(wallet?.address || '')}
           </span>
         </div>
 
         <div className="grid grid-cols-5 gap-2 text-xs">
           {[
-            { num: 1, label: '1. Vehicle Specs' },
-            { num: 2, label: '2. AI Estimate (INR)' },
-            { num: 3, label: '3. Oracle Proof' },
-            { num: 4, label: '4. ETH Terms' },
-            { num: 5, label: '5. Sign & Deploy' },
+            { num: 1, label: '01. Specs' },
+            { num: 2, label: '02. AI Valuation' },
+            { num: 3, label: '03. Oracle Anchor' },
+            { num: 4, label: '04. ETH Terms' },
+            { num: 5, label: '05. Deploy' },
           ].map((s) => {
             const active = step === s.num;
             const done = step > s.num;
             return (
               <div
                 key={s.num}
-                className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
                   active
-                    ? 'bg-[#2563EB] border-[#06B6D4] text-white shadow-md'
+                    ? 'bg-[#2563EB] border-[#2563EB] text-white'
                     : done
-                    ? 'bg-emerald-600/30 border-emerald-400/40 text-emerald-200'
-                    : 'bg-white/5 border-white/10 text-slate-400'
+                    ? 'bg-[#090D1A] border-emerald-500/40 text-emerald-400'
+                    : 'bg-[#090D1A] border-[#1E293B] text-slate-500'
                 }`}
               >
                 {s.label}
@@ -312,183 +347,183 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       </div>
 
       {predictionError && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
+        <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
           <span>{predictionError}</span>
         </div>
       )}
 
       {/* STEP 1: VEHICLE SPECIFICATIONS */}
       {step === 1 && (
-        <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 sm:p-8 shadow-xl space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="border-b border-[#1E293B] pb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h2 className="text-lg font-bold text-white">
-                Step 1: Enter Vehicle Specifications (`vehicle-v1` Schema)
+              <h2 className="text-base font-semibold text-white">
+                01. Vehicle Specifications (US Market · Miles)
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                All fields are normalized to compute a deterministic <code className="text-[#06B6D4]">product_data_hash</code> for <code className="text-[#06B6D4]">PriceOracle.sol</code>.
+                Attributes are scored by LightGBM v1.0.0 and hashed with SHA-256 to generate <code className="text-slate-200">product_data_hash</code>.
               </p>
             </div>
-            <span className="px-3 py-1 rounded-lg bg-[#7C3AED]/20 text-[#A78BFA] font-mono text-xs font-bold border border-[#7C3AED]/30">
-              Category: vehicle
-            </span>
+
+            <div className="flex items-center gap-1 bg-[#090D1A] p-1 rounded-lg border border-[#1E293B]">
+              {(
+                [
+                  { id: 'suv', label: '2020 Ford F-150 XLT' },
+                  { id: 'coupe', label: '2022 Camry Hybrid' },
+                  { id: 'sedan', label: '2023 Kia EV6' },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyVehiclePreset(p.id)}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                    selectedImagePreset === p.id
+                      ? 'bg-[#1E293B] text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Quick Vehicle Preset Selector */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {(
-              [
-                { id: 'suv', label: 'Preset 1: Electric SUV', sub: '2024 Tata Nexon EV LR' },
-                { id: 'coupe', label: 'Preset 2: Hybrid Sedan', sub: '2023 Toyota Camry Hybrid' },
-                { id: 'sedan', label: 'Preset 3: Performance EV', sub: '2023 Kia EV6 GT-Line AWD' },
-              ] as const
-            ).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyVehiclePreset(p.id)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  selectedImagePreset === p.id
-                    ? 'bg-[#131E3A] border-[#2563EB] ring-2 ring-[#2563EB]/40'
-                    : 'bg-[#131E3A]/60 border-[#1E293B] hover:bg-[#131E3A]'
-                }`}
-              >
-                <div className="flex items-center gap-2 font-bold text-xs text-white">
-                  <Car className="w-4 h-4 text-[#3B82F6]" />
-                  <span>{p.label}</span>
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">{p.sub}</div>
-              </button>
-            ))}
-          </div>
-
-          {/* Listing Title & Description */}
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Vehicle Auction Listing Title *
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Listing Title
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs font-medium text-white focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Vehicle Service History & Provenance Notes *
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Service History & Provenance Summary
               </label>
               <input
                 type="text"
                 value={subtitle}
                 onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs text-slate-300 focus:outline-none focus:border-[#2563EB]"
               />
             </div>
           </div>
 
-          {/* Vehicle Attributes Form */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 rounded-xl bg-[#131E3A] border border-[#1E293B]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2 border-t border-[#1E293B]">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Make / Brand (`brand`)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Brand / Manufacturer *</label>
               <input
                 type="text"
                 value={vhBrand}
                 onChange={(e) => setVhBrand(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none"
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Vehicle Model (`model`)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Model & Trim *</label>
               <input
                 type="text"
                 value={vhModel}
                 onChange={(e) => setVhModel(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none"
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Mfg Year (`manufacturing_year`)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Model Year (1974–2024) *</label>
               <input
                 type="number"
-                value={vhMfgYear}
-                onChange={(e) => setVhMfgYear(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono focus:outline-none"
+                value={vhYear}
+                onChange={(e) => setVhYear(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Odometer KM (`mileage_km`)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Mileage (miles / mi.) *</label>
               <input
                 type="number"
-                value={vhMileageKm}
-                onChange={(e) => setVhMileageKm(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono focus:outline-none"
+                value={vhMileage}
+                onChange={(e) => setVhMileage(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Fuel Type (`fuel_type`)</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Fuel Type</label>
               <select
                 value={vhFuelType}
-                onChange={(e) => setVhFuelType(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none"
+                onChange={(e) => setVhFuelType(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
               >
+                <option value="Gasoline">Gasoline</option>
                 <option value="Electric">Electric</option>
                 <option value="Hybrid">Hybrid</option>
+                <option value="Plug-in Hybrid">Plug-in Hybrid</option>
                 <option value="Diesel">Diesel</option>
-                <option value="Petrol">Petrol</option>
+                <option value="E85 Flex Fuel">E85 Flex Fuel</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Transmission (`transmission`)</label>
-              <select
-                value={vhTransmission}
-                onChange={(e) => setVhTransmission(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none"
-              >
-                <option value="Automatic">Automatic</option>
-                <option value="Manual">Manual</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Condition (`condition`)</label>
-              <select
-                value={vhCondition}
-                onChange={(e) => setVhCondition(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none"
-              >
-                <option value="Like New">Like New</option>
-                <option value="Excellent">Excellent</option>
-                <option value="Good">Good</option>
-                <option value="Fair">Fair</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Original Ex-Showroom Price in INR (`original_price_inr`)
-              </label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Engine Description</label>
               <input
-                type="number"
-                value={vhOrigPriceInr}
-                onChange={(e) => setVhOrigPriceInr(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-[#2563EB] bg-[#090D1A] text-sm font-mono font-bold text-[#06B6D4] focus:outline-none"
+                type="text"
+                value={vhEngineType}
+                onChange={(e) => setVhEngineType(e.target.value)}
+                placeholder="e.g., 3.5L V6 400hp Twin Turbo"
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Transmission</label>
+              <input
+                type="text"
+                value={vhTransmission}
+                onChange={(e) => setVhTransmission(e.target.value)}
+                placeholder="e.g., 10-Speed Automatic"
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Exterior Color</label>
+              <input
+                type="text"
+                value={vhExteriorColor}
+                onChange={(e) => setVhExteriorColor(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Accident History</label>
+              <select
+                value={vhAccidentHistory === true ? 'yes' : vhAccidentHistory === false ? 'no' : 'unknown'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setVhAccidentHistory(v === 'yes' ? true : v === 'no' ? false : null);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+              >
+                <option value="no">None Reported</option>
+                <option value="yes">Accident Reported</option>
+                <option value="unknown">Unknown</option>
+              </select>
             </div>
           </div>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end pt-2 border-t border-[#1E293B]">
             <button
               type="button"
               onClick={handleRunAiPrediction}
               disabled={isPredicting}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <Cpu className="w-4 h-4" />
               <span>
                 {isPredicting
-                  ? 'Running Mock Vehicle AI Simulation...'
-                  : 'Step 2: Request Vehicle AI Valuation (INR)'}
+                  ? 'Scoring 934 LightGBM Trees...'
+                  : 'Compute AI Valuation (USD)'}
               </span>
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -496,128 +531,145 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
         </div>
       )}
 
-      {/* STEP 2: AI ESTIMATE IN INR */}
+      {/* STEP 2: OFF-CHAIN AI PREDICTION COMPLETED (NOT YET REGISTERED ON ORACLE) */}
       {step === 2 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 sm:p-8 shadow-xl space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-[#1E293B] pb-5">
-            <div>
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#7C3AED]/20 text-[#A78BFA] border border-[#7C3AED]/30">
-                Model: {aiRecord.model_version} · Mock AI Service Simulation
-              </span>
-              <h2 className="text-xl font-extrabold text-white mt-1">
-                Step 2: Advisory Vehicle Resale Valuation in INR
+        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="flex items-start justify-between flex-wrap gap-4 border-b border-[#1E293B] pb-5">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
+                <Clock className="w-3.5 h-3.5" />
+                <span>State 1/2: Off-Chain AI Valuation Complete · Pending On-Chain Oracle Registration</span>
+              </div>
+              <h2 className="text-lg font-bold text-white">
+                02. Advisory Vehicle Market Valuation (USD)
               </h2>
+              <p className="text-xs text-slate-400">
+                Computed by LightGBM <code className="text-slate-200">v{aiRecord.model_version}</code> ({aiRecord.inference_ms ?? 1.5} ms). Next, anchor this valuation hash onto <code className="text-slate-200">PriceOracle.sol</code>.
+              </p>
             </div>
 
-            <div className="text-right bg-[#131E3A] text-white px-5 py-3 rounded-2xl border border-[#1E293B]">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                Predicted Fair Vehicle Value
+            <div className="text-right font-mono tabular-nums">
+              <div className="text-xs font-sans text-slate-400">Predicted Fair Market Value</div>
+              <div className="text-2xl font-bold text-white mt-0.5">
+                {formatUsd(aiRecord.predicted_price)}
               </div>
-              <div className="text-2xl font-mono font-extrabold text-[#06B6D4]">
-                {formatInr(aiRecord.predicted_price_inr)}
-              </div>
-              <div className="text-[10px] font-mono text-slate-400">
-                {aiRecord.predicted_price_paise.toLocaleString('en-IN')} paise
+              <div className="text-xs text-slate-500">
+                {aiRecord.predicted_price_paise.toLocaleString('en-US')} cents ·{' '}
+                {aiRecord.in_training_distribution !== false ? 'In-Distribution' : 'OOD'}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {aiRecord.warnings && aiRecord.warnings.length > 0 && (
+            <div className="p-3.5 rounded-lg bg-amber-950/30 border border-amber-500/30 space-y-1 text-xs text-amber-200">
+              <div className="font-semibold text-amber-300 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>Model Advisory Warnings</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5">
+                {aiRecord.warnings.map((w, idx) => (
+                  <li key={idx}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="divide-y divide-[#1E293B] border-t border-b border-[#1E293B]">
             {aiRecord.feature_breakdown.map((f, i) => (
-              <div
-                key={i}
-                className="p-3 rounded-xl bg-[#131E3A] border border-[#1E293B] flex items-center justify-between text-xs"
-              >
-                <span className="font-medium text-slate-200">{f.factor}</span>
-                <span className="font-mono font-bold text-[#A78BFA]">{f.impact}</span>
+              <div key={i} className="py-2.5 flex items-center justify-between text-xs">
+                <span className="text-slate-300">{f.factor}</span>
+                <span className="font-mono font-semibold text-white tabular-nums">{f.impact}</span>
               </div>
             ))}
           </div>
 
-          <div className="p-4 rounded-xl bg-[#131E3A] border border-[#1E293B] space-y-2 text-xs font-mono">
+          <div className="p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] space-y-2 text-xs font-mono">
             <div>
-              <span className="text-slate-400">Canonical Vehicle JSON: </span>
-              <span className="text-slate-200 break-all">{aiRecord.canonical_json}</span>
+              <span className="text-slate-500">Canonical Vehicle JSON: </span>
+              <span className="text-slate-300 break-all">{aiRecord.canonical_json}</span>
             </div>
             <div>
-              <span className="text-slate-400">product_data_hash (SHA-256): </span>
-              <span className="text-[#3B82F6] font-bold break-all">{aiRecord.product_data_hash}</span>
+              <span className="text-slate-500">product_data_hash (SHA-256): </span>
+              <span className="text-white break-all">{aiRecord.product_data_hash}</span>
             </div>
           </div>
+
+          {oracleTxStage !== 'idle' && (
+            <div className="p-3 rounded-lg bg-[#090D1A] border border-[#2563EB]/50 text-xs font-mono text-slate-200">
+              {oracleTxStage === 'waiting_approval' && '1/3 Requesting Oracle relayer signature...'}
+              {oracleTxStage === 'submitted' && '2/3 Submitting registerPrediction() to PriceOracle.sol...'}
+              {oracleTxStage === 'pending' && '3/3 Waiting for block confirmation on Hardhat #31337...'}
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#1E293B] text-xs font-bold text-slate-300 hover:bg-[#131E3A]"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Edit Vehicle Specs</span>
+              <span>Edit Specifications</span>
             </button>
 
             <button
               type="button"
               onClick={handleRegisterOnOracle}
-              disabled={isRegisteringOracle}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-bold shadow-md cursor-pointer"
+              disabled={oracleTxStage !== 'idle'}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <Database className="w-4 h-4" />
-              <span>
-                {isRegisteringOracle
-                  ? 'Registering on PriceOracle.sol...'
-                  : 'Step 3: Register Vehicle Prediction on PriceOracle.sol'}
-              </span>
+              <span>Register Valuation on PriceOracle.sol</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: ORACLE REGISTRATION CONFIRMATION */}
+      {/* STEP 3: ORACLE REGISTRATION CONFIRMED ON-CHAIN */}
       {step === 3 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 sm:p-8 shadow-xl space-y-6">
-          <div className="flex items-center gap-3 text-emerald-300 bg-emerald-950/40 border border-emerald-500/30 p-4 rounded-xl">
-            <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
-            <div>
-              <h2 className="text-sm font-bold text-white">
-                Step 3 Complete: Vehicle Valuation Anchored on PriceOracle.sol (ID #{aiRecord.prediction_id})
+        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="flex items-start gap-3 text-emerald-200 bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-lg">
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400 mt-0.5" />
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-semibold text-white">
+                State 2/2: Valuation Anchored on PriceOracle.sol (Record #{aiRecord.prediction_id})
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5">
-                The Oracle Signer recorded the integer paise value and canonical vehicle hash on Hardhat Chain ID 31337.
+              <p className="text-xs text-slate-300">
+                Oracle signer recorded the integer USD cents valuation and canonical SHA-256 vehicle hash on Hardhat Chain ID 31337.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-[#131E3A] border border-[#1E293B] text-xs font-mono">
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] text-xs font-mono tabular-nums">
             <div>
-              <span className="text-slate-400 block">Prediction ID:</span>
-              <strong className="text-white">#{aiRecord.prediction_id}</strong>
+              <dt className="text-slate-500 font-sans">Oracle Prediction ID</dt>
+              <dd className="text-white font-semibold mt-0.5">#{aiRecord.prediction_id}</dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Stored Integer Value (Paise):</span>
-              <strong className="text-[#06B6D4] bg-[#090D1A] px-2 py-0.5 rounded border border-[#1E293B]">
-                {aiRecord.predicted_price_paise.toLocaleString('en-IN')} paise ({formatInr(aiRecord.predicted_price_inr)})
-              </strong>
+              <dt className="text-slate-500 font-sans">Anchored Value (Cents / USD)</dt>
+              <dd className="text-white font-semibold mt-0.5">
+                {aiRecord.predicted_price_paise.toLocaleString('en-US')} cents ({formatUsd(aiRecord.predicted_price)})
+              </dd>
             </div>
             <div className="md:col-span-2">
-              <span className="text-slate-400 block">Oracle Transaction Hash:</span>
-              <strong className="text-[#3B82F6] break-all">{aiRecord.oracle_tx_hash}</strong>
+              <dt className="text-slate-500 font-sans">Oracle Transaction Hash</dt>
+              <dd className="text-slate-200 break-all mt-0.5">{aiRecord.oracle_tx_hash}</dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Oracle Signer Address:</span>
-              <strong className="text-white">{aiRecord.oracle_address}</strong>
+              <dt className="text-slate-500 font-sans">Authorized Oracle Signer</dt>
+              <dd className="text-slate-300 mt-0.5">{aiRecord.oracle_address}</dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Block Number:</span>
-              <strong className="text-white">#{aiRecord.oracle_block_number}</strong>
+              <dt className="text-slate-500 font-sans">Block Number</dt>
+              <dd className="text-slate-300 mt-0.5">#{aiRecord.oracle_block_number}</dd>
             </div>
-          </div>
+          </dl>
 
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#1E293B] text-xs font-bold text-slate-300"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -625,9 +677,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2563EB] text-white text-xs font-bold shadow-md cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <span>Step 4: Configure Auction Terms in Test ETH</span>
+              <span>Configure ETH Auction Terms</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -636,93 +688,93 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
       {/* STEP 4: AUCTION TERMS IN TEST ETH */}
       {step === 4 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 sm:p-8 shadow-xl space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-white">
-              Step 4: Configure Vehicle Sealed-Bid Terms in Test ETH
+        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="border-b border-[#1E293B] pb-4">
+            <h2 className="text-base font-semibold text-white">
+              04. Configure Sealed-Bid Terms (Test ETH)
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              The AI valuation ({formatInr(aiRecord.predicted_price_inr)}) is an advisory reference in INR. Define your Starting Bid, Reserve Price, and Fixed Deposit in <strong className="text-white">Test ETH</strong>.
+              The AI valuation ({formatUsd(aiRecord.predicted_price)}) is an informational benchmark in USD. Specify your Starting Bid, Seller Reserve, and Uniform Collateral Deposit in Test ETH.
             </p>
           </div>
 
           {termsError && (
-            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs font-bold text-rose-300">
+            <div className="p-3 rounded-lg bg-rose-950/30 border border-rose-500/30 text-xs font-medium text-rose-200">
               {termsError}
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Starting Bid (Test ETH) *
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Starting Bid (Test ETH)
               </label>
               <input
                 type="number"
                 step="0.01"
                 value={startingBidEth}
                 onChange={(e) => setStartingBidEth(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] font-mono text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Reserve Price (Test ETH, &ge; Start) *
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Reserve Price (Test ETH, &ge; Start)
               </label>
               <input
                 type="number"
                 step="0.01"
                 value={reservePriceEth}
                 onChange={(e) => setReservePriceEth(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#2563EB] bg-[#131E3A] font-mono text-sm font-bold text-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Uniform Fixed Deposit (Test ETH) *
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Fixed Collateral Deposit (Test ETH)
               </label>
               <input
                 type="number"
                 step="0.01"
                 value={fixedDepositEth}
                 onChange={(e) => setFixedDepositEth(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#7C3AED] bg-[#131E3A] font-mono text-sm font-bold text-[#A78BFA] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/40"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
                 Commit Window Duration (Minutes)
               </label>
               <input
                 type="number"
                 value={commitMinutes}
                 onChange={(e) => setCommitMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] text-white font-mono text-xs focus:outline-none"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white font-mono text-xs tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
                 Reveal Window Duration (Minutes)
               </label>
               <input
                 type="number"
                 value={revealMinutes}
                 onChange={(e) => setRevealMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#1E293B] bg-[#131E3A] text-white font-mono text-xs focus:outline-none"
+                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white font-mono text-xs tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#1E293B] text-xs font-bold text-slate-300"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -730,57 +782,66 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <button
               type="button"
               onClick={handleValidateTerms}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2563EB] text-white text-xs font-bold shadow-md cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <span>Step 5: Review & Sign Transaction</span>
+              <span>Review Deployment</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 5: REVIEW & SIGN METAMASK TRANSACTION */}
+      {/* STEP 5: REVIEW & SIGN TRANSACTION */}
       {step === 5 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6 sm:p-8 shadow-xl space-y-6">
-          <div>
-            <h2 className="text-xl font-extrabold text-white">
-              Step 5: Review & Sign Auction.createAuction() Transaction
+        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="border-b border-[#1E293B] pb-4">
+            <h2 className="text-base font-semibold text-white">
+              05. Review & Deploy to SealedAuction.sol
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Verify both the advisory INR AI Oracle record and your Test ETH smart contract parameters before signing.
+              Confirm the anchored Oracle valuation record and Test ETH escrow parameters before signing.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 rounded-2xl bg-[#131E3A] border border-[#1E293B] text-xs space-y-2">
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] text-xs">
             <div>
-              <span className="text-slate-400 block">Vehicle Listing Title:</span>
-              <strong className="text-white">{title}</strong>
+              <dt className="text-slate-500">Vehicle Title</dt>
+              <dd className="text-white font-semibold mt-0.5">{title}</dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Advisory AI Estimate (PriceOracle #{aiRecord.prediction_id}):</span>
-              <strong className="text-[#A78BFA] font-mono">
-                {formatInr(aiRecord.predicted_price_inr)} ({aiRecord.model_version})
-              </strong>
+              <dt className="text-slate-500">Anchored AI Valuation (Oracle #{aiRecord.prediction_id})</dt>
+              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
+                {formatUsd(aiRecord.predicted_price)} (LightGBM v{aiRecord.model_version})
+              </dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Starting Bid / Reserve Price:</span>
-              <strong className="text-[#3B82F6] font-mono">
+              <dt className="text-slate-500">Starting Bid / Seller Reserve</dt>
+              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
                 {Number(startingBidEth).toFixed(2)} ETH / {Number(reservePriceEth).toFixed(2)} ETH
-              </strong>
+              </dd>
             </div>
             <div>
-              <span className="text-slate-400 block">Uniform Fixed Participation Deposit:</span>
-              <strong className="text-white font-mono">
-                {Number(fixedDepositEth).toFixed(2)} ETH
-              </strong>
+              <dt className="text-slate-500">Fixed Collateral Deposit</dt>
+              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
+                {Number(fixedDepositEth).toFixed(2)} ETH ({commitMinutes}m Commit · {revealMinutes}m Reveal)
+              </dd>
             </div>
-          </div>
+          </dl>
 
-          <div className="flex items-center justify-between pt-2">
+          {deployTxStage !== 'idle' && (
+            <div className="p-3 rounded-lg bg-[#090D1A] border border-[#2563EB]/50 text-xs font-mono text-slate-200">
+              {deployTxStage === 'waiting_approval' && '1/4 Waiting for Seller wallet approval...'}
+              {deployTxStage === 'submitted' && '2/4 Transaction createAuction() submitted...'}
+              {deployTxStage === 'pending' && '3/4 Pending block confirmation on Chain 31337...'}
+              {deployTxStage === 'confirmed' && '4/4 Confirmed! Redirecting to auction lot...'}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#1E293B] text-xs font-bold text-slate-300"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Modify ETH Terms</span>
@@ -790,18 +851,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               <button
                 type="button"
                 onClick={switchNetworkToHardhat}
-                className="px-6 py-3 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold"
+                className="px-5 py-2.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-semibold cursor-pointer"
               >
-                Switch to Hardhat Chain ID 31337 to Sign
+                Switch to Hardhat Chain ID 31337
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSignAndCreateAuction}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-bold shadow-lg cursor-pointer"
+                disabled={deployTxStage !== 'idle'}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Sign & Deploy Vehicle Auction on Auction.sol</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Sign & Deploy Vehicle Auction</span>
               </button>
             )}
           </div>

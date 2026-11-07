@@ -1,0 +1,308 @@
+{
+  "generated_at_utc": "2026-11-07T10:00:13.036472+00:00",
+  "selection_split": "validation",
+  "test_used_for_selection": false,
+  "selection_tolerance": 0.01,
+  "split_counts": {
+    "train": 2801,
+    "validation": 602,
+    "test": 606
+  },
+  "selected": "LightGBM",
+  "selection_reason": "LightGBM selected because it has the best validation MAE (6789.74), and among the competitive models it has the smallest artifact (2.40 MB) followed by lowest single-row latency (9.77 ms).",
+  "candidates": [
+    {
+      "name": "LightGBM",
+      "algorithm": "lightgbm",
+      "feature_set": "full",
+      "feature_count": 19,
+      "features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family",
+        "vehicle_age",
+        "mileage",
+        "mileage_per_year",
+        "horsepower",
+        "displacement_l",
+        "cylinders",
+        "transmission_speeds",
+        "is_turbo",
+        "is_supercharged",
+        "is_electric",
+        "engine_data_missing"
+      ],
+      "categorical_features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family"
+      ],
+      "params": {
+        "num_leaves": 31,
+        "learning_rate": 0.03,
+        "n_estimators": 900,
+        "objective": "regression_l1",
+        "metric": "mae",
+        "trees_used": 890,
+        "early_stopping_rounds": 50
+      },
+      "validation_metrics": {
+        "rows": 602,
+        "mae": 6789.739023223886,
+        "rmse": 16306.753001543004,
+        "r2": 0.8272559330301265,
+        "median_absolute_error": 3808.6980044881584,
+        "mape": 0.19560971074003886
+      },
+      "test_metrics": {
+        "rows": 606,
+        "mae": 9702.140864413861,
+        "rmse": 25631.585302505933,
+        "r2": 0.7899459999548123,
+        "median_absolute_error": 4394.561560606971,
+        "mape": 0.200450499960352
+      },
+      "model_size_mb": 2.3955,
+      "model_memory_mb": 0.01,
+      "inference": {
+        "single_ms_mean": 9.7725,
+        "single_ms_p95": 12.0258,
+        "single_ms_max": 12.5853,
+        "batch_rows": 606.0,
+        "batch_ms": 18.3254,
+        "batch_rows_per_second": 33068.8551
+      },
+      "training_seconds": 2.188,
+      "training_rows": 2801,
+      "notes": ""
+    },
+    {
+      "name": "CatBoost",
+      "algorithm": "catboost",
+      "feature_set": "without_model",
+      "feature_count": 18,
+      "features": [
+        "brand",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family",
+        "vehicle_age",
+        "mileage",
+        "mileage_per_year",
+        "horsepower",
+        "displacement_l",
+        "cylinders",
+        "transmission_speeds",
+        "is_turbo",
+        "is_supercharged",
+        "is_electric",
+        "engine_data_missing"
+      ],
+      "categorical_features": [
+        "brand",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family"
+      ],
+      "params": {
+        "depth": 6,
+        "learning_rate": 0.03,
+        "iterations": 763,
+        "loss_function": "MAE",
+        "eval_metric": "MAE",
+        "trees_used": 673,
+        "max_ctr_complexity": 2,
+        "early_stopping_rounds": 50
+      },
+      "validation_metrics": {
+        "rows": 602,
+        "mae": 8071.769389975819,
+        "rmse": 18513.415481107157,
+        "r2": 0.7773404896685965,
+        "median_absolute_error": 4033.50422035432,
+        "mape": 0.21754372958111318
+      },
+      "test_metrics": {
+        "rows": 606,
+        "mae": 10372.61568296999,
+        "rmse": 24858.35392752937,
+        "r2": 0.8024282919045697,
+        "median_absolute_error": 4394.363596617348,
+        "mape": 0.24969009721507043
+      },
+      "model_size_mb": 0.9231,
+      "model_memory_mb": 0.05,
+      "inference": {
+        "single_ms_mean": 0.9133,
+        "single_ms_p95": 1.0095,
+        "single_ms_max": 1.1678,
+        "batch_rows": 606.0,
+        "batch_ms": 3.0674,
+        "batch_rows_per_second": 197561.4555
+      },
+      "training_seconds": 88.756,
+      "training_rows": 2801,
+      "notes": "Selected feature set: without_model"
+    },
+    {
+      "name": "Random Forest",
+      "algorithm": "sklearn-random-forest",
+      "feature_set": "full",
+      "feature_count": 19,
+      "features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family",
+        "vehicle_age",
+        "mileage",
+        "mileage_per_year",
+        "horsepower",
+        "displacement_l",
+        "cylinders",
+        "transmission_speeds",
+        "is_turbo",
+        "is_supercharged",
+        "is_electric",
+        "engine_data_missing"
+      ],
+      "categorical_features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family"
+      ],
+      "params": {
+        "n_estimators": 200,
+        "max_depth": 18,
+        "min_samples_leaf": 2,
+        "max_features": 0.8,
+        "random_state": 42,
+        "n_jobs": -1
+      },
+      "validation_metrics": {
+        "rows": 602,
+        "mae": 9976.53019319928,
+        "rmse": 22147.42070804914,
+        "r2": 0.6813496020827797,
+        "median_absolute_error": 4724.584800518629,
+        "mape": 0.28474517868364974
+      },
+      "test_metrics": {
+        "rows": 606,
+        "mae": 13263.033866597842,
+        "rmse": 29916.612361339627,
+        "r2": 0.7138426873086934,
+        "median_absolute_error": 4987.244070436514,
+        "mape": 0.28690513695831993
+      },
+      "model_size_mb": 20.6345,
+      "model_memory_mb": 20.23,
+      "inference": {
+        "single_ms_mean": 32.5679,
+        "single_ms_p95": 35.4307,
+        "single_ms_max": 45.0472,
+        "batch_rows": 606.0,
+        "batch_ms": 33.1644,
+        "batch_rows_per_second": 18272.6056
+      },
+      "training_seconds": 0.272,
+      "training_rows": 2801,
+      "notes": ""
+    },
+    {
+      "name": "Linear Regression",
+      "algorithm": "sklearn-linear",
+      "feature_set": "full",
+      "feature_count": 19,
+      "features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family",
+        "vehicle_age",
+        "mileage",
+        "mileage_per_year",
+        "horsepower",
+        "displacement_l",
+        "cylinders",
+        "transmission_speeds",
+        "is_turbo",
+        "is_supercharged",
+        "is_electric",
+        "engine_data_missing"
+      ],
+      "categorical_features": [
+        "brand",
+        "model",
+        "fuel_type",
+        "transmission",
+        "exterior_color",
+        "interior_color",
+        "accident_history",
+        "engine_family"
+      ],
+      "params": {
+        "model": "LinearRegression",
+        "one_hot_min_frequency": 10
+      },
+      "validation_metrics": {
+        "rows": 602,
+        "mae": 17438.79242883041,
+        "rmse": 32046.5730238182,
+        "r2": 0.33283793813975737,
+        "median_absolute_error": 10644.143585565274,
+        "mape": 0.7248246840243912
+      },
+      "test_metrics": {
+        "rows": 606,
+        "mae": 21040.005044198966,
+        "rmse": 37385.72447967079,
+        "r2": 0.5531192755520464,
+        "median_absolute_error": 12896.405353997448,
+        "mape": 0.8030682018895055
+      },
+      "model_size_mb": 0.0596,
+      "model_memory_mb": 0.0,
+      "inference": {
+        "single_ms_mean": 5.2482,
+        "single_ms_p95": 5.6362,
+        "single_ms_max": 5.8701,
+        "batch_rows": 606.0,
+        "batch_ms": 6.3281,
+        "batch_rows_per_second": 95763.3414
+      },
+      "training_seconds": 0.036,
+      "training_rows": 2801,
+      "notes": ""
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 /**
- * Cryptographic utilities for AuctionChain Sealed-Bid Commit-Reveal Protocol
+ * Cryptographic & formatting utilities for AuctionChain Sealed-Bid Commit-Reveal Protocol
  * Implements deterministic canonical hashing and commitment generation matching:
  * commitment = keccak256(abi.encode(auctionId, bidderAddress, bidAmountWei, salt))
  */
@@ -31,7 +31,7 @@ export function generateDeterministicTxHash(seed: string): string {
 }
 
 /**
- * Normalizes ETH value to integer Wei string (18 decimals) so "1.5" and "1.500" produce identical hashes
+ * Normalizes ETH value to integer Wei string (18 decimals)
  */
 export function normalizeEthToWeiString(ethAmount: string | number): string {
   const num = Number(ethAmount);
@@ -78,10 +78,10 @@ export async function computeCommitmentHash(
  */
 export async function computeCanonicalProductHash(
   category: string,
-  attributes: Record<string, string | number>
+  attributes: Record<string, unknown>
 ): Promise<{ hash: string; canonicalJson: string }> {
   const sortedKeys = Object.keys(attributes).sort();
-  const normalizedObj: Record<string, string | number> = {
+  const normalizedObj: Record<string, string | number | boolean> = {
     category: category.trim().toLowerCase(),
   };
 
@@ -89,8 +89,10 @@ export async function computeCanonicalProductHash(
     const val = attributes[k];
     if (typeof val === 'string') {
       normalizedObj[k] = val.trim().toLowerCase();
-    } else {
-      normalizedObj[k] = Number(val);
+    } else if (typeof val === 'number' || typeof val === 'boolean') {
+      normalizedObj[k] = val;
+    } else if (val !== null && val !== undefined) {
+      normalizedObj[k] = String(val).trim().toLowerCase();
     }
   }
 
@@ -107,12 +109,20 @@ export async function computeCanonicalProductHash(
   };
 }
 
-export function formatInr(amountInr: number): string {
-  return new Intl.NumberFormat('en-IN', {
+export function formatUsd(amountUsd: number): string {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amountInr);
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amountUsd) || 0);
+}
+
+/**
+ * Formats advisory AI valuation in USD ($), matching the vehicle-price-ai US market model.
+ */
+export function formatInr(amount: number): string {
+  return formatUsd(amount);
 }
 
 export function shortenAddress(addr: string): string {

@@ -1,4 +1,4 @@
 @echo off
-echo [Terminal 4] Starting AuctionChain Frontend DApp on Port 3000...
-cd frontend
+echo [Terminal 4] Starting AuctionChain Frontend DApp & API Gateway on Port 3000...
 npm run dev
+
