@@ -54,10 +54,10 @@ export const NonceMismatchBanner: React.FC<NonceMismatchBannerProps> = ({
               How to Fix in MetaMask (Standard Method):
             </div>
             <div>
-              1. Open the <strong>MetaMask</strong> extension → Click the <strong>⋮</strong> menu (top-right) → <strong>Settings</strong> → <strong>Advanced</strong>.
+              1. Open <strong>MetaMask</strong> → Go to <strong>Settings</strong> → <strong>Developer Tools</strong>.
             </div>
             <div>
-              2. Click <strong>"Clear activity tab data"</strong>, then click <strong>"I Cleared MetaMask Data"</strong> below.
+              2. Click on <strong>"Delete activity and nonce data"</strong>, then click <strong>"I Deleted Activity & Nonce Data"</strong> below.
             </div>
           </div>
         </div>
@@ -70,7 +70,7 @@ export const NonceMismatchBanner: React.FC<NonceMismatchBannerProps> = ({
           className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5 text-slate-300" />
-          <span>I Cleared MetaMask Activity Data</span>
+          <span>I Deleted Activity & Nonce Data</span>
         </button>
 
         <button

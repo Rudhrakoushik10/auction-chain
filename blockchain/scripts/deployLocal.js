@@ -39,9 +39,7 @@ async function main() {
     },
   };
 
-  // Reset Account 0 (Admin) nonce to 0x0 and balance to 10,000 ETH after deployment
-  // so that MetaMask Account 0 starts with a clean 0 nonce just like Accounts 1, 2, and 3
-  await hre.network.provider.send("hardhat_setNonce", [admin.address, "0x0"]);
+  // Restore Account 0 (Admin) balance to a clean 10,000 ETH after contract deployment gas cost
   await hre.network.provider.send("hardhat_setBalance", [
     admin.address,
     "0x21e19e0c9bab2400000",

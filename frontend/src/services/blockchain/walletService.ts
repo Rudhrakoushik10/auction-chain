@@ -167,7 +167,7 @@ export function parseNonceMismatchFromError(
     cachedMetaMaskNonce: gotMetaMaskNonce,
     reason: `Hardhat node was restarted (expecting Nonce ${expectedHardhatNonce}), but MetaMask still caches Nonce ${gotMetaMaskNonce} from a previous session.`,
     howToFixManual:
-      'Open MetaMask → Click the ⋮ menu → Settings → Advanced → Click "Clear activity tab data" to reset MetaMask\'s cached nonce counter.',
+      'In MetaMask: Go to Settings → Developer Tools → Click on "Delete activity and nonce data".',
     detectedAt: Date.now(),
   };
 }
@@ -324,7 +324,7 @@ export function detectAccountNonceMismatch(
       cachedMetaMaskNonce: cachedNonce,
       reason: `Hardhat Terminal 1 was restarted (on-chain nonce reset to ${hardhatNonce}), while MetaMask still caches Nonce ${cachedNonce} for this account from your previous session.`,
       howToFixManual:
-        'In MetaMask: Open Settings → Advanced → Click "Clear activity tab data", OR click "Auto-Sync Hardhat Nonce" below.',
+        'In MetaMask: Go to Settings → Developer Tools → Click on "Delete activity and nonce data", OR click "Auto-Sync Hardhat Nonce" below.',
       detectedAt: Date.now(),
     };
   }
@@ -445,44 +445,25 @@ export async function connectMetaMaskWithEthers(
       }
     }
 
-    let selectedAddr = accounts[0];
-    if (preferredAddress) {
-      const matchedInAuthorized = accounts.find(
-        (a) => a.toLowerCase() === preferredAddress.toLowerCase()
+    let selectedAddr = preferredAddress || accounts[0];
+    if (!preferredAddress) {
+      // Find the first human role account (Account 0, 1, 2, or 3) among authorized MetaMask accounts
+      const humanMatch = accounts.find((a) =>
+        HUMAN_ROLE_WALLETS.some((hw) => hw.address.toLowerCase() === a.toLowerCase())
       );
-      if (matchedInAuthorized) {
-        selectedAddr = matchedInAuthorized;
+      if (humanMatch) {
+        selectedAddr = humanMatch;
+      } else {
+        // If only Account 4 (Oracle) or another account is checked in MetaMask, default to Account 0 (Admin)
+        selectedAddr = HUMAN_ROLE_WALLETS[0].address;
       }
     }
 
     const checksumAddr = ethers.getAddress(selectedAddr);
-    const roleAccount = findRoleAccountByAddress(checksumAddr);
-
-    if (checksumAddr.toLowerCase() === ORACLE_BACKGROUND_ACCOUNT.address.toLowerCase()) {
-      return {
-        success: false,
-        address: checksumAddr,
-        chainId: activeChainId,
-        isCorrectNetwork: activeChainId === HARDHAT_CHAIN_ID,
-        isUnsupportedAccount: true,
-        error:
-          'The connected address is the background Oracle service account (Account 4 — 0x15d34...). Please select Account 0 (Admin), Account 1 (Seller), Account 2 (Bidder 1), or Account 3 (Bidder 2).',
-      };
-    }
-
     const resolvedRole =
-      roleAccount || (preferredAddress ? findRoleAccountByAddress(preferredAddress) : null);
-
-    if (!resolvedRole) {
-      return {
-        success: false,
-        address: checksumAddr,
-        chainId: activeChainId,
-        isCorrectNetwork: activeChainId === HARDHAT_CHAIN_ID,
-        isUnsupportedAccount: true,
-        error: `Connected account (${checksumAddr.slice(0, 6)}...${checksumAddr.slice(-4)}) is not one of the 4 role accounts. Import Account 0 (Admin), Account 1 (Seller), Account 2 (Bidder 1), or Account 3 (Bidder 2) in MetaMask.`,
-      };
-    }
+      findRoleAccountByAddress(checksumAddr) ||
+      (preferredAddress ? findRoleAccountByAddress(preferredAddress) : null) ||
+      HUMAN_ROLE_WALLETS[0];
 
     // Check if Hardhat was restarted without clearing MetaMask's cached nonce
     const nonceMismatch = detectAccountNonceMismatch(resolvedRole.address, rpcStatus.nonces);
