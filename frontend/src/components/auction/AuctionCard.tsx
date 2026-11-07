@@ -1,7 +1,7 @@
 import React from 'react';
 import { AuctionItem } from '../../types/auction';
 import { useCountdown } from '../../hooks/useCountdown';
-import { formatUsd } from '../../lib/crypto';
+import { formatUsd, formatEthToInr } from '../../lib/crypto';
 
 interface AuctionCardProps {
   auction: AuctionItem;
@@ -87,7 +87,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction, onSelect }) =
         <div className="pt-3.5 border-t border-[#1E293B] space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-[11px] text-slate-400">AI Valuation (USD)</div>
+              <div className="text-[11px] text-slate-400">AI Valuation (INR)</div>
               <div className="text-sm font-mono font-bold text-white tabular-nums mt-0.5">
                 {formatUsd(aiUsd)}
               </div>
@@ -101,12 +101,17 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction, onSelect }) =
                   ? `${auction.highestBidEth.toFixed(2)} ETH`
                   : `${auction.reservePriceEth.toFixed(1)} / ${auction.startingBidEth.toFixed(1)} ETH`}
               </div>
+              <div className="text-[11px] font-mono text-emerald-400 tabular-nums mt-0.5">
+                {auction.phase === 'Sold' && auction.highestBidEth
+                  ? formatEthToInr(auction.highestBidEth)
+                  : `${formatEthToInr(auction.reservePriceEth)} / ${formatEthToInr(auction.startingBidEth)}`}
+              </div>
             </div>
           </div>
 
           <div className="pt-2 border-t border-[#1E293B]/60 flex items-center justify-between text-xs">
             <span className="text-slate-400 font-mono tabular-nums">
-              {auction.commitments.length} sealed {auction.commitments.length === 1 ? 'bid' : 'bids'} · Deposit {auction.fixedDepositEth.toFixed(1)} ETH
+              {auction.commitments.length} sealed {auction.commitments.length === 1 ? 'bid' : 'bids'} · Deposit {auction.fixedDepositEth.toFixed(1)} ETH ({formatEthToInr(auction.fixedDepositEth)})
             </span>
             <span className="font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
               {primaryActionLabel} →

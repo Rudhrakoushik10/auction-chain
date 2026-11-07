@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { AuctionItem, LocalRevealBackupSecret } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
-import { formatInr, shortenAddress } from '../../lib/crypto';
+import { formatInr, formatEthToInr, shortenAddress } from '../../lib/crypto';
 import { Marketplace } from '../Marketplace';
 
 export type BidderNavTab =
@@ -35,8 +35,8 @@ interface BidderDashboardProps {
   auctions: AuctionItem[];
   savedSecrets: LocalRevealBackupSecret[];
   onSelectAuction: (auction: AuctionItem) => void;
-  onClaimRefund: (auctionId: string) => void;
-  onSettleWinner: (auctionId: string) => void;
+  onClaimRefund: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  onSettleWinner: (auctionId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const BidderDashboard: React.FC<BidderDashboardProps> = ({
@@ -162,7 +162,10 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                     )}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-slate-200 text-right whitespace-nowrap tabular-nums">
-                    {myComm?.depositEth.toFixed(2)} ETH
+                    <div>{myComm?.depositEth.toFixed(2)} ETH</div>
+                    <div className="text-[11px] text-emerald-400">
+                      {formatEthToInr(myComm?.depositEth || 0)}
+                    </div>
                     {myComm?.depositRefunded && (
                       <span className="block text-[10px] text-emerald-400">
                         {isWinner ? 'Credited' : 'Refunded'}
@@ -170,18 +173,25 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                     )}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-white text-right whitespace-nowrap tabular-nums">
-                    {myComm?.revealed
-                      ? `${myComm.revealedAmountEth?.toFixed(2)} ETH`
-                      : 'Concealed'}
+                    {myComm?.revealed ? (
+                      <div>
+                        <div>{myComm.revealedAmountEth?.toFixed(2)} ETH</div>
+                        <div className="text-[11px] text-emerald-400">
+                          {formatEthToInr(myComm.revealedAmountEth || 0)}
+                        </div>
+                      </div>
+                    ) : (
+                      'Concealed'
+                    )}
                   </td>
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
                     <div className="inline-flex items-center justify-end gap-2">
                       {auc.phase === 'Sold' && isWinner && !auc.winnerSettled && (
                         <button
                           type="button"
-                          onClick={() => {
-                            onSettleWinner(auc.id);
-                            setTxNotice(`Settled winning balance for Lot #${auc.numericId}.`);
+                          onClick={async () => {
+                            const res = await onSettleWinner(auc.id);
+                            setTxNotice(res.message);
                           }}
                           className="px-2.5 py-1 rounded bg-[#2563EB] hover:bg-blue-600 text-white font-semibold cursor-pointer"
                         >
@@ -191,9 +201,9 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                       {canClaimRefund && (
                         <button
                           type="button"
-                          onClick={() => {
-                            onClaimRefund(auc.id);
-                            setTxNotice(`Claimed ${myComm.depositEth.toFixed(2)} ETH refund for Lot #${auc.numericId}.`);
+                          onClick={async () => {
+                            const res = await onClaimRefund(auc.id);
+                            setTxNotice(res.message);
                           }}
                           className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
                         >
@@ -345,6 +355,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
               <div className="p-4">
                 <div className="text-xs font-sans text-slate-400">Available Balance</div>
                 <div className="text-2xl font-bold text-white mt-1">{wallet.balanceEth.toFixed(1)} ETH</div>
+                <div className="text-[11px] text-emerald-400 mt-0.5">{formatEthToInr(wallet.balanceEth)}</div>
               </div>
             </div>
 
@@ -416,7 +427,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                       <div className="space-y-1">
                         <div className="text-sm font-semibold text-white">{auc.title}</div>
                         <div className="text-xs font-mono text-slate-400 tabular-nums">
-                          Winning Bid: <strong className="text-white">{auc.highestBidEth?.toFixed(2)} ETH</strong> · Deposit Credited: {auc.fixedDepositEth.toFixed(2)} ETH · Remaining Due: {dueEth.toFixed(2)} ETH
+                          Winning Bid: <strong className="text-white">{auc.highestBidEth?.toFixed(2)} ETH ({formatEthToInr(auc.highestBidEth || 0)})</strong> · Deposit Credited: {auc.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auc.fixedDepositEth)}) · Remaining Due: {dueEth.toFixed(2)} ETH ({formatEthToInr(dueEth)})
                         </div>
                       </div>
 
@@ -424,13 +435,13 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                         {!auc.winnerSettled ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              onSettleWinner(auc.id);
-                              setTxNotice(`Settled ${dueEth.toFixed(2)} ETH balance for Lot #${auc.numericId}.`);
+                            onClick={async () => {
+                              const res = await onSettleWinner(auc.id);
+                              setTxNotice(res.message);
                             }}
                             className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold cursor-pointer"
                           >
-                            Settle {dueEth.toFixed(2)} ETH Balance
+                            Settle {dueEth.toFixed(2)} ETH ({formatEthToInr(dueEth)})
                           </button>
                         ) : (
                           <span className="text-xs font-mono text-emerald-400">
@@ -461,7 +472,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                 Oracle-Verified AI Valuation Feed
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Compare advisory USD valuations anchored on PriceOracle.sol with seller Test ETH starting and reserve prices
+                Compare advisory INR (₹) valuations anchored on PriceOracle.sol with seller Test ETH starting and reserve prices
               </p>
             </div>
 
@@ -470,7 +481,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                 <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
                   <tr>
                     <th className="py-3 px-4 font-medium">Lot / Vehicle</th>
-                    <th className="py-3 px-4 font-medium text-right">AI Valuation (USD)</th>
+                    <th className="py-3 px-4 font-medium text-right">AI Valuation (INR)</th>
                     <th className="py-3 px-4 font-medium text-right">Starting Bid (ETH)</th>
                     <th className="py-3 px-4 font-medium text-right">Reserve (ETH)</th>
                     <th className="py-3 px-4 font-medium text-right">Oracle Proof</th>
@@ -487,10 +498,12 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                         {formatInr(auc.aiPrediction.predicted_price ?? auc.aiPrediction.predicted_price_inr)}
                       </td>
                       <td className="py-3.5 px-4 text-right text-slate-300">
-                        {auc.startingBidEth.toFixed(2)} ETH
+                        <div>{auc.startingBidEth.toFixed(2)} ETH</div>
+                        <div className="text-[11px] text-emerald-400">{formatEthToInr(auc.startingBidEth)}</div>
                       </td>
                       <td className="py-3.5 px-4 text-right text-slate-300">
-                        {auc.reservePriceEth.toFixed(2)} ETH
+                        <div>{auc.reservePriceEth.toFixed(2)} ETH</div>
+                        <div className="text-[11px] text-emerald-400">{formatEthToInr(auc.reservePriceEth)}</div>
                       </td>
                       <td className="py-3.5 px-4 text-right text-slate-400">
                         #{auc.aiPrediction.prediction_id} ({shortenAddress(auc.aiPrediction.product_data_hash)})
@@ -525,7 +538,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
                 </p>
               </div>
               <span className="text-xs font-mono text-slate-400 tabular-nums">
-                Chain ID {chainId} · {wallet.balanceEth.toFixed(2)} ETH
+                Chain ID {chainId} · {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
               </span>
             </div>
 
@@ -619,7 +632,9 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="text-slate-400">Available Balance</dt>
-                <dd className="text-white font-mono tabular-nums">{wallet.balanceEth.toFixed(4)} ETH</dd>
+                <dd className="text-white font-mono tabular-nums">
+                  {wallet.balanceEth.toFixed(4)} ETH ({formatEthToInr(wallet.balanceEth)})
+                </dd>
               </div>
             </dl>
           </section>

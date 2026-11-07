@@ -11,12 +11,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
-  CheckCircle2,
-  AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
-import { formatInr, shortenAddress } from '../../lib/crypto';
+import { formatInr, formatEthToInr, shortenAddress } from '../../lib/crypto';
 
 export type AdminNavTab =
   | 'dashboard'
@@ -45,16 +44,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     authorizedOracleAddress,
     oracleContractAddress,
     auctionContractAddress,
-    updateAuthorizedOracle,
   } = useWallet();
 
   const [activeTab, setActiveTab] = useState<AdminNavTab>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [newOracleInput, setNewOracleInput] = useState(authorizedOracleAddress);
-  const [oracleStatusMsg, setOracleStatusMsg] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
 
   if (!wallet) return null;
 
@@ -63,7 +56,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const sidebarItems: { id: AdminNavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Platform Overview', icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
-    { id: 'oracle', label: 'Oracle Management', icon: <Cpu className="w-4 h-4 shrink-0" /> },
+    { id: 'oracle', label: 'Oracle Configuration', icon: <Cpu className="w-4 h-4 shrink-0" /> },
     { id: 'auctions', label: 'Auction Registry', icon: <Gavel className="w-4 h-4 shrink-0" /> },
     { id: 'roles', label: 'Role Accounts', icon: <Users className="w-4 h-4 shrink-0" /> },
     { id: 'blockchain', label: 'Event Audit Log', icon: <Database className="w-4 h-4 shrink-0" /> },
@@ -71,30 +64,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     { id: 'system', label: 'Service Topology', icon: <Activity className="w-4 h-4 shrink-0" /> },
     { id: 'account', label: 'Admin Account', icon: <UserCheck className="w-4 h-4 shrink-0" /> },
   ];
-
-  const handleUpdateOracleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newOracleInput.trim();
-    if (!trimmed.startsWith('0x') || trimmed.length !== 42) {
-      setOracleStatusMsg({
-        type: 'error',
-        text: 'Invalid address: Please enter a 42-character 0x hexadecimal Ethereum address.',
-      });
-      return;
-    }
-    const ok = updateAuthorizedOracle(trimmed);
-    if (ok) {
-      setOracleStatusMsg({
-        type: 'success',
-        text: `Transaction confirmed: Authorized Oracle signer updated on PriceOracle.sol to ${shortenAddress(trimmed)}.`,
-      });
-    } else {
-      setOracleStatusMsg({
-        type: 'error',
-        text: 'Revert: Only the Contract Administrator (Account 0) can update the authorized Oracle signer.',
-      });
-    }
-  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-8rem)] pb-16">
@@ -176,7 +145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={() => setActiveTab('oracle')}
                 className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
               >
-                Manage PriceOracle.sol
+                Inspect PriceOracle.sol
               </button>
             </div>
 
@@ -243,7 +212,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* 2. Oracle Management (Interactive Authorized Signer Configuration) */}
+        {/* 2. Oracle Configuration (Read-Only Authorized Signer Verification) */}
         {activeTab === 'oracle' && (
           <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
             <div className="border-b border-[#1E293B] pb-4">
@@ -251,26 +220,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 PriceOracle.sol Signer Configuration
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Inspect or rotate the authorized ECDSA Oracle signer address permitted to call <code className="text-slate-200">registerPrediction()</code>.
+                Read-only verification of the authorized ECDSA Oracle signer address permitted to call <code className="text-slate-200">registerPrediction()</code>.
               </p>
             </div>
-
-            {oracleStatusMsg && (
-              <div
-                className={`p-4 rounded-lg border text-xs flex items-start gap-2.5 ${
-                  oracleStatusMsg.type === 'success'
-                    ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
-                    : 'bg-rose-950/30 border-rose-500/30 text-rose-200'
-                }`}
-              >
-                {oracleStatusMsg.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                )}
-                <span>{oracleStatusMsg.text}</span>
-              </div>
-            )}
 
             <dl className="divide-y divide-[#1E293B] text-xs">
               <div className="py-3 flex justify-between gap-4">
@@ -278,35 +230,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <dd className="font-mono text-white">{oracleContractAddress}</dd>
               </div>
               <div className="py-3 flex justify-between gap-4">
-                <dt className="text-slate-400">Current Authorized Oracle Signer</dt>
+                <dt className="text-slate-400">Authorized Oracle Signer (Locked)</dt>
                 <dd className="font-mono text-emerald-400 font-semibold">{authorizedOracleAddress}</dd>
               </div>
               <div className="py-3 flex justify-between gap-4">
-                <dt className="text-slate-400">Default Hardhat Account 4 (Oracle Worker)</dt>
+                <dt className="text-slate-400">Hardhat Account 4 (Oracle Worker Service)</dt>
                 <dd className="font-mono text-slate-300">0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</dd>
               </div>
             </dl>
 
-            <form onSubmit={handleUpdateOracleSubmit} className="pt-4 border-t border-[#1E293B] space-y-3">
-              <label className="block text-xs font-medium text-slate-300">
-                Update Authorized Oracle Signer Address (setAuthorizedOracle)
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={newOracleInput}
-                  onChange={(e) => setNewOracleInput(e.target.value)}
-                  placeholder="0x..."
-                  className="flex-1 px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-xs text-white focus:outline-none focus:border-[#2563EB]"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  Update Signer on PriceOracle.sol
-                </button>
-              </div>
-            </form>
+            <div className="p-4 rounded-lg border border-emerald-500/20 bg-emerald-950/20 text-xs text-emerald-200 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                The Oracle signer address is locked to <strong>Account #4 (0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65)</strong> at contract deployment time to guarantee uninterrupted ML valuation registration from Terminal 3.
+              </span>
+            </div>
           </section>
         )}
 
@@ -327,7 +265,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="py-3 px-4 font-medium">Lot</th>
                     <th className="py-3 px-4 font-medium">Seller</th>
                     <th className="py-3 px-4 font-medium">Phase</th>
-                    <th className="py-3 px-4 font-medium text-right">AI Estimate (USD)</th>
+                    <th className="py-3 px-4 font-medium text-right">AI Estimate (INR)</th>
                     <th className="py-3 px-4 font-medium text-right">Reserve (ETH)</th>
                     <th className="py-3 px-4 font-medium text-right">Commits</th>
                     <th className="py-3 px-4 font-medium text-right">Action</th>
@@ -349,7 +287,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {formatInr(auc.aiPrediction.predicted_price ?? auc.aiPrediction.predicted_price_inr)}
                       </td>
                       <td className="py-3.5 px-4 text-right text-white">
-                        {auc.reservePriceEth.toFixed(2)} ETH
+                        <div>{auc.reservePriceEth.toFixed(2)} ETH</div>
+                        <div className="text-[11px] text-emerald-400">{formatEthToInr(auc.reservePriceEth)}</div>
                       </td>
                       <td className="py-3.5 px-4 text-right text-slate-300">
                         {auc.commitments.length}
@@ -490,11 +429,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="font-sans text-slate-400">Mean Absolute Error (MAE)</dt>
-                <dd className="text-white">$9,484.57 USD</dd>
+                <dd className="text-white">{formatInr(9484.57)} INR</dd>
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="font-sans text-slate-400">Root Mean Squared Error (RMSE)</dt>
-                <dd className="text-white">$27,311.06 USD</dd>
+                <dd className="text-white">{formatInr(27311.06)} INR</dd>
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="font-sans text-slate-400">Training Dataset Volume</dt>

@@ -23,6 +23,8 @@ import {
   computeCommitmentHash,
   generateRandomSalt,
   formatInr,
+  formatEthToInr,
+  ETH_TO_INR_RATE,
   shortenAddress,
 } from '../lib/crypto';
 
@@ -41,16 +43,28 @@ interface AuctionDetailsProps {
     auctionId: string,
     commitmentHash: string,
     secretBackup: LocalRevealBackupSecret
-  ) => void;
-  onRevealBid: (auctionId: string, bidAmountEth: number, salt: string) => {
+  ) => Promise<{ success: boolean; message: string }>;
+  onRevealBid: (
+    auctionId: string,
+    bidAmountEth: number,
+    salt: string
+  ) => Promise<{
     success: boolean;
     message: string;
-  };
-  onFinalizeAuction: (auctionId: string) => void;
+  }>;
+  onFinalizeAuction: (
+    auctionId: string
+  ) => Promise<{ success: boolean; message: string }>;
   onAdvancePhaseDemo: (auctionId: string) => void;
-  onSettleWinner: (auctionId: string) => void;
-  onClaimRefund: (auctionId: string) => void;
-  onWithdrawProceeds: (auctionId: string) => void;
+  onSettleWinner: (
+    auctionId: string
+  ) => Promise<{ success: boolean; message: string }>;
+  onClaimRefund: (
+    auctionId: string
+  ) => Promise<{ success: boolean; message: string }>;
+  onWithdrawProceeds: (
+    auctionId: string
+  ) => Promise<{ success: boolean; message: string }>;
   savedSecrets: LocalRevealBackupSecret[];
 }
 
@@ -153,15 +167,16 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
         )
       : undefined;
 
-  const runSimulatedTxLifecycle = async (onComplete: () => { ok: boolean; msg: string }) => {
+  const runSimulatedTxLifecycle = async (
+    onComplete: () => Promise<{ ok: boolean; msg: string }> | { ok: boolean; msg: string }
+  ) => {
     setActionFeedback(null);
     setTxState('waiting_approval');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
     setTxState('submitted');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
     setTxState('pending');
-    await new Promise((r) => setTimeout(r, 200));
-    const res = onComplete();
+    const res = await onComplete();
     if (res.ok) {
       setTxState('confirmed');
       setActionFeedback({ type: 'success', text: res.msg });
@@ -274,7 +289,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
       return;
     }
 
-    await runSimulatedTxLifecycle(() => {
+    await runSimulatedTxLifecycle(async () => {
       const secretObj: LocalRevealBackupSecret = {
         platform: 'AuctionChain',
         chainId: 31337,
@@ -289,10 +304,10 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
         createdAt: new Date().toISOString(),
       };
 
-      onCommitBid(auction.id, computedHash, secretObj);
+      const res = await onCommitBid(auction.id, computedHash, secretObj);
       return {
-        ok: true,
-        msg: `Transaction confirmed: Sealed commitment ${computedHash.slice(0, 14)}... recorded with ${auction.fixedDepositEth.toFixed(2)} ETH collateral deposit.`,
+        ok: res.success,
+        msg: res.message,
       };
     });
   };
@@ -309,8 +324,8 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
       return;
     }
 
-    await runSimulatedTxLifecycle(() => {
-      const result = onRevealBid(auction.id, numBid, revealSaltInput.trim());
+    await runSimulatedTxLifecycle(async () => {
+      const result = await onRevealBid(auction.id, numBid, revealSaltInput.trim());
       return { ok: result.success, msg: result.message };
     });
   };
@@ -509,11 +524,17 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <div className="text-base font-bold text-white mt-0.5">
                     {auction.startingBidEth.toFixed(2)} ETH
                   </div>
+                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                    {formatEthToInr(auction.startingBidEth)}
+                  </div>
                 </div>
                 <div>
                   <div className="text-xs font-sans text-slate-400">Seller Reserve</div>
                   <div className="text-base font-bold text-[#3B82F6] mt-0.5">
                     {auction.reservePriceEth.toFixed(2)} ETH
+                  </div>
+                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                    {formatEthToInr(auction.reservePriceEth)}
                   </div>
                 </div>
                 <div>
@@ -521,11 +542,14 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <div className="text-base font-bold text-white mt-0.5">
                     {auction.fixedDepositEth.toFixed(2)} ETH
                   </div>
+                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                    {formatEthToInr(auction.fixedDepositEth)}
+                  </div>
                 </div>
               </div>
 
               <div className="pt-4 border-t border-[#1E293B] flex items-center justify-between text-xs">
-                <span className="text-slate-400">Advisory AI Valuation (USD)</span>
+                <span className="text-slate-400">Advisory AI Valuation (INR)</span>
                 <span className="font-mono font-semibold text-slate-200 tabular-nums">
                   {formatInr(auction.aiPrediction.predicted_price ?? auction.aiPrediction.predicted_price_inr)} (Informational)
                 </span>
@@ -537,7 +561,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   {auction.phase === 'Commit'
                     ? 'Concealed until Reveal Phase'
                     : auction.highestBidEth
-                    ? `${auction.highestBidEth.toFixed(2)} ETH`
+                    ? `${auction.highestBidEth.toFixed(2)} ETH (${formatEthToInr(auction.highestBidEth)})`
                     : 'No revealed bids yet'}
                 </span>
               </div>
@@ -607,7 +631,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <span>Submit Sealed Commitment</span>
                 </h3>
                 <span className="text-xs font-mono text-slate-400 tabular-nums">
-                  Deposit: {auction.fixedDepositEth.toFixed(2)} ETH
+                  Deposit: {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                 </span>
               </div>
 
@@ -627,15 +651,20 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     Hash: {myCommitment.commitmentHash}
                   </div>
                   <div className="text-slate-400 font-mono tabular-nums">
-                    Locked Deposit: <strong className="text-white">{myCommitment.depositEth.toFixed(2)} ETH</strong> · Bid value remains concealed until Reveal phase.
+                    Locked Deposit: <strong className="text-white">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Bid value remains concealed until Reveal phase.
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleCommitSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Confidential Bid Amount (Test ETH, min {auction.startingBidEth.toFixed(2)} ETH)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-medium text-slate-300">
+                        Confidential Bid Amount (Test ETH, min {auction.startingBidEth.toFixed(2)} ETH / {formatEthToInr(auction.startingBidEth)})
+                      </label>
+                      <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                        ≈ {formatEthToInr(bidAmountEth)} INR
+                      </span>
+                    </div>
                     <input
                       type="number"
                       step="0.01"
@@ -643,6 +672,12 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       onChange={(e) => setBidAmountEth(e.target.value)}
                       className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
                     />
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+                      <span>
+                        Indian Rupee Equivalent: <strong className="text-emerald-400">{formatEthToInr(bidAmountEth)}</strong>
+                      </span>
+                      <span>Rate: 1 ETH = {formatEthToInr(1)}</span>
+                    </div>
                   </div>
 
                   <div>
@@ -712,7 +747,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       />
                       <span className="leading-relaxed">
                         I have saved my bid amount and secret salt. Unrevealed commitments forfeit the{' '}
-                        <strong className="text-slate-200 font-mono">{auction.fixedDepositEth.toFixed(2)} ETH</strong> deposit.
+                        <strong className="text-slate-200 font-mono">{auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})</strong> deposit.
                       </span>
                     </label>
                   </div>
@@ -731,7 +766,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       disabled={!backupSavedAck || Boolean(isSeller) || txState === 'waiting_approval' || txState === 'pending'}
                       className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      Commit Sealed Hash & Lock {auction.fixedDepositEth.toFixed(2)} ETH
+                      Commit Sealed Hash & Lock {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                     </button>
                   )}
                 </form>
@@ -766,15 +801,20 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     <span>Bid Verified & Revealed On-Chain</span>
                   </div>
                   <div className="font-mono text-emerald-300 tabular-nums">
-                    Revealed Bid: <strong>{myCommitment.revealedAmountEth?.toFixed(2)} ETH</strong>
+                    Revealed Bid: <strong>{myCommitment.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(myCommitment.revealedAmountEth || 0)})</strong>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleRevealSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Original Committed Bid Amount (Test ETH)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-medium text-slate-300">
+                        Original Committed Bid Amount (Test ETH)
+                      </label>
+                      <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                        ≈ {formatEthToInr(revealBidInput)} INR
+                      </span>
+                    </div>
                     <input
                       type="number"
                       step="0.01"
@@ -783,6 +823,12 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       placeholder="e.g., 15.00"
                       className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
                     />
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+                      <span>
+                        Indian Rupee Equivalent: <strong className="text-emerald-400">{formatEthToInr(revealBidInput)}</strong>
+                      </span>
+                      <span>1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}</span>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -809,11 +855,11 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    runSimulatedTxLifecycle(() => {
-                      onFinalizeAuction(auction.id);
+                    runSimulatedTxLifecycle(async () => {
+                      const res = await onFinalizeAuction(auction.id);
                       return {
-                        ok: true,
-                        msg: 'Auction finalized on-chain and reserve threshold evaluated.',
+                        ok: res.success,
+                        msg: res.message,
                       };
                     })
                   }
@@ -846,7 +892,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <div className="flex justify-between">
                     <dt className="font-sans text-slate-400">Winning Bid</dt>
                     <dd className="text-emerald-400 font-bold">
-                      {auction.highestBidEth?.toFixed(2)} ETH (Reserve {auction.reservePriceEth.toFixed(2)} ETH)
+                      {auction.highestBidEth?.toFixed(2)} ETH ({formatEthToInr(auction.highestBidEth || 0)}) · Reserve {auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})
                     </dd>
                   </div>
                   <div className="flex justify-between">
@@ -858,8 +904,8 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                 </dl>
               ) : (
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Highest revealed bid ({auction.highestBidEth?.toFixed(2) || '0.00'} ETH) did not meet the seller&apos;s reserve price of{' '}
-                  <strong className="text-white font-mono">{auction.reservePriceEth.toFixed(2)} ETH</strong>. All revealed bidders may claim a full pull-based deposit refund.
+                  Highest revealed bid ({auction.highestBidEth?.toFixed(2) || '0.00'} ETH / {formatEthToInr(auction.highestBidEth || 0)}) did not meet the seller&apos;s reserve price of{' '}
+                  <strong className="text-white font-mono">{auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})</strong>. All revealed bidders may claim a full pull-based deposit refund.
                 </p>
               )}
 
@@ -872,18 +918,19 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          runSimulatedTxLifecycle(() => {
-                            onSettleWinner(auction.id);
+                          runSimulatedTxLifecycle(async () => {
+                            const res = await onSettleWinner(auction.id);
                             return {
-                              ok: true,
-                              msg: 'Winning balance settled on SealedAuction.sol.',
+                              ok: res.success,
+                              msg: res.message,
                             };
                           })
                         }
                         className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
                       >
                         Settle Remaining Balance (
-                        {((auction.highestBidEth || 0) - auction.fixedDepositEth).toFixed(2)} ETH)
+                        {((auction.highestBidEth || 0) - auction.fixedDepositEth).toFixed(2)} ETH /{' '}
+                        {formatEthToInr((auction.highestBidEth || 0) - auction.fixedDepositEth)})
                       </button>
                     )}
 
@@ -894,17 +941,18 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          runSimulatedTxLifecycle(() => {
-                            onWithdrawProceeds(auction.id);
+                          runSimulatedTxLifecycle(async () => {
+                            const res = await onWithdrawProceeds(auction.id);
                             return {
-                              ok: true,
-                              msg: `Withdrew ${auction.highestBidEth?.toFixed(2)} ETH sale proceeds.`,
+                              ok: res.success,
+                              msg: res.message,
                             };
                           })
                         }
                         className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                       >
-                        Withdraw Sale Proceeds ({auction.highestBidEth?.toFixed(2)} ETH)
+                        Withdraw Sale Proceeds ({auction.highestBidEth?.toFixed(2)} ETH /{' '}
+                        {formatEthToInr(auction.highestBidEth || 0)})
                       </button>
                     )}
 
@@ -917,17 +965,18 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          runSimulatedTxLifecycle(() => {
-                            onClaimRefund(auction.id);
+                          runSimulatedTxLifecycle(async () => {
+                            const res = await onClaimRefund(auction.id);
                             return {
-                              ok: true,
-                              msg: `Refunded ${myCommitment.depositEth.toFixed(2)} ETH deposit to your wallet.`,
+                              ok: res.success,
+                              msg: res.message,
                             };
                           })
                         }
                         className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
                       >
-                        Claim Deposit Refund ({myCommitment.depositEth.toFixed(2)} ETH)
+                        Claim Deposit Refund ({myCommitment.depositEth.toFixed(2)} ETH /{' '}
+                        {formatEthToInr(myCommitment.depositEth)})
                       </button>
                     )}
                 </div>
@@ -969,11 +1018,11 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     <div className="text-right font-mono tabular-nums shrink-0">
                       {c.revealed && auction.phase !== 'Commit' ? (
                         <span className="text-emerald-400 font-semibold">
-                          Revealed: {c.revealedAmountEth?.toFixed(2)} ETH
+                          Revealed: {c.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(c.revealedAmountEth || 0)})
                         </span>
                       ) : (
                         <span className="text-slate-400">
-                          Sealed · {c.depositEth.toFixed(2)} ETH locked
+                          Sealed · {c.depositEth.toFixed(2)} ETH ({formatEthToInr(c.depositEth)}) locked
                         </span>
                       )}
                     </div>

@@ -4,7 +4,7 @@ import { AuctionItem } from '../types/auction';
 import { useWallet } from '../context/WalletContext';
 import { AuctionCard } from '../components/auction/AuctionCard';
 import { PRICE_ORACLE_SOL, SEALED_AUCTION_SOL } from '../lib/solidityCode';
-import { formatInr } from '../lib/crypto';
+import { formatInr, formatEthToInr } from '../lib/crypto';
 import heroVehicleImg from '../assets/images/vehicle-suv.jpg';
 
 interface HomeProps {
@@ -50,7 +50,7 @@ export const Home: React.FC<HomeProps> = ({
               </h1>
 
               <p className="text-base text-slate-300 leading-relaxed max-w-xl">
-                AuctionChain pairs LightGBM machine-learning resale valuation in US Dollars (USD) with two-phase Keccak-256 commit-reveal settlement in Test ETH—eliminating mempool front-running, bid sniping, and price anchoring bias.
+                AuctionChain pairs LightGBM machine-learning resale valuation displayed in Indian Rupees (INR / ₹) with two-phase Keccak-256 commit-reveal settlement in Test ETH—eliminating mempool front-running, bid sniping, and price anchoring bias.
               </p>
             </div>
 
@@ -93,7 +93,7 @@ export const Home: React.FC<HomeProps> = ({
                     {featuredVehicle.title}
                   </div>
                   <div className="text-xs font-mono text-slate-300 tabular-nums">
-                    AI Estimate: {formatInr(featuredVehicle.aiPrediction.predicted_price ?? featuredVehicle.aiPrediction.predicted_price_inr)} · Reserve: {featuredVehicle.reservePriceEth.toFixed(2)} ETH
+                    AI Estimate: {formatInr(featuredVehicle.aiPrediction.predicted_price ?? featuredVehicle.aiPrediction.predicted_price_inr)} · Reserve: {featuredVehicle.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(featuredVehicle.reservePriceEth)})
                   </div>
                 </div>
                 <button
@@ -137,16 +137,16 @@ export const Home: React.FC<HomeProps> = ({
               0.7615 (0.8571 trimmed)
             </div>
             <div className="text-xs text-slate-500 mt-0.5 font-mono tabular-nums">
-              MAE ±$9,484.57 · LightGBM v1.0.0 (4,009 cars)
+              MAE ±{formatInr(9484.57)} · LightGBM v1.0.0 (4,009 cars)
             </div>
           </div>
           <div className="p-6">
             <div className="text-xs text-slate-400">Currency Separation</div>
             <div className="text-xl font-mono font-bold text-white mt-1 tabular-nums">
-              USD Advisory · ETH Escrow
+              INR Advisory · ETH Escrow
             </div>
             <div className="text-xs text-slate-500 mt-0.5">
-              Zero automatic currency conversion
+              AI valuation displayed in ₹ INR
             </div>
           </div>
           <div className="p-6">
@@ -253,7 +253,7 @@ export const Home: React.FC<HomeProps> = ({
               Canonical Vehicle Hashing
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Vehicle attributes—brand, model, year, odometer mileage in miles, fuel type, engine specification, transmission, colors, and accident history—are normalized into canonical JSON, hashed with SHA-256, and scored in USD by the <code className="text-slate-200">LightGBM v1.0.0</code> model before the Oracle records the integer cents proof on <code className="text-slate-200">PriceOracle.sol</code>.
+              Vehicle attributes—brand, model, year, odometer mileage in miles, fuel type, engine specification, transmission, colors, and accident history—are normalized into canonical JSON, hashed with SHA-256, and scored by the <code className="text-slate-200">LightGBM v1.0.0</code> model (converted and displayed in ₹ INR) before the Oracle records the integer proof on <code className="text-slate-200">PriceOracle.sol</code>.
             </p>
           </div>
 

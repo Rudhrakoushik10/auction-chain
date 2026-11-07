@@ -32,9 +32,9 @@ export const AboutUsPage: React.FC = () => {
 
         <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-3">
           <div className="text-xs font-mono text-slate-400">02. Empirical Valuation Guidance</div>
-          <h2 className="text-base font-semibold text-white">Advisory ML Reference in USD</h2>
+          <h2 className="text-base font-semibold text-white">Advisory ML Reference in INR (₹)</h2>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Our <code className="text-slate-200">LightGBM v1.0.0</code> model evaluates brand, model, year, odometer mileage in miles, powertrain specifications, transmission, colors, and accident history across 4,009 US-market listings to provide an objective USD benchmark anchored on <code className="text-slate-200">PriceOracle.sol</code>.
+            Our <code className="text-slate-200">LightGBM v1.0.0</code> model evaluates brand, model, year, odometer mileage in miles, powertrain specifications, transmission, colors, and accident history across 4,009 vehicle listings to provide an objective benchmark converted and displayed in Indian Rupees (INR / ₹) and anchored on <code className="text-slate-200">PriceOracle.sol</code>.
           </p>
         </section>
       </div>

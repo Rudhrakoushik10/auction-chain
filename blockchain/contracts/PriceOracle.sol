@@ -139,7 +139,9 @@ contract PriceOracle {
         return 0;
     }
 
-    fallback(bytes calldata) external returns (bytes memory) {
+    receive() external payable {}
+
+    fallback(bytes calldata) external payable returns (bytes memory) {
         return abi.encode(uint256(0));
     }
 }

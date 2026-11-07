@@ -1,6 +1,6 @@
 import React from 'react';
 import { AIPredictionRecord } from '../../types/auction';
-import { formatUsd, shortenAddress } from '../../lib/crypto';
+import { formatInr, toInrPaise, shortenAddress } from '../../lib/crypto';
 import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 
 interface PredictionWidgetProps {
@@ -13,7 +13,7 @@ export const PredictionWidget: React.FC<PredictionWidgetProps> = ({
   compact = false,
 }) => {
   const isRegistered = Boolean(prediction.oracle_registered && prediction.oracle_tx_hash);
-  const priceUsd = prediction.predicted_price ?? prediction.predicted_price_inr;
+  const priceVal = prediction.predicted_price ?? prediction.predicted_price_inr;
 
   return (
     <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
@@ -21,7 +21,7 @@ export const PredictionWidget: React.FC<PredictionWidgetProps> = ({
       <div className="px-5 py-3.5 border-b border-[#1E293B] flex flex-wrap items-center justify-between gap-2 bg-[#090D1A]/60">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-white">
-            AI Advisory Valuation (LightGBM v{prediction.model_version})
+            AI Advisory Valuation (LightGBM v{prediction.model_version} · INR)
           </span>
         </div>
 
@@ -45,13 +45,13 @@ export const PredictionWidget: React.FC<PredictionWidgetProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pb-4 border-b border-[#1E293B]">
           <div>
             <div className="text-xs text-slate-400">
-              Predicted Market Value (US Listings · Advisory Benchmark)
+              Predicted Market Value (Indian Rupees · Advisory Benchmark)
             </div>
             <div className="text-2xl sm:text-3xl font-mono font-bold text-white tracking-tight mt-1 tabular-nums">
-              {formatUsd(priceUsd)}
+              {formatInr(priceVal)}
             </div>
             <div className="text-xs font-mono text-slate-500 mt-0.5 tabular-nums">
-              Oracle integer: {prediction.predicted_price_paise.toLocaleString('en-US')} cents ·{' '}
+              Oracle integer: {toInrPaise(priceVal).toLocaleString('en-IN')} paise ·{' '}
               {prediction.in_training_distribution !== false
                 ? 'In-Distribution'
                 : 'Out-of-Distribution'}
@@ -64,7 +64,7 @@ export const PredictionWidget: React.FC<PredictionWidgetProps> = ({
               {(prediction.metrics.r2 * 100).toFixed(1)}% (85.7% trimmed)
             </div>
             <div className="text-xs text-slate-500">
-              MAE ±{formatUsd(prediction.metrics.mae)}
+              MAE ±{formatInr(prediction.metrics.mae)}
             </div>
           </div>
         </div>
@@ -115,11 +115,11 @@ export const PredictionWidget: React.FC<PredictionWidgetProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <dt className="font-sans text-slate-400">Test MAE</dt>
-                  <dd className="text-slate-200">±{formatUsd(prediction.metrics.mae)}</dd>
+                  <dd className="text-slate-200">±{formatInr(prediction.metrics.mae)}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="font-sans text-slate-400">Test RMSE</dt>
-                  <dd className="text-slate-200">±{formatUsd(prediction.metrics.rmse)}</dd>
+                  <dd className="text-slate-200">±{formatInr(prediction.metrics.rmse)}</dd>
                 </div>
               </dl>
 

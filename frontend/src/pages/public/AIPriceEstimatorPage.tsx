@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Calculator, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { VehicleAttributes, AIPredictionRecord } from '../../types/auction';
 import { predictVehiclePrice } from '../../services/api/aiService';
-import { formatUsd, shortenAddress } from '../../lib/crypto';
+import { formatInr, toInrPaise, shortenAddress } from '../../lib/crypto';
 
 const PRESET_EXAMPLES: Array<{ label: string; data: VehicleAttributes }> = [
   {
-    label: '2020 Ford F-150 XLT ($46,216.25)',
+    label: `2020 Ford F-150 XLT (${formatInr(46216.25)})`,
     data: {
       brand: 'Ford',
       model: 'F-150 XLT',
@@ -22,7 +22,7 @@ const PRESET_EXAMPLES: Array<{ label: string; data: VehicleAttributes }> = [
     },
   },
   {
-    label: '2023 BMW X5 xDrive40i ($69,696.35)',
+    label: `2023 BMW X5 xDrive40i (${formatInr(69696.35)})`,
     data: {
       brand: 'BMW',
       model: 'X5 xDrive40i',
@@ -38,7 +38,7 @@ const PRESET_EXAMPLES: Array<{ label: string; data: VehicleAttributes }> = [
     },
   },
   {
-    label: '2022 Porsche Taycan Base ($77,282.87)',
+    label: `2022 Porsche Taycan Base (${formatInr(77282.87)})`,
     data: {
       brand: 'Porsche',
       model: 'Taycan Base',
@@ -104,13 +104,13 @@ export const AIPriceEstimatorPage: React.FC = () => {
       {/* Page Header */}
       <div className="border-b border-[#1E293B] pb-6 space-y-1.5">
         <div className="text-xs font-mono text-slate-400">
-          Off-Chain Advisory Valuation · LightGBM v1.0.0 (US Market · USD · Miles)
+          Off-Chain Advisory Valuation · LightGBM v1.0.0 (Displayed in INR · ₹ · Miles)
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
           AI Vehicle Price Estimator
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
-          Trained on 4,009 US used-vehicle listings (<code className="text-slate-200">dataset/raw/used_cars.csv</code>) using a grouped 70/15/15 split. Estimates are strictly advisory in USD (<code className="text-slate-200">$</code>) with odometer readings in miles (<code className="text-slate-200">mi.</code>) and never execute blockchain transactions directly.
+          Trained on 4,009 used-vehicle listings (<code className="text-slate-200">dataset/raw/used_cars.csv</code>) using a grouped 70/15/15 split. Estimates are strictly advisory, converted and displayed in Indian Rupees (<code className="text-slate-200">₹ / INR</code>) with odometer readings in miles (<code className="text-slate-200">mi.</code>), and never execute blockchain transactions directly.
         </p>
       </div>
 
@@ -124,7 +124,7 @@ export const AIPriceEstimatorPage: React.FC = () => {
                 Required: brand, model, year, mileage (mi.) · Optional: powertrain, color & history
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-400">Units: USD ($) · Miles (mi.)</span>
+            <span className="text-xs font-mono text-slate-400">Units: INR (₹) · Miles (mi.)</span>
           </div>
 
           {/* Quick Benchmark Presets */}
@@ -353,12 +353,12 @@ export const AIPriceEstimatorPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-xs text-slate-400">Advisory Predicted Market Price (USD)</div>
+                <div className="text-xs text-slate-400">Advisory Predicted Market Price (INR)</div>
                 <div className="text-3xl font-mono font-bold text-white tracking-tight mt-1 tabular-nums">
-                  {formatUsd(prediction.predicted_price)}
+                  {formatInr(prediction.predicted_price)}
                 </div>
                 <div className="text-xs font-mono text-slate-500 mt-1 tabular-nums">
-                  Oracle integer representation: {prediction.predicted_price_paise.toLocaleString('en-US')} cents · Latency: {prediction.inference_ms ?? 1.5} ms
+                  Oracle integer representation: {toInrPaise(prediction.predicted_price).toLocaleString('en-IN')} paise · Latency: {prediction.inference_ms ?? 1.5} ms
                 </div>
               </div>
 
@@ -401,7 +401,7 @@ export const AIPriceEstimatorPage: React.FC = () => {
                 <div className="flex justify-between">
                   <dt className="font-sans">Held-Out Test R² / MAE</dt>
                   <dd className="text-slate-200">
-                    {prediction.metrics.r2} (0.8571 trimmed) / ±{formatUsd(prediction.metrics.mae)}
+                    {prediction.metrics.r2} (0.8571 trimmed) / ±{formatInr(prediction.metrics.mae)}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -420,7 +420,7 @@ export const AIPriceEstimatorPage: React.FC = () => {
             <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-8 text-center space-y-2">
               <h3 className="text-sm font-semibold text-white">No Estimate Computed Yet</h3>
               <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                Enter US-market vehicle attributes on the left and click &ldquo;Calculate Advisory Estimate&rdquo; to run the 934-tree LightGBM booster.
+                Enter vehicle attributes on the left and click &ldquo;Calculate Advisory Estimate&rdquo; to run the 934-tree LightGBM booster in INR (₹).
               </p>
             </section>
           )}
@@ -429,7 +429,7 @@ export const AIPriceEstimatorPage: React.FC = () => {
           <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[#1E293B] flex items-center justify-between">
               <span className="text-xs font-semibold text-white">
-                Model Selection Benchmark (4,009 US Listings)
+                Model Selection Benchmark (4,009 Listings)
               </span>
               <span className="text-[11px] font-mono text-slate-400">Grouped 70/15/15 Split</span>
             </div>
@@ -438,7 +438,7 @@ export const AIPriceEstimatorPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-[#1E293B] bg-[#090D1A]/60 text-[11px] font-mono uppercase text-slate-400">
                     <th className="py-2.5 px-4">Candidate</th>
-                    <th className="py-2.5 px-3 text-right">Val MAE</th>
+                    <th className="py-2.5 px-3 text-right">Val MAE (INR)</th>
                     <th className="py-2.5 px-3 text-right">Test R²</th>
                     <th className="py-2.5 px-4 text-right">Size</th>
                   </tr>
@@ -446,25 +446,25 @@ export const AIPriceEstimatorPage: React.FC = () => {
                 <tbody className="divide-y divide-[#1E293B] font-mono tabular-nums">
                   <tr className="bg-blue-950/20 text-white font-semibold">
                     <td className="py-2.5 px-4 font-sans">LightGBM (Selected)</td>
-                    <td className="py-2.5 px-3 text-right text-emerald-400">$6,789.74</td>
+                    <td className="py-2.5 px-3 text-right text-emerald-400">{formatInr(6789.74)}</td>
                     <td className="py-2.5 px-3 text-right">0.7899</td>
                     <td className="py-2.5 px-4 text-right">2.40 MB</td>
                   </tr>
                   <tr className="text-slate-300">
                     <td className="py-2.5 px-4 font-sans">CatBoost</td>
-                    <td className="py-2.5 px-3 text-right">$8,071.77</td>
+                    <td className="py-2.5 px-3 text-right">{formatInr(8071.77)}</td>
                     <td className="py-2.5 px-3 text-right">0.8024</td>
                     <td className="py-2.5 px-4 text-right">0.92 MB</td>
                   </tr>
                   <tr className="text-slate-400">
                     <td className="py-2.5 px-4 font-sans">Random Forest</td>
-                    <td className="py-2.5 px-3 text-right">$9,976.53</td>
+                    <td className="py-2.5 px-3 text-right">{formatInr(9976.53)}</td>
                     <td className="py-2.5 px-3 text-right">0.7138</td>
                     <td className="py-2.5 px-4 text-right">20.63 MB</td>
                   </tr>
                   <tr className="text-slate-400">
                     <td className="py-2.5 px-4 font-sans">Linear Regression</td>
-                    <td className="py-2.5 px-3 text-right">$17,438.79</td>
+                    <td className="py-2.5 px-3 text-right">{formatInr(17438.79)}</td>
                     <td className="py-2.5 px-3 text-right">0.5531</td>
                     <td className="py-2.5 px-4 text-right">0.06 MB</td>
                   </tr>

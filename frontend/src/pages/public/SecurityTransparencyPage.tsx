@@ -61,7 +61,7 @@ export const SecurityTransparencyPage: React.FC = () => {
             Canonical Feature Hashing on PriceOracle.sol
           </h2>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Smart contracts cannot execute gradient-boosted decision trees directly. Instead, the background Oracle service (Account 4) normalizes vehicle attributes into canonical JSON, computes a SHA-256 <code className="text-slate-200">product_data_hash</code>, and signs the integer USD cents valuation onto <code className="text-slate-200">PriceOracle.sol</code>.
+            Smart contracts cannot execute gradient-boosted decision trees directly. Instead, the background Oracle service (Account 4) normalizes vehicle attributes into canonical JSON, computes a SHA-256 <code className="text-slate-200">product_data_hash</code>, and signs the integer valuation onto <code className="text-slate-200">PriceOracle.sol</code> (displayed across the frontend in Indian Rupees / INR).
           </p>
         </section>
 

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
-import { formatInr, shortenAddress } from '../../lib/crypto';
+import { formatInr, formatEthToInr, shortenAddress } from '../../lib/crypto';
 import { CreateAuction } from '../CreateAuction';
 import { AIPriceEstimatorPage } from '../public/AIPriceEstimatorPage';
 
@@ -34,8 +34,8 @@ interface SellerDashboardProps {
   auctions: AuctionItem[];
   onSelectAuction: (auction: AuctionItem) => void;
   onCreateAuction: (newAuction: AuctionItem) => void;
-  onFinalizeAuction: (auctionId: string) => void;
-  onWithdrawProceeds: (auctionId: string) => void;
+  onFinalizeAuction: (auctionId: string) => Promise<{ success: boolean; message: string }>;
+  onWithdrawProceeds: (auctionId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const SellerDashboard: React.FC<SellerDashboardProps> = ({
@@ -116,7 +116,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             <tr>
               <th className="py-3 px-4 font-medium">Lot / Vehicle</th>
               <th className="py-3 px-4 font-medium">Phase</th>
-              <th className="py-3 px-4 font-medium text-right">AI Valuation (USD)</th>
+              <th className="py-3 px-4 font-medium text-right">AI Valuation (INR)</th>
               <th className="py-3 px-4 font-medium text-right">Start / Reserve (ETH)</th>
               <th className="py-3 px-4 font-medium text-right">Commits / Highest</th>
               <th className="py-3 px-4 font-medium text-right">Actions</th>
@@ -162,7 +162,12 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     {formatInr(auc.aiPrediction.predicted_price ?? auc.aiPrediction.predicted_price_inr)}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-white text-right whitespace-nowrap tabular-nums">
-                    {auc.startingBidEth.toFixed(2)} / {auc.reservePriceEth.toFixed(2)} ETH
+                    <div>
+                      {auc.startingBidEth.toFixed(2)} / {auc.reservePriceEth.toFixed(2)} ETH
+                    </div>
+                    <div className="text-[11px] text-emerald-400">
+                      {formatEthToInr(auc.startingBidEth)} / {formatEthToInr(auc.reservePriceEth)}
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 font-mono text-slate-300 text-right whitespace-nowrap tabular-nums">
                     <div>
@@ -172,7 +177,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       {auc.phase === 'Commit'
                         ? 'Sealed'
                         : auc.highestBidEth
-                        ? `High: ${auc.highestBidEth.toFixed(2)} ETH`
+                        ? `High: ${auc.highestBidEth.toFixed(2)} ETH (${formatEthToInr(auc.highestBidEth)})`
                         : 'No reveals'}
                     </div>
                   </td>
@@ -181,9 +186,9 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       {auc.phase === 'Reveal' && (
                         <button
                           type="button"
-                          onClick={() => {
-                            onFinalizeAuction(auc.id);
-                            setTxNotice(`Finalized Lot #${auc.numericId} on SealedAuction.sol.`);
+                          onClick={async () => {
+                            const res = await onFinalizeAuction(auc.id);
+                            setTxNotice(res.message);
                           }}
                           className="px-2.5 py-1 rounded bg-[#1E293B] hover:bg-slate-700 text-white font-medium cursor-pointer"
                         >
@@ -193,13 +198,13 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       {auc.phase === 'Sold' && auc.winnerSettled && !auc.sellerWithdrawn && (
                         <button
                           type="button"
-                          onClick={() => {
-                            onWithdrawProceeds(auc.id);
-                            setTxNotice(`Withdrew ${auc.highestBidEth?.toFixed(2)} ETH proceeds from Lot #${auc.numericId}.`);
+                          onClick={async () => {
+                            const res = await onWithdrawProceeds(auc.id);
+                            setTxNotice(res.message);
                           }}
                           className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
                         >
-                          Withdraw {auc.highestBidEth?.toFixed(2)} ETH
+                          Withdraw {auc.highestBidEth?.toFixed(2)} ETH ({formatEthToInr(auc.highestBidEth || 0)})
                         </button>
                       )}
                       <button
@@ -450,7 +455,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 </p>
               </div>
               <span className="text-xs font-mono text-slate-400 tabular-nums">
-                Chain ID {chainId} · {wallet.balanceEth.toFixed(2)} ETH
+                Chain ID {chainId} · {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
               </span>
             </div>
 
@@ -526,7 +531,9 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="text-slate-400">Balance</dt>
-                <dd className="text-white font-mono tabular-nums">{wallet.balanceEth.toFixed(4)} ETH</dd>
+                <dd className="text-white font-mono tabular-nums">
+                  {wallet.balanceEth.toFixed(4)} ETH ({formatEthToInr(wallet.balanceEth)})
+                </dd>
               </div>
               <div className="py-3 flex justify-between">
                 <dt className="text-slate-400">Smart Contract Permissions</dt>

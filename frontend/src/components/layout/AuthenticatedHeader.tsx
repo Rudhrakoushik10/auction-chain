@@ -3,12 +3,11 @@ import {
   Bell,
   LogOut,
   ChevronDown,
-  RefreshCw,
   CheckCircle2,
   ShieldAlert,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
-import { shortenAddress } from '../../lib/crypto';
+import { shortenAddress, formatEthToInr } from '../../lib/crypto';
 import { WalletAccount, OnChainEventRecord } from '../../types/auction';
 
 interface AuthenticatedHeaderProps {
@@ -28,7 +27,6 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
     disconnectWallet,
     selectRoleDirect,
     switchNetworkToHardhat,
-    requestAccountSwitchInMetaMask,
   } = useWallet();
 
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
@@ -92,7 +90,9 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
           <span aria-hidden="true">·</span>
           <span>{wallet.label}</span>
           <span aria-hidden="true">·</span>
-          <span className="text-slate-200 font-semibold">{wallet.balanceEth.toFixed(2)} ETH</span>
+          <span className="text-slate-200 font-semibold">
+            {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+          </span>
         </div>
 
         {/* Zone 3: Account Switcher & Notifications */}
@@ -156,7 +156,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                 <div className="px-4 py-3 border-b border-[#1E293B]">
                   <div className="text-xs font-semibold text-white">Switch Hardhat Account</div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
-                    Select a preconfigured role or switch via MetaMask
+                    Instant role switch — no re-authorization required
                   </div>
                 </div>
 
@@ -180,7 +180,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                             {acct.label} <span className="text-slate-400 font-normal">· {acct.roleTitle}</span>
                           </div>
                           <div className="text-[11px] font-mono text-slate-400 tabular-nums">
-                            {shortenAddress(acct.address)} · {acct.balanceEth.toFixed(1)} ETH
+                            {shortenAddress(acct.address)} · {acct.balanceEth.toFixed(1)} ETH ({formatEthToInr(acct.balanceEth)})
                           </div>
                         </div>
                         {isActive && <CheckCircle2 className="w-4 h-4 text-[#2563EB] shrink-0" />}
@@ -189,19 +189,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                   })}
                 </div>
 
-                <div className="p-3 bg-[#090D1A] border-t border-[#1E293B] space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      requestAccountSwitchInMetaMask();
-                      setIsSwitcherOpen(false);
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white bg-[#131E3A] hover:bg-[#1E293B] border border-[#1E293B] transition-colors cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Switch Account in MetaMask</span>
-                  </button>
-
+                <div className="p-3 bg-[#090D1A] border-t border-[#1E293B]">
                   <button
                     type="button"
                     onClick={() => {

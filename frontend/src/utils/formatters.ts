@@ -1,4 +1,12 @@
-import { shortenAddress, formatInr, formatUsd } from '../lib/crypto';
+import {
+  shortenAddress,
+  formatInr,
+  formatUsd,
+  formatEthToInr,
+  formatEthWithInr,
+  convertEthToInr,
+  ETH_TO_INR_RATE,
+} from '../lib/crypto';
 
 export function formatAddress(address: string, chars = 4): string {
   if (!address || address.length < 10) return address;
@@ -6,7 +14,7 @@ export function formatAddress(address: string, chars = 4): string {
 }
 
 export function formatEth(amount: number): string {
-  return `${Number(amount).toFixed(2)} ETH`;
+  return `${Number(amount).toFixed(2)} ETH (${formatEthToInr(amount)})`;
 }
 
 export function formatTimeRemaining(isoDeadline: string): string {
@@ -17,4 +25,12 @@ export function formatTimeRemaining(isoDeadline: string): string {
   return `${mins}m ${secs}s`;
 }
 
-export { shortenAddress, formatInr, formatUsd };
+export {
+  shortenAddress,
+  formatInr,
+  formatUsd,
+  formatEthToInr,
+  formatEthWithInr,
+  convertEthToInr,
+  ETH_TO_INR_RATE,
+};

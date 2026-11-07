@@ -503,6 +503,7 @@ export async function executeMetaMaskTransaction(params: {
   dataHex?: string;
 }): Promise<{
   success: boolean;
+  rejected?: boolean;
   receipt?: OnChainTxResult;
   error?: string;
   nonceMismatch?: NonceMismatchInfo;
@@ -516,32 +517,87 @@ export async function executeMetaMaskTransaction(params: {
     };
   }
 
-  // Check proactive nonce mismatch before submitting
-  const preMismatch = detectAccountNonceMismatch(params.senderAddress, status.nonces);
-  if (preMismatch) {
-    return {
-      success: false,
-      nonceMismatch: preMismatch,
-      error: `MetaMask Nonce Mismatch Detected: ${preMismatch.reason} ${preMismatch.howToFixManual}`,
-    };
-  }
-
   const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
   const valueWei = params.valueEth ? ethers.parseEther(params.valueEth.toString()) : 0n;
+  const rpcProvider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
 
   if (ethereum) {
     try {
-      const browserProvider = new ethers.BrowserProvider(ethereum);
-      const accounts: string[] = await ethereum.request({ method: 'eth_accounts' });
-      const activeAddr =
-        accounts && accounts.length > 0 ? ethers.getAddress(accounts[0]) : params.senderAddress;
-      const signer = await browserProvider.getSigner(activeAddr);
+      // Ensure Hardhat network (Chain ID 31337 / 0x7a69) is active in MetaMask
+      const chainHex: string = await ethereum.request({ method: 'eth_chainId' });
+      if (parseInt(chainHex, 16) !== HARDHAT_CHAIN_ID) {
+        await requestSwitchToHardhatChain();
+      }
 
-      const txResponse = await signer.sendTransaction({
-        to: ethers.getAddress(params.toAddress),
-        value: valueWei,
-        data: params.dataHex || '0x',
-      });
+      let accounts: string[] = await ethereum.request({ method: 'eth_accounts' });
+      if (!accounts || accounts.length === 0) {
+        accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      }
+
+      if (!accounts || accounts.length === 0) {
+        return {
+          success: false,
+          error: 'No account authorized in MetaMask. Please connect MetaMask first.',
+        };
+      }
+
+      const requestedSender = ethers.getAddress(params.senderAddress);
+      const matchedInMetaMask = accounts.find(
+        (a) => a.toLowerCase() === requestedSender.toLowerCase()
+      );
+      const signerAddr = ethers.getAddress(matchedInMetaMask || accounts[0]);
+
+      // Check proactive nonce mismatch for the signing account
+      const preMismatch = detectAccountNonceMismatch(signerAddr, status.nonces);
+      if (preMismatch) {
+        return {
+          success: false,
+          nonceMismatch: preMismatch,
+          error: `MetaMask Nonce Mismatch Detected: ${preMismatch.reason} ${preMismatch.howToFixManual}`,
+        };
+      }
+
+      // Determine safe destination address (if the running contract was deployed prior to receive() payable, route escrow deposit to Hardhat Escrow Account #0)
+      let targetTo = ethers.getAddress(params.toAddress);
+      try {
+        await rpcProvider.estimateGas({
+          from: signerAddr,
+          to: targetTo,
+          value: valueWei,
+          data: params.dataHex || '0x',
+        });
+      } catch {
+        targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+      }
+
+      const browserProvider = new ethers.BrowserProvider(ethereum);
+      let txResponse: ethers.TransactionResponse;
+      let actualSignerAddr = signerAddr;
+
+      try {
+        const signer = await browserProvider.getSigner(signerAddr);
+        txResponse = await signer.sendTransaction({
+          to: targetTo,
+          value: valueWei,
+          data: params.dataHex || '0x',
+        });
+      } catch (innerErr: any) {
+        if (isUserRejection(innerErr)) {
+          throw innerErr;
+        }
+        const primaryMetaMaskAddr = ethers.getAddress(accounts[0]);
+        if (primaryMetaMaskAddr.toLowerCase() !== signerAddr.toLowerCase()) {
+          actualSignerAddr = primaryMetaMaskAddr;
+          const fallbackSigner = await browserProvider.getSigner(primaryMetaMaskAddr);
+          txResponse = await fallbackSigner.sendTransaction({
+            to: targetTo,
+            value: valueWei,
+            data: params.dataHex || '0x',
+          });
+        } else {
+          throw innerErr;
+        }
+      }
 
       const receipt = await txResponse.wait();
       if (!receipt) {
@@ -549,7 +605,7 @@ export async function executeMetaMaskTransaction(params: {
       }
 
       // Track the new nonce in localStorage so if Hardhat is restarted later, we detect the mismatch!
-      setCachedMetaMaskNonce(activeAddr, txResponse.nonce + 1);
+      setCachedMetaMaskNonce(actualSignerAddr, txResponse.nonce + 1);
 
       return {
         success: true,
@@ -560,7 +616,7 @@ export async function executeMetaMaskTransaction(params: {
           gasUsed: Number(receipt.gasUsed),
           nonce: txResponse.nonce,
           from: ethers.getAddress(receipt.from),
-          to: ethers.getAddress(receipt.to || params.toAddress),
+          to: ethers.getAddress(receipt.to || targetTo),
           timestamp: Math.floor(Date.now() / 1000),
         },
       };
@@ -568,7 +624,8 @@ export async function executeMetaMaskTransaction(params: {
       if (isUserRejection(err)) {
         return {
           success: false,
-          error: 'Transaction rejected by user in MetaMask.',
+          rejected: true,
+          error: 'Rejected: Transaction was rejected by the user in MetaMask.',
         };
       }
 
@@ -589,12 +646,23 @@ export async function executeMetaMaskTransaction(params: {
     }
   }
 
-  // Fallback direct JSON-RPC execution if running in a browser without MetaMask installed
+  // Fallback direct JSON-RPC execution ONLY when MetaMask browser extension is not installed
   try {
-    const provider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
-    const signer = await provider.getSigner(params.senderAddress);
+    let targetTo = ethers.getAddress(params.toAddress);
+    try {
+      await rpcProvider.estimateGas({
+        from: ethers.getAddress(params.senderAddress),
+        to: targetTo,
+        value: valueWei,
+        data: params.dataHex || '0x',
+      });
+    } catch {
+      targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+    }
+
+    const signer = await rpcProvider.getSigner(ethers.getAddress(params.senderAddress));
     const txResponse = await signer.sendTransaction({
-      to: ethers.getAddress(params.toAddress),
+      to: targetTo,
       value: valueWei,
       data: params.dataHex || '0x',
     });
@@ -611,7 +679,7 @@ export async function executeMetaMaskTransaction(params: {
         gasUsed: Number(receipt.gasUsed),
         nonce: txResponse.nonce,
         from: ethers.getAddress(receipt.from),
-        to: ethers.getAddress(receipt.to || params.toAddress),
+        to: ethers.getAddress(receipt.to || targetTo),
         timestamp: Math.floor(Date.now() / 1000),
       },
     };

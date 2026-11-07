@@ -11,7 +11,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
-import { shortenAddress } from '../../lib/crypto';
+import { shortenAddress, formatEthToInr } from '../../lib/crypto';
 import { WalletAccount } from '../../types/auction';
 import { NonceMismatchBanner } from './NonceMismatchBanner';
 
@@ -237,7 +237,9 @@ export const AuthModal: React.FC = () => {
 
                   <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between">
                     <span className="font-mono text-xs text-slate-300 tabular-nums">
-                      {isNodeOnline ? `${acct.balanceEth.toFixed(2)} ETH` : '— ETH'}
+                      {isNodeOnline
+                        ? `${acct.balanceEth.toFixed(2)} ETH (${formatEthToInr(acct.balanceEth)})`
+                        : '— ETH'}
                     </span>
 
                     <button

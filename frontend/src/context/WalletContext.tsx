@@ -66,15 +66,13 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
-const STORAGE_CONNECTED_KEY = 'auctionchain_wallet_connected_v4';
 const STORAGE_ADDR_KEY = 'auctionchain_wallet_active_addr_v4';
 const STORAGE_ORACLE_KEY = 'auctionchain_wallet_oracle_v4';
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [wallets, setWallets] = useState<WalletAccount[]>(HARDHAT_WALLETS);
-  const [isConnected, setIsConnected] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_CONNECTED_KEY) === 'true';
-  });
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isMetaMaskAuthorized, setIsMetaMaskAuthorized] = useState<boolean>(false);
   const [activeAddress, setActiveAddress] = useState<string>(() => {
     return localStorage.getItem(STORAGE_ADDR_KEY) || HUMAN_ROLE_WALLETS[0].address;
   });
@@ -99,11 +97,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const humanWallets = wallets.filter((w) => w.isHumanFacing);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_CONNECTED_KEY, String(isConnected));
     if (activeAddress) {
       localStorage.setItem(STORAGE_ADDR_KEY, activeAddress);
     }
-  }, [isConnected, activeAddress]);
+  }, [activeAddress]);
 
   const refreshHardhatNode = useCallback(async (): Promise<boolean> => {
     const addrs = HARDHAT_WALLETS.map((w) => w.address);
@@ -269,6 +266,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setNonceMismatch(res.nonceMismatch);
         }
 
+        setIsMetaMaskAuthorized(true);
         setChainId(HARDHAT_CHAIN_ID);
 
         if (res.account && res.account.isHumanFacing) {
@@ -290,6 +288,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const defaultRole = humanWallets[0];
         setActiveAddress(defaultRole.address);
         setIsConnected(true);
+        setIsMetaMaskAuthorized(true);
         setChainId(HARDHAT_CHAIN_ID);
         setIsAuthModalOpen(false);
         setIsConnecting(false);
@@ -319,7 +318,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return false;
         }
 
-        if (hasMetaMask()) {
+        // Only prompt MetaMask authorization at initial connection (!isConnected && !isMetaMaskAuthorized).
+        // When switching roles after initial connection, switch immediately without re-authorizing in MetaMask.
+        if (hasMetaMask() && !isConnected && !isMetaMaskAuthorized) {
           const res = await connectMetaMaskWithEthers(targetAccount.address);
           if (!res.success) {
             setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
@@ -329,6 +330,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (res.nonceMismatch) {
             setNonceMismatch(res.nonceMismatch);
           }
+          setIsMetaMaskAuthorized(true);
         }
 
         setActiveAddress(targetAccount.address);
@@ -343,11 +345,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return false;
       }
     },
-    [refreshHardhatNode]
+    [isConnected, isMetaMaskAuthorized, refreshHardhatNode]
   );
 
   const disconnectWallet = useCallback(() => {
     setIsConnected(false);
+    setIsMetaMaskAuthorized(false);
     setMismatchInfo(null);
     setErrorMessage(null);
   }, []);

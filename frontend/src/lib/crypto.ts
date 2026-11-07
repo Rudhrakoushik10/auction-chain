@@ -109,20 +109,76 @@ export async function computeCanonicalProductHash(
   };
 }
 
-export function formatUsd(amountUsd: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(amountUsd) || 0);
+/**
+ * Deterministic conversion rate from the AI model's raw USD prediction to Indian Rupees (INR).
+ * The LightGBM v1.0.0 model outputs raw valuations in USD; the frontend converts and displays
+ * all monetary values exclusively in Indian Rupees (₹ / INR).
+ */
+export const USD_TO_INR_RATE = 84;
+
+/**
+ * Deterministic conversion rate from Test ETH to Indian Rupees (INR) for live ETH input
+ * and escrow display across the platform (1 ETH = ₹2,50,000 INR).
+ */
+export const ETH_TO_INR_RATE = 250000;
+
+export function convertUsdToInr(amount: number): number {
+  const num = Number(amount) || 0;
+  // If value is already in typical INR range (> 500,000), return as-is; otherwise convert USD -> INR
+  if (num > 500000) return Math.round(num);
+  return Math.round(num * USD_TO_INR_RATE);
+}
+
+export function toInrPaise(amountUsdOrInr: number): number {
+  return convertUsdToInr(amountUsdOrInr) * 100;
 }
 
 /**
- * Formats advisory AI valuation in USD ($), matching the vehicle-price-ai US market model.
+ * Formats any AI valuation or monetary figure in Indian Rupees (₹) using the en-IN locale.
  */
 export function formatInr(amount: number): string {
-  return formatUsd(amount);
+  const inrValue = convertUsdToInr(amount);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(inrValue);
+}
+
+/**
+ * Converts a Test ETH amount (number or string) to Indian Rupees (INR).
+ */
+export function convertEthToInr(ethAmount: string | number): number {
+  const num = Number(ethAmount);
+  if (Number.isNaN(num) || num <= 0) return 0;
+  return Math.round(num * ETH_TO_INR_RATE);
+}
+
+/**
+ * Formats a Test ETH amount directly as Indian Rupees (₹) using the en-IN locale.
+ */
+export function formatEthToInr(ethAmount: string | number): string {
+  const inrValue = convertEthToInr(ethAmount);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(inrValue);
+}
+
+/**
+ * Formats an ETH amount together with its Indian Rupee (₹) equivalent, e.g. "12.50 ETH (₹31,25,000)"
+ */
+export function formatEthWithInr(ethAmount: string | number, decimals = 2): string {
+  const num = Number(ethAmount) || 0;
+  return `${num.toFixed(decimals)} ETH (${formatEthToInr(num)})`;
+}
+
+/**
+ * Alias kept for backward compatibility across components — always formats in Indian Rupees (₹ / INR).
+ */
+export function formatUsd(amountUsd: number): string {
+  return formatInr(amountUsd);
 }
 
 export function shortenAddress(addr: string): string {

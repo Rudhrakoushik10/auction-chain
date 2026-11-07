@@ -41,6 +41,7 @@ function AuctionChainAppContent() {
     autoSyncNonce,
     confirmManualNonceClear,
     reportNonceMismatch,
+    inspectTransaction,
   } = useWallet();
   const [publicTab, setPublicTab] = useState<PublicNavTab>('home');
   const [auctions, setAuctions] = useState<AuctionItem[]>(() => {
@@ -93,10 +94,14 @@ function AuctionChainAppContent() {
     auctionId: string,
     commitmentHash: string,
     secretBackup: LocalRevealBackupSecret
-  ) => {
-    if (!wallet) return;
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!wallet) {
+      return { success: false, message: 'Please connect your wallet first.' };
+    }
     const targetAuction = auctions.find((a) => a.id === auctionId);
-    if (!targetAuction) return;
+    if (!targetAuction) {
+      return { success: false, message: 'Auction not found.' };
+    }
 
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
@@ -108,25 +113,26 @@ function AuctionChainAppContent() {
       if (txRes.nonceMismatch) {
         reportNonceMismatch(txRes.nonceMismatch);
       }
-      return;
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
     }
 
+    const txHash =
+      txRes.receipt?.txHash ||
+      generateDeterministicTxHash(
+        `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
+      );
+    const blockNum = txRes.receipt?.blockNumber || 4189250 + targetAuction.commitments.length;
+    const nowIso = new Date().toISOString();
+
     setSavedSecrets((prev) => [secretBackup, ...prev]);
+    adjustBalance(wallet.address, -targetAuction.fixedDepositEth);
 
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
-        const txHash =
-          txRes.receipt?.txHash ||
-          generateDeterministicTxHash(
-            `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
-          );
-        const blockNum = txRes.receipt?.blockNumber || 4189250 + auc.commitments.length;
-        const nowIso = new Date().toISOString();
-
-        // Lock fixed collateral deposit from bidder wallet
-        adjustBalance(wallet.address, -auc.fixedDepositEth);
-
         return {
           ...auc,
           commitments: [
@@ -165,14 +171,23 @@ function AuctionChainAppContent() {
         };
       })
     );
+
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
+    return {
+      success: true,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Sealed commitment ${commitmentHash.slice(0, 14)}... recorded with ${targetAuction.fixedDepositEth.toFixed(2)} ETH collateral deposit.`,
+    };
   };
 
   // Reveal Sealed Bid on SealedAuction.sol
-  const handleRevealBid = (
+  const handleRevealBid = async (
     auctionId: string,
     bidAmountEth: number,
     salt: string
-  ): { success: boolean; message: string } => {
+  ): Promise<{ success: boolean; message: string }> => {
     if (!wallet) {
       return { success: false, message: 'Connect wallet first.' };
     }
@@ -205,9 +220,28 @@ function AuctionChainAppContent() {
       };
     }
 
-    const revealTxHash = generateDeterministicTxHash(
-      `REVEAL:${auctionId}:${wallet.address}:${bidAmountEth}:${salt}`
-    );
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: 0,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
+    }
+
+    const revealTxHash =
+      txRes.receipt?.txHash ||
+      generateDeterministicTxHash(
+        `REVEAL:${auctionId}:${wallet.address}:${bidAmountEth}:${salt}`
+      );
+    const blockNum = txRes.receipt?.blockNumber || 4189300 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
 
     setAuctions((prev) =>
@@ -248,7 +282,7 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'BidRevealed',
               txHash: revealTxHash,
-              blockNumber: 4189300 + auc.events.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `${wallet.label} verified hash and revealed bid of ${bidAmountEth.toFixed(
@@ -260,25 +294,56 @@ function AuctionChainAppContent() {
       })
     );
 
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
     return {
       success: true,
-      message: `Hash verified! Revealed bid of ${bidAmountEth.toFixed(
+      message: `Hash verified & confirmed (${revealTxHash.slice(0, 12)}...)! Revealed bid of ${bidAmountEth.toFixed(
         2
       )} ETH recorded on SealedAuction.sol.`,
     };
   };
 
   // Finalize Auction & Check Reserve Price
-  const handleFinalizeAuction = (auctionId: string) => {
+  const handleFinalizeAuction = async (
+    auctionId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const targetAuction = auctions.find((a) => a.id === auctionId);
+    if (!targetAuction) {
+      return { success: false, message: 'Auction not found.' };
+    }
+
+    const senderAddr = wallet?.address || targetAuction.sellerAddress;
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: senderAddr,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: 0,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
+    }
+
+    const highest = targetAuction.highestBidEth || 0;
+    const isSold =
+      highest >= targetAuction.reservePriceEth && Boolean(targetAuction.winningBidderAddress);
+    const newPhase = isSold ? 'Sold' : 'No Sale';
+    const txHash =
+      txRes.receipt?.txHash || generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
+    const blockNum = txRes.receipt?.blockNumber || 4189400 + targetAuction.events.length;
+    const nowIso = new Date().toISOString();
+
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
-        const highest = auc.highestBidEth || 0;
-        const isSold = highest >= auc.reservePriceEth && Boolean(auc.winningBidderAddress);
-        const newPhase = isSold ? 'Sold' : 'No Sale';
-        const txHash = generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
-        const nowIso = new Date().toISOString();
-
         return {
           ...auc,
           phase: newPhase,
@@ -290,9 +355,9 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'AuctionFinalized',
               txHash,
-              blockNumber: 4189400 + auc.events.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
-              actorAddress: wallet?.address || auc.sellerAddress,
+              actorAddress: senderAddr,
               summary: isSold
                 ? `Auction #${auc.numericId} finalized as SOLD to ${shortenAddress(
                     auc.winningBidderAddress || ''
@@ -307,6 +372,15 @@ function AuctionChainAppContent() {
         };
       })
     );
+
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
+    return {
+      success: true,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Auction finalized as ${newPhase}.`,
+    };
   };
 
   // Demo helper to advance phase
@@ -323,16 +397,45 @@ function AuctionChainAppContent() {
   };
 
   // Winner Settles Balance
-  const handleSettleWinner = (auctionId: string) => {
-    if (!wallet) return;
+  const handleSettleWinner = async (
+    auctionId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!wallet) {
+      return { success: false, message: 'Please connect your wallet first.' };
+    }
+    const targetAuction = auctions.find((a) => a.id === auctionId);
+    if (!targetAuction) {
+      return { success: false, message: 'Auction not found.' };
+    }
+
+    const due = Math.max(0, (targetAuction.highestBidEth || 0) - targetAuction.fixedDepositEth);
+
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: due,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
+    }
+
+    const txHash =
+      txRes.receipt?.txHash || generateDeterministicTxHash(`SETTLE:${auctionId}:${wallet.address}`);
+    const blockNum = txRes.receipt?.blockNumber || 4189450 + targetAuction.events.length;
+    const nowIso = new Date().toISOString();
+
+    adjustBalance(wallet.address, -due);
+
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
-        const due = Math.max(0, (auc.highestBidEth || 0) - auc.fixedDepositEth);
-        adjustBalance(wallet.address, -due);
-        const txHash = generateDeterministicTxHash(`SETTLE:${auctionId}:${wallet.address}`);
-        const nowIso = new Date().toISOString();
-
         return {
           ...auc,
           winnerSettled: true,
@@ -348,7 +451,7 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'WinnerSettled',
               txHash,
-              blockNumber: 4189450 + auc.events.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `Winner settled remaining ${due.toFixed(
@@ -359,23 +462,61 @@ function AuctionChainAppContent() {
         };
       })
     );
+
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
+    return {
+      success: true,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Winning balance of ${due.toFixed(2)} ETH settled on SealedAuction.sol.`,
+    };
   };
 
   // Pull-Based Deposit Refund
-  const handleClaimRefund = (auctionId: string) => {
-    if (!wallet) return;
+  const handleClaimRefund = async (
+    auctionId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!wallet) {
+      return { success: false, message: 'Please connect your wallet first.' };
+    }
+    const targetAuction = auctions.find((a) => a.id === auctionId);
+    if (!targetAuction) {
+      return { success: false, message: 'Auction not found.' };
+    }
+    const myComm = targetAuction.commitments.find(
+      (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+    );
+    if (!myComm || myComm.depositRefunded) {
+      return { success: false, message: 'No refundable deposit available.' };
+    }
+
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: 0,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
+    }
+
+    const txHash =
+      txRes.receipt?.txHash || generateDeterministicTxHash(`REFUND:${auctionId}:${wallet.address}`);
+    const blockNum = txRes.receipt?.blockNumber || 4189480 + targetAuction.events.length;
+    const nowIso = new Date().toISOString();
+
+    adjustBalance(wallet.address, myComm.depositEth);
+
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
-        const myComm = auc.commitments.find(
-          (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-        );
-        if (!myComm || myComm.depositRefunded) return auc;
-
-        adjustBalance(wallet.address, myComm.depositEth);
-        const txHash = generateDeterministicTxHash(`REFUND:${auctionId}:${wallet.address}`);
-        const nowIso = new Date().toISOString();
-
         return {
           ...auc,
           commitments: auc.commitments.map((c) =>
@@ -389,7 +530,7 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'RefundClaimed',
               txHash,
-              blockNumber: 4189480 + auc.events.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `${wallet.label} claimed pull-based deposit refund of ${myComm.depositEth.toFixed(
@@ -400,19 +541,57 @@ function AuctionChainAppContent() {
         };
       })
     );
+
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
+    return {
+      success: true,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Refunded ${myComm.depositEth.toFixed(2)} ETH deposit to your wallet.`,
+    };
   };
 
   // Pull-Based Seller Proceeds Withdrawal
-  const handleWithdrawProceeds = (auctionId: string) => {
-    if (!wallet) return;
+  const handleWithdrawProceeds = async (
+    auctionId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!wallet) {
+      return { success: false, message: 'Please connect your wallet first.' };
+    }
+    const targetAuction = auctions.find((a) => a.id === auctionId);
+    if (!targetAuction || targetAuction.sellerWithdrawn) {
+      return { success: false, message: 'Proceeds already withdrawn or auction not found.' };
+    }
+
+    const txRes = await executeMetaMaskTransaction({
+      senderAddress: wallet.address,
+      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+      valueEth: 0,
+    });
+
+    if (!txRes.success) {
+      if (txRes.nonceMismatch) {
+        reportNonceMismatch(txRes.nonceMismatch);
+      }
+      return {
+        success: false,
+        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+      };
+    }
+
+    const proceeds = targetAuction.highestBidEth || 0;
+    const txHash =
+      txRes.receipt?.txHash ||
+      generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
+    const blockNum = txRes.receipt?.blockNumber || 4189500 + targetAuction.events.length;
+    const nowIso = new Date().toISOString();
+
+    adjustBalance(wallet.address, proceeds);
+
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId || auc.sellerWithdrawn) return auc;
-        const proceeds = auc.highestBidEth || 0;
-        adjustBalance(wallet.address, proceeds);
-        const txHash = generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
-        const nowIso = new Date().toISOString();
-
         return {
           ...auc,
           sellerWithdrawn: true,
@@ -423,7 +602,7 @@ function AuctionChainAppContent() {
               id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
               eventName: 'SellerProceedsWithdrawn',
               txHash,
-              blockNumber: 4189500 + auc.events.length,
+              blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `Seller withdrew ${proceeds.toFixed(
@@ -434,6 +613,15 @@ function AuctionChainAppContent() {
         };
       })
     );
+
+    if (txRes.receipt?.txHash) {
+      inspectTransaction(txRes.receipt.txHash);
+    }
+
+    return {
+      success: true,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Withdrew ${proceeds.toFixed(2)} ETH sale proceeds.`,
+    };
   };
 
   return (

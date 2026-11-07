@@ -12,8 +12,18 @@ import {
   VehicleAttributes,
 } from '../types/auction';
 import { useWallet } from '../context/WalletContext';
-import { formatUsd, shortenAddress, generateDeterministicTxHash } from '../lib/crypto';
-import { SEALED_AUCTION_CONTRACT_ADDRESS } from '../lib/hardhatConfig';
+import {
+  formatInr,
+  toInrPaise,
+  formatEthToInr,
+  ETH_TO_INR_RATE,
+  shortenAddress,
+  generateDeterministicTxHash,
+} from '../lib/crypto';
+import {
+  SEALED_AUCTION_CONTRACT_ADDRESS,
+  PRICE_ORACLE_CONTRACT_ADDRESS,
+} from '../lib/hardhatConfig';
 import {
   predictVehiclePrice,
   registerPredictionOnOracle,
@@ -163,22 +173,45 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     }
   };
 
-  // Step 3: Register Prediction on PriceOracle.sol with explicit transaction stages
+  // Step 3: Register Prediction on PriceOracle.sol with MetaMask confirmation & receipt modal
   const handleRegisterOnOracle = async () => {
-    if (!aiRecord) return;
+    if (!aiRecord || !wallet) return;
     setPredictionError(null);
     try {
       setOracleTxStage('waiting_approval');
-      await new Promise((r) => setTimeout(r, 150));
+      const txRes = await executeMetaMaskTransaction({
+        senderAddress: wallet.address,
+        toAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
+        valueEth: 0,
+      });
+
+      if (!txRes.success) {
+        setOracleTxStage('idle');
+        if (txRes.nonceMismatch) {
+          reportNonceMismatch(txRes.nonceMismatch);
+        }
+        setPredictionError(
+          txRes.error || 'Rejected: Transaction was rejected by the user in MetaMask.'
+        );
+        return;
+      }
+
       setOracleTxStage('submitted');
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 120));
       setOracleTxStage('pending');
       const registered = await registerPredictionOnOracle(aiRecord, authorizedOracleAddress);
+      const finalOracleTxHash = txRes.receipt?.txHash || registered.oracle_tx_hash;
+      const finalOracleBlock = txRes.receipt?.blockNumber || registered.oracle_block_number;
       setAiRecord({
         ...registered,
         oracle_registered: true,
+        oracle_tx_hash: finalOracleTxHash,
+        oracle_block_number: finalOracleBlock,
       });
       setOracleTxStage('confirmed');
+      if (finalOracleTxHash) {
+        inspectTransaction(finalOracleTxHash);
+      }
       setStep(3);
     } catch (err: any) {
       setOracleTxStage('idle');
@@ -279,9 +312,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           blockNumber: aiRecord.oracle_block_number,
           timestamp: new Date(now - 15000).toISOString(),
           actorAddress: aiRecord.oracle_address,
-          summary: `Oracle registered Vehicle Prediction #${aiRecord.prediction_id} (${formatUsd(
+          summary: `Oracle registered Vehicle Prediction #${aiRecord.prediction_id} (${formatInr(
             aiRecord.predicted_price
-          )} USD / ${aiRecord.predicted_price_paise.toLocaleString('en-US')} cents, LightGBM v${aiRecord.model_version}) on PriceOracle.sol`,
+          )} INR / ${toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise, LightGBM v${aiRecord.model_version}) on PriceOracle.sol`,
         },
         {
           id: `EVT-${100 + nextNumericId}-2`,
@@ -292,13 +325,18 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           actorAddress: wallet.address,
           summary: `Seller created Vehicle Auction #${nextNumericId} (Start: ${Number(
             startingBidEth
-          ).toFixed(2)} ETH, Reserve: ${Number(reservePriceEth).toFixed(
-            2
-          )} ETH, Fixed Deposit: ${Number(fixedDepositEth).toFixed(2)} ETH)`,
+          ).toFixed(2)} ETH / ${formatEthToInr(startingBidEth)}, Reserve: ${Number(
+            reservePriceEth
+          ).toFixed(2)} ETH / ${formatEthToInr(reservePriceEth)}, Fixed Deposit: ${Number(
+            fixedDepositEth
+          ).toFixed(2)} ETH / ${formatEthToInr(fixedDepositEth)})`,
         },
       ],
     };
 
+    if (createTxHash) {
+      inspectTransaction(createTxHash);
+    }
     onCreateAuction(newAuction);
   };
 
@@ -309,7 +347,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           Seller Wallet Connection Required
         </h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Connect your Hardhat Seller account on Chain ID 31337 to compute a LightGBM v1.0.0 vehicle valuation in USD, anchor the hash on PriceOracle.sol, and deploy a sealed-bid auction.
+          Connect your Hardhat Seller account on Chain ID 31337 to compute a LightGBM v1.0.0 vehicle valuation in INR (₹), anchor the hash on PriceOracle.sol, and deploy a sealed-bid auction.
         </p>
         <button
           type="button"
@@ -545,7 +583,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               <span>
                 {isPredicting
                   ? 'Scoring 934 LightGBM Trees...'
-                  : 'Compute AI Valuation (USD)'}
+                  : 'Compute AI Valuation (INR)'}
               </span>
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -563,7 +601,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 <span>State 1/2: Off-Chain AI Valuation Complete · Pending On-Chain Oracle Registration</span>
               </div>
               <h2 className="text-lg font-bold text-white">
-                02. Advisory Vehicle Market Valuation (USD)
+                02. Advisory Vehicle Market Valuation (INR)
               </h2>
               <p className="text-xs text-slate-400">
                 Computed by LightGBM <code className="text-slate-200">v{aiRecord.model_version}</code> ({aiRecord.inference_ms ?? 1.5} ms). Next, anchor this valuation hash onto <code className="text-slate-200">PriceOracle.sol</code>.
@@ -573,10 +611,10 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <div className="text-right font-mono tabular-nums">
               <div className="text-xs font-sans text-slate-400">Predicted Fair Market Value</div>
               <div className="text-2xl font-bold text-white mt-0.5">
-                {formatUsd(aiRecord.predicted_price)}
+                {formatInr(aiRecord.predicted_price)}
               </div>
               <div className="text-xs text-slate-500">
-                {aiRecord.predicted_price_paise.toLocaleString('en-US')} cents ·{' '}
+                {toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise ·{' '}
                 {aiRecord.in_training_distribution !== false ? 'In-Distribution' : 'OOD'}
               </div>
             </div>
@@ -657,7 +695,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 State 2/2: Valuation Anchored on PriceOracle.sol (Record #{aiRecord.prediction_id})
               </h2>
               <p className="text-xs text-slate-300">
-                Oracle signer recorded the integer USD cents valuation and canonical SHA-256 vehicle hash on Hardhat Chain ID 31337.
+                Oracle signer recorded the integer valuation and canonical SHA-256 vehicle hash on Hardhat Chain ID 31337.
               </p>
             </div>
           </div>
@@ -668,9 +706,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               <dd className="text-white font-semibold mt-0.5">#{aiRecord.prediction_id}</dd>
             </div>
             <div>
-              <dt className="text-slate-500 font-sans">Anchored Value (Cents / USD)</dt>
+              <dt className="text-slate-500 font-sans">Anchored Value (Paise / INR)</dt>
               <dd className="text-white font-semibold mt-0.5">
-                {aiRecord.predicted_price_paise.toLocaleString('en-US')} cents ({formatUsd(aiRecord.predicted_price)})
+                {toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise ({formatInr(aiRecord.predicted_price)})
               </dd>
             </div>
             <div className="md:col-span-2">
@@ -711,13 +749,15 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       {/* STEP 4: AUCTION TERMS IN TEST ETH */}
       {step === 4 && aiRecord && (
         <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="border-b border-[#1E293B] pb-4">
-            <h2 className="text-base font-semibold text-white">
-              04. Configure Sealed-Bid Terms (Test ETH)
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              The AI valuation ({formatUsd(aiRecord.predicted_price)}) is an informational benchmark in USD. Specify your Starting Bid, Seller Reserve, and Uniform Collateral Deposit in Test ETH.
-            </p>
+          <div className="border-b border-[#1E293B] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                04. Configure Sealed-Bid Terms (Test ETH + Live ₹ INR Value)
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                The AI valuation ({formatInr(aiRecord.predicted_price)}) is an informational benchmark in Indian Rupees (INR). As you enter Test ETH below, the equivalent value in Indian Rupees (1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}) is calculated in real time.
+              </p>
+            </div>
           </div>
 
           {termsError && (
@@ -728,9 +768,14 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Starting Bid (Test ETH)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Starting Bid (Test ETH)
+                </label>
+                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                  ≈ {formatEthToInr(startingBidEth)}
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -738,12 +783,20 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 onChange={(e) => setStartingBidEth(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
+              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
+                Value in INR: <strong className="text-emerald-400">{formatEthToInr(startingBidEth)}</strong>
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Reserve Price (Test ETH, &ge; Start)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Reserve Price (Test ETH, &ge; Start)
+                </label>
+                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                  ≈ {formatEthToInr(reservePriceEth)}
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -751,12 +804,20 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 onChange={(e) => setReservePriceEth(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
+              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
+                Value in INR: <strong className="text-emerald-400">{formatEthToInr(reservePriceEth)}</strong>
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Fixed Collateral Deposit (Test ETH)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Fixed Collateral Deposit (Test ETH)
+                </label>
+                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                  ≈ {formatEthToInr(fixedDepositEth)}
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -764,6 +825,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 onChange={(e) => setFixedDepositEth(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
               />
+              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
+                Value in INR: <strong className="text-emerald-400">{formatEthToInr(fixedDepositEth)}</strong>
+              </div>
             </div>
           </div>
 
@@ -821,7 +885,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               05. Review & Deploy to SealedAuction.sol
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Confirm the anchored Oracle valuation record and Test ETH escrow parameters before signing.
+              Confirm the anchored Oracle valuation record and Test ETH (with ₹ INR equivalents) escrow parameters before signing.
             </p>
           </div>
 
@@ -833,19 +897,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <div>
               <dt className="text-slate-500">Anchored AI Valuation (Oracle #{aiRecord.prediction_id})</dt>
               <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
-                {formatUsd(aiRecord.predicted_price)} (LightGBM v{aiRecord.model_version})
+                {formatInr(aiRecord.predicted_price)} (LightGBM v{aiRecord.model_version})
               </dd>
             </div>
             <div>
               <dt className="text-slate-500">Starting Bid / Seller Reserve</dt>
               <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
-                {Number(startingBidEth).toFixed(2)} ETH / {Number(reservePriceEth).toFixed(2)} ETH
+                {Number(startingBidEth).toFixed(2)} ETH ({formatEthToInr(startingBidEth)}) / {Number(reservePriceEth).toFixed(2)} ETH ({formatEthToInr(reservePriceEth)})
               </dd>
             </div>
             <div>
               <dt className="text-slate-500">Fixed Collateral Deposit</dt>
               <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
-                {Number(fixedDepositEth).toFixed(2)} ETH ({commitMinutes}m Commit · {revealMinutes}m Reveal)
+                {Number(fixedDepositEth).toFixed(2)} ETH ({formatEthToInr(fixedDepositEth)}) · {commitMinutes}m Commit · {revealMinutes}m Reveal
               </dd>
             </div>
           </dl>

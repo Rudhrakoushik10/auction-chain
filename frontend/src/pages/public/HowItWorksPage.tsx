@@ -16,7 +16,7 @@ export const HowItWorksPage: React.FC = () => {
           How AuctionChain Works
         </h1>
         <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
-          AuctionChain combines LightGBM machine-learning vehicle resale valuation in USD with two-phase Keccak-256 commit-reveal bidding in Test ETH, eliminating mempool front-running and bid sniping.
+          AuctionChain combines LightGBM machine-learning vehicle resale valuation displayed in Indian Rupees (INR / ₹) with two-phase Keccak-256 commit-reveal bidding in Test ETH, eliminating mempool front-running and bid sniping.
         </p>
       </div>
 
@@ -40,7 +40,7 @@ export const HowItWorksPage: React.FC = () => {
             <div className="py-3.5 space-y-1">
               <div className="font-semibold text-white">2. Compute Off-Chain Valuation & Anchor on Oracle</div>
               <p className="text-slate-400 leading-relaxed">
-                The <code className="text-slate-200">LightGBM v1.0.0</code> model estimates fair market value in USD (cents). The Oracle relayer anchors the prediction ID, cents integer, and SHA-256 data hash on <code className="text-slate-200">PriceOracle.sol</code>.
+                The <code className="text-slate-200">LightGBM v1.0.0</code> model estimates fair market value (converted and displayed in Indian Rupees / INR). The Oracle relayer anchors the prediction ID, integer valuation, and SHA-256 data hash on <code className="text-slate-200">PriceOracle.sol</code>.
               </p>
             </div>
             <div className="py-3.5 space-y-1">

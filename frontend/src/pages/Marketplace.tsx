@@ -67,7 +67,7 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
             Verified Vehicle Auctions
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
-            Every vehicle lot includes an advisory USD resale valuation anchored on{' '}
+            Every vehicle lot includes an advisory INR (₹) resale valuation anchored on{' '}
             <code className="text-slate-200">PriceOracle.sol</code> and settles via commit-reveal in Test ETH.
           </p>
         </div>
@@ -147,7 +147,7 @@ export const Marketplace: React.FC<MarketplaceProps> = ({ auctions, onSelectAuct
               className="px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs font-medium text-white focus:outline-none focus:border-[#2563EB]"
             >
               <option value="newest">Newest First</option>
-              <option value="ai-high">Highest AI Valuation (USD)</option>
+              <option value="ai-high">Highest AI Valuation (INR)</option>
               <option value="reserve-low">Lowest Reserve (ETH)</option>
             </select>
           </div>
