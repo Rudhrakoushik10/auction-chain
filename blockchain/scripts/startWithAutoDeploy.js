@@ -2,6 +2,9 @@ const { spawn } = require("child_process");
 const http = require("http");
 const path = require("path");
 
+const hardhatCli = path.resolve(__dirname, "../node_modules/hardhat/internal/cli/cli.js");
+const projectRoot = path.resolve(__dirname, "..");
+
 function checkNodeReady() {
   return new Promise((resolve) => {
     const postData = JSON.stringify({
@@ -24,11 +27,8 @@ function checkNodeReady() {
         timeout: 1000,
       },
       (res) => {
-        if (res.statusCode === 200) {
-          resolve(true);
-        } else {
-          resolve(false);
-        }
+        res.resume();
+        resolve(res.statusCode === 200);
       }
     );
 
@@ -42,7 +42,7 @@ function checkNodeReady() {
   });
 }
 
-async function waitForNode(maxAttempts = 30) {
+async function waitForNode(maxAttempts = 40) {
   for (let i = 0; i < maxAttempts; i++) {
     const ready = await checkNodeReady();
     if (ready) return true;
@@ -53,35 +53,38 @@ async function waitForNode(maxAttempts = 30) {
 
 function runAutoDeploy() {
   console.log("\n========================================================");
-  console.log("⚡ [Auto-Deploy] Hardhat node ready on http://127.0.0.1:8545");
-  console.log("⚡ [Auto-Deploy] Running automated smart contract deployment...");
+  console.log("[Auto-Deploy] Hardhat node ready on http://127.0.0.1:8545");
+  console.log("[Auto-Deploy] Running automated smart contract deployment...");
   console.log("========================================================\n");
 
-  const deploy = spawn("npx", ["hardhat", "run", "scripts/deployLocal.js", "--network", "localhost"], {
-    cwd: path.resolve(__dirname, ".."),
-    stdio: "inherit",
-    shell: true,
-  });
+  const deploy = spawn(
+    process.execPath,
+    [hardhatCli, "run", "scripts/deployLocal.js", "--network", "localhost"],
+    {
+      cwd: projectRoot,
+      stdio: "inherit",
+    }
+  );
 
   deploy.on("close", (code) => {
     if (code === 0) {
       console.log("\n========================================================");
-      console.log("✅ [Auto-Deploy] Smart contracts successfully deployed!");
-      console.log("   - PriceOracle.sol & Auction.sol active on Chain ID 31337");
-      console.log("   - Addresses exported to frontend/src/contracts/contractAddresses.json");
-      console.log("   - Hardhat node running continuously in this terminal.");
+      console.log("[Auto-Deploy] Smart contracts successfully deployed!");
+      console.log("  - PriceOracle.sol : 0x5FbDB2315678afecb367f032d93F642f64180aa3");
+      console.log("  - Auction.sol     : 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512");
+      console.log("  - Chain ID        : 31337 (http://127.0.0.1:8545)");
+      console.log("  - Hardhat node is running continuously in this terminal.");
       console.log("========================================================\n");
     } else {
-      console.error(`❌ [Auto-Deploy] Contract deployment exited with code ${code}`);
+      console.error(`[Auto-Deploy] Contract deployment exited with code ${code}`);
     }
   });
 }
 
-console.log("🚀 [Blockchain] Launching local Hardhat Ethereum node...");
-const nodeProcess = spawn("npx", ["hardhat", "node"], {
-  cwd: path.resolve(__dirname, ".."),
+console.log("[Blockchain] Launching local Hardhat Ethereum node on http://127.0.0.1:8545...");
+const nodeProcess = spawn(process.execPath, [hardhatCli, "node"], {
+  cwd: projectRoot,
   stdio: "inherit",
-  shell: true,
 });
 
 (async () => {
@@ -89,7 +92,7 @@ const nodeProcess = spawn("npx", ["hardhat", "node"], {
   if (ready) {
     runAutoDeploy();
   } else {
-    console.warn("⚠️ [Auto-Deploy] Timed out waiting for Hardhat node to respond.");
+    console.warn("[Auto-Deploy] Timed out waiting for Hardhat node to respond.");
   }
 })();
 

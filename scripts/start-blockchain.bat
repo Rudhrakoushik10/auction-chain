@@ -9,6 +9,10 @@ echo ===========================================================================
 echo.
 
 pushd blockchain
+if not exist "node_modules\@nomicfoundation\hardhat-ethers" (
+    echo [Blockchain] Installing required Hardhat Ethers plugins...
+    call npm install
+)
 call npm start
 popd
 
