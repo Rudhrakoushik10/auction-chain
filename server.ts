@@ -1090,10 +1090,10 @@ async function startServer() {
 
   app.listen(PORT, HOST, () => {
     console.log(
-      `\n  VITE v6.1.1  ready in 180 ms\n\n  ➜  Local:   http://localhost:${PORT}/\n  ➜  Network: http://${HOST}:${PORT}/\n`
+      `\n  VITE v6.1.1  ready\n\n  ➜  Local:   http://localhost:${PORT}/\n`
     );
     console.log(
-      `[AuctionChain] Server & LightGBM v1.0.0 Engine active at http://${HOST}:${PORT}`
+      `[AuctionChain] Server & LightGBM v1.0.0 Engine active at http://localhost:${PORT}`
     );
   });
 }

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { ethers } from 'ethers';
 import { WalletAccount } from '../types/auction';
 import {
   HARDHAT_WALLETS,
@@ -11,6 +10,7 @@ import {
 } from '../lib/hardhatConfig';
 import {
   hasMetaMask,
+  checkLocalHardhatNode,
   connectMetaMaskWithEthers,
   requestSwitchToHardhatChain,
   promptMetaMaskAccountSwitch,
@@ -31,6 +31,8 @@ interface WalletContextValue {
   allWallets: WalletAccount[];
   chainId: number;
   isCorrectNetwork: boolean;
+  isNodeOnline: boolean;
+  latestBlock: number | null;
   isMetaMaskAvailable: boolean;
   mismatchInfo: WalletMismatchInfo | null;
   errorMessage: string | null;
@@ -42,6 +44,7 @@ interface WalletContextValue {
   openAuthModal: () => void;
   closeAuthModal: () => void;
   clearMismatch: () => void;
+  refreshHardhatNode: () => Promise<boolean>;
   connectMetaMask: () => Promise<boolean>;
   selectRoleDirect: (targetAccount: WalletAccount) => Promise<boolean>;
   disconnectWallet: () => void;
@@ -53,9 +56,9 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
-const STORAGE_CONNECTED_KEY = 'auctionchain_wallet_connected_v3';
-const STORAGE_ADDR_KEY = 'auctionchain_wallet_active_addr_v3';
-const STORAGE_ORACLE_KEY = 'auctionchain_wallet_oracle_v3';
+const STORAGE_CONNECTED_KEY = 'auctionchain_wallet_connected_v4';
+const STORAGE_ADDR_KEY = 'auctionchain_wallet_active_addr_v4';
+const STORAGE_ORACLE_KEY = 'auctionchain_wallet_oracle_v4';
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [wallets, setWallets] = useState<WalletAccount[]>(HARDHAT_WALLETS);
@@ -66,6 +69,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return localStorage.getItem(STORAGE_ADDR_KEY) || HUMAN_ROLE_WALLETS[0].address;
   });
   const [chainId, setChainId] = useState<number>(HARDHAT_CHAIN_ID);
+  const [isNodeOnline, setIsNodeOnline] = useState<boolean>(true);
+  const [latestBlock, setLatestBlock] = useState<number | null>(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [mismatchInfo, setMismatchInfo] = useState<WalletMismatchInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -81,7 +86,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const humanWallets = wallets.filter((w) => w.isHumanFacing);
 
-  // Sync to localStorage
+  // Sync connection state to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_CONNECTED_KEY, String(isConnected));
     if (activeAddress) {
@@ -89,23 +94,39 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [isConnected, activeAddress]);
 
-  // Check MetaMask availability and listen to events
+  // Direct JSON-RPC heartbeat to http://127.0.0.1:8545 (does NOT touch window.ethereum on mount)
+  const refreshHardhatNode = useCallback(async (): Promise<boolean> => {
+    const addrs = HARDHAT_WALLETS.map((w) => w.address);
+    const status = await checkLocalHardhatNode(addrs);
+    setIsNodeOnline(status.isNodeOnline);
+    if (status.isNodeOnline) {
+      if (status.chainId) setChainId(status.chainId);
+      setLatestBlock(status.latestBlock);
+      if (Object.keys(status.balances).length > 0) {
+        setWallets((prev) =>
+          prev.map((w) => {
+            const liveBal = status.balances[w.address.toLowerCase()];
+            return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
+          })
+        );
+      }
+    }
+    return status.isNodeOnline;
+  }, []);
+
+  // Start Hardhat RPC heartbeat and attach passive MetaMask event listeners (no mount RPC calls)
   useEffect(() => {
-    const metaMaskPresent = hasMetaMask();
-    setIsMetaMaskAvailable(metaMaskPresent);
+    setIsMetaMaskAvailable(hasMetaMask());
+    refreshHardhatNode();
 
-    if (metaMaskPresent && window.ethereum) {
-      // Fetch initial chain ID
-      window.ethereum
-        .request({ method: 'eth_chainId' })
-        .then((hexChain: string) => {
-          setChainId(parseInt(hexChain, 16));
-        })
-        .catch(() => {});
+    const timer = setInterval(() => {
+      refreshHardhatNode();
+    }, 3000);
 
+    const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+    if (ethereum && typeof ethereum.on === 'function') {
       const handleAccountsChanged = (accounts: string[]) => {
         if (!accounts || accounts.length === 0) {
-          // User disconnected in MetaMask
           setIsConnected(false);
           setMismatchInfo(null);
         } else {
@@ -116,33 +137,32 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setIsConnected(true);
             setMismatchInfo(null);
             setErrorMessage(null);
-          } else if (newAddr.toLowerCase() === ORACLE_BACKGROUND_ACCOUNT.address.toLowerCase()) {
-            setIsConnected(false);
-            setErrorMessage('Connected account is the background Oracle service. Please switch to Account 1 (Admin), Account 2 (Seller), Account 3 (Bidder 1), or Account 4 (Bidder 2).');
-          } else {
-            // Unknown external address
-            setIsConnected(false);
-            setErrorMessage(`Wallet ${newAddr.slice(0, 6)}...${newAddr.slice(-4)} is not a preconfigured Hardhat account. Please switch to Account 0, 1, 2, or 3.`);
           }
         }
       };
 
       const handleChainChanged = (hexChain: string) => {
-        const newChainId = parseInt(hexChain, 16);
-        setChainId(newChainId);
+        const parsed = parseInt(hexChain, 16);
+        if (!isNaN(parsed)) {
+          setChainId(parsed);
+        }
+        refreshHardhatNode();
       };
 
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', handleChainChanged);
+      ethereum.on('accountsChanged', handleAccountsChanged);
+      ethereum.on('chainChanged', handleChainChanged);
 
       return () => {
-        if (window.ethereum.removeListener) {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        clearInterval(timer);
+        if (ethereum.removeListener) {
+          ethereum.removeListener('accountsChanged', handleAccountsChanged);
+          ethereum.removeListener('chainChanged', handleChainChanged);
         }
       };
     }
-  }, []);
+
+    return () => clearInterval(timer);
+  }, [refreshHardhatNode]);
 
   const currentWallet = isConnected
     ? wallets.find((w) => w.address.toLowerCase() === activeAddress.toLowerCase()) || humanWallets[0]
@@ -153,6 +173,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const openAuthModal = () => {
     setErrorMessage(null);
     setMismatchInfo(null);
+    refreshHardhatNode();
     setIsAuthModalOpen(true);
   };
 
@@ -174,19 +195,24 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setMismatchInfo(null);
 
     try {
+      const online = await refreshHardhatNode();
+      if (!online) {
+        setErrorMessage(
+          'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is offline. Please start Terminal 1 (Hardhat Node) first.'
+        );
+        setIsConnecting(false);
+        return false;
+      }
+
       if (hasMetaMask()) {
         const res = await connectMetaMaskWithEthers();
         if (!res.success) {
-          setErrorMessage(res.error || 'Connection failed.');
+          setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
           setIsConnecting(false);
           return false;
         }
 
-        if (res.isCorrectNetwork === false) {
-          setChainId(res.chainId || 1);
-        } else {
-          setChainId(HARDHAT_CHAIN_ID);
-        }
+        setChainId(HARDHAT_CHAIN_ID);
 
         if (res.account && res.account.isHumanFacing) {
           setActiveAddress(res.account.address);
@@ -196,13 +222,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return true;
         }
 
-        if (res.isUnsupportedAccount) {
-          setErrorMessage(res.error || 'Unsupported account.');
-          setIsConnecting(false);
-          return false;
-        }
+        // Default to Admin if connected with another imported address
+        setActiveAddress(humanWallets[0].address);
+        setIsConnected(true);
+        setIsAuthModalOpen(false);
+        setIsConnecting(false);
+        return true;
       } else {
-        // Fallback for presentation environments without MetaMask extension
         const defaultRole = humanWallets[0];
         setActiveAddress(defaultRole.address);
         setIsConnected(true);
@@ -217,9 +243,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsConnecting(false);
     }
     return false;
-  }, [humanWallets]);
+  }, [humanWallets, refreshHardhatNode]);
 
-  // Direct Role Selection behavior (Sections 4 & 5)
+  // Role Card Selection (matches Freelance-Milestone-Escrow reference flow)
   const selectRoleDirect = useCallback(
     async (targetAccount: WalletAccount): Promise<boolean> => {
       setIsConnecting(true);
@@ -227,48 +253,24 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setMismatchInfo(null);
 
       try {
+        const online = await refreshHardhatNode();
+        if (!online) {
+          setErrorMessage(
+            'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is closed/offline. Please start Terminal 1 (Hardhat Node) first.'
+          );
+          setIsConnecting(false);
+          return false;
+        }
+
         if (hasMetaMask()) {
-          // Check what account is actually connected in MetaMask
-          const accounts: string[] = await window.ethereum.request({
-            method: 'eth_accounts',
-          });
-
-          // If no account currently authorized, request access
-          let connectedAddr = accounts && accounts.length > 0 ? accounts[0] : null;
-          if (!connectedAddr) {
-            const requested = await window.ethereum.request({
-              method: 'eth_requestAccounts',
-            });
-            connectedAddr = requested && requested.length > 0 ? requested[0] : null;
-          }
-
-          if (connectedAddr) {
-            const matchesTarget =
-              connectedAddr.toLowerCase() === targetAccount.address.toLowerCase();
-
-            if (matchesTarget) {
-              // Address matches perfectly! Proceed to dashboard
-              setActiveAddress(targetAccount.address);
-              setIsConnected(true);
-              setIsAuthModalOpen(false);
-              setIsConnecting(false);
-              return true;
-            } else {
-              // Mismatch: show expected role, expected address, and prompt to switch
-              setMismatchInfo({
-                expectedRole: targetAccount.roleTitle,
-                expectedLabel: targetAccount.label,
-                expectedAddress: targetAccount.address,
-                connectedAddress: connectedAddr,
-              });
-              setIsConnecting(false);
-              return false;
-            }
+          const res = await connectMetaMaskWithEthers(targetAccount.address);
+          if (!res.success) {
+            setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
+            setIsConnecting(false);
+            return false;
           }
         }
 
-        // If MetaMask is not installed or when user clicks without extension present,
-        // activate the requested preconfigured role directly for reliable evaluation
         setActiveAddress(targetAccount.address);
         setIsConnected(true);
         setChainId(HARDHAT_CHAIN_ID);
@@ -281,7 +283,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return false;
       }
     },
-    []
+    [refreshHardhatNode]
   );
 
   const disconnectWallet = useCallback(() => {
@@ -339,6 +341,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         allWallets: wallets,
         chainId,
         isCorrectNetwork,
+        isNodeOnline,
+        latestBlock,
         isMetaMaskAvailable,
         mismatchInfo,
         errorMessage,
@@ -350,6 +354,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         openAuthModal,
         closeAuthModal,
         clearMismatch,
+        refreshHardhatNode,
         connectMetaMask,
         selectRoleDirect,
         disconnectWallet,
