@@ -1,0 +1,9 @@
+brand,model,manufacturing_year,mileage_km,fuel_type,transmission,condition,original_price_inr,resale_price_inr
+Hyundai,IONIQ 5 Long-Range EV,2023,18400,Electric,Automatic,Excellent,4595000,3064500
+Tata,Nexon EV Empowered+ LR,2024,12500,Electric,Automatic,Excellent,1949000,1528000
+BMW,iX1 xDrive30 M Sport,2024,9200,Electric,Automatic,Like New,6690000,5640000
+Audi,e-tron GT Quattro,2023,14800,Electric,Automatic,Excellent,17200000,12150000
+Toyota,Innova Hycross ZX(O) Hybrid,2023,24000,Hybrid,Automatic,Excellent,3098000,2540000
+Mahindra,XUV700 AX7 Luxury AWD,2022,36000,Diesel,Automatic,Good,2699000,1890000
+Honda,City e:HEV ZX Hybrid,2023,19500,Hybrid,Automatic,Excellent,2055000,1610000
+Kia,EV6 GT-Line AWD,2023,16200,Electric,Automatic,Excellent,6595000,4680000

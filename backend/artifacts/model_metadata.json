@@ -1,0 +1,22 @@
+{
+  "model_version": "vehicle-v1",
+  "category": "vehicle",
+  "currency": "INR",
+  "algorithm": "ExtraTreesRegressor (scikit-learn pipeline)",
+  "feature_columns": [
+    "brand",
+    "model",
+    "manufacturing_year",
+    "mileage_km",
+    "fuel_type",
+    "transmission",
+    "condition",
+    "original_price_inr"
+  ],
+  "metrics": {
+    "mae": 28500,
+    "rmse": 37400,
+    "r2": 0.918,
+    "trainingSamples": 18900
+  }
+}

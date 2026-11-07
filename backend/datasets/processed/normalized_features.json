@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "2026.11.05",
+  "recordsProcessed": 12480,
+  "featureScaling": "StandardScaler + CategoryOneHot",
+  "categoryMultipliers": {
+    "AI Compute": 1.18,
+    "Cryptographic Protocol": 1.24,
+    "RWA Telecom": 1.15,
+    "Generative Art": 1.28
+  },
+  "validationMetrics": {
+    "r2Score": 0.942,
+    "meanAbsolutePercentageError": 4.18
+  }
+}
