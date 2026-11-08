@@ -146,19 +146,39 @@ export function formatInr(amount: number): string {
 }
 
 /**
- * Converts a Test ETH amount (number or string) to Indian Rupees (INR).
- * Defaults to the on-chain PriceOracle feed rate (₹2,50,000).
+ * Returns the active ETH/INR conversion rate from the on-chain PriceOracle feed
+ * cached in localStorage, falling back to ₹2,50,000 per ETH.
  */
-export function convertEthToInr(ethAmount: string | number, customRate = ETH_TO_INR_RATE): number {
+export function getActiveEthInrRate(): number {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('auctionchain_oracle_eth_inr_rate');
+      if (saved) {
+        const parsed = Number(saved);
+        if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+      }
+    }
+  } catch {
+    // ignore storage access errors
+  }
+  return ETH_TO_INR_RATE;
+}
+
+/**
+ * Converts a Test ETH amount (number or string) to Indian Rupees (INR).
+ * Defaults to the active PriceOracle feed rate (or ₹2,50,000 fallback).
+ */
+export function convertEthToInr(ethAmount: string | number, customRate?: number): number {
   const num = Number(ethAmount);
   if (Number.isNaN(num) || num <= 0) return 0;
-  return Math.round(num * customRate);
+  const rate = customRate && customRate > 0 ? customRate : getActiveEthInrRate();
+  return Math.round(num * rate);
 }
 
 /**
  * Formats a Test ETH amount directly as Indian Rupees (₹) using the en-IN locale.
  */
-export function formatEthToInr(ethAmount: string | number, customRate = ETH_TO_INR_RATE): string {
+export function formatEthToInr(ethAmount: string | number, customRate?: number): string {
   const inrValue = convertEthToInr(ethAmount, customRate);
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -173,7 +193,7 @@ export function formatEthToInr(ethAmount: string | number, customRate = ETH_TO_I
 export function formatEthWithInr(
   ethAmount: string | number,
   decimals = 2,
-  customRate = ETH_TO_INR_RATE
+  customRate?: number
 ): string {
   const num = Number(ethAmount) || 0;
   return `${num.toFixed(decimals)} ETH (${formatEthToInr(num, customRate)})`;

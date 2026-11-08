@@ -401,13 +401,13 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             <div className="p-6 space-y-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-mono text-[#8E95A5] tabular-nums">
-                  <span>{String(auction.attributes.manufacturing_year || '2024')}</span>
+                  <span>{String(auction.attributes.year ?? auction.attributes.manufacturing_year ?? '2024')}</span>
                   <span className="text-[#646C7E]" aria-hidden="true">·</span>
                   <span>{String(auction.attributes.fuel_type || 'Electric')}</span>
                   <span className="text-[#646C7E]" aria-hidden="true">·</span>
-                  <span>{Number(auction.attributes.mileage_km || 0).toLocaleString('en-IN')} km</span>
+                  <span>{Number(auction.attributes.mileage ?? auction.attributes.mileage_km ?? 0).toLocaleString('en-IN')} km</span>
                   <span className="text-[#646C7E]" aria-hidden="true">·</span>
-                  <span>{String(auction.attributes.condition || 'Excellent')}</span>
+                  <span>{String(auction.attributes.condition ?? (auction.attributes.clean_title === 'Yes' ? 'Clean Title' : 'Verified'))}</span>
                 </div>
                 <h1 className="text-2xl font-semibold text-[#F4F5F7] tracking-tight">{auction.title}</h1>
                 <p className="text-sm text-[#8E95A5] leading-relaxed">{auction.subtitle}</p>
@@ -427,7 +427,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       <dd className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
                         {key === 'original_price_inr'
                           ? formatInr(Number(val))
-                          : key === 'mileage_km'
+                          : key === 'mileage_km' || key === 'mileage'
                           ? `${Number(val).toLocaleString('en-IN')} km`
                           : String(val)}
                       </dd>

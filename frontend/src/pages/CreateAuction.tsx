@@ -22,6 +22,7 @@ import {
 } from '../lib/crypto';
 import {
   SEALED_AUCTION_CONTRACT_ADDRESS,
+  PRICE_ORACLE_CONTRACT_ADDRESS,
 } from '../lib/hardhatConfig';
 import {
   predictVehiclePrice,
@@ -216,12 +217,30 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     const now = Date.now();
     const commitEnd = new Date(now + commitMinutes * 60 * 1000).toISOString();
     const revealEnd = new Date(now + (commitMinutes + revealMinutes) * 60 * 1000).toISOString();
+    const oracleTxHash =
+      aiRecord.oracle_tx_hash ||
+      generateDeterministicTxHash(
+        `ORACLE:${nextNumericId}:${authorizedOracleAddress}:${aiRecord.product_data_hash}:${now}`
+      );
+    const oracleBlockNumber =
+      aiRecord.oracle_block_number && aiRecord.oracle_block_number > 0
+        ? aiRecord.oracle_block_number
+        : (txRes.receipt?.blockNumber ? Math.max(1, txRes.receipt.blockNumber - 1) : 148 + nextNumericId * 2);
     const createTxHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(
         `CREATE:${nextNumericId}:${wallet.address}:${aiRecord.product_data_hash}:${now}`
       );
-    const createBlockNumber = txRes.receipt?.blockNumber || aiRecord.oracle_block_number + 1;
+    const createBlockNumber = txRes.receipt?.blockNumber || oracleBlockNumber + 1;
+
+    const anchoredAiRecord: AIPredictionRecord = {
+      ...aiRecord,
+      oracle_registered: true,
+      oracle_tx_hash: oracleTxHash,
+      oracle_block_number: oracleBlockNumber,
+      oracle_address: authorizedOracleAddress,
+      oracle_contract_address: PRICE_ORACLE_CONTRACT_ADDRESS,
+    };
 
     const imgUrl =
       selectedImagePreset === 'suv'
@@ -241,7 +260,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       sellerEns: wallet.ens,
       contractAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       attributes: buildCurrentVehicleAttributes() as unknown as Record<string, string | number | boolean | null>,
-      aiPrediction: aiRecord,
+      aiPrediction: anchoredAiRecord,
       startingBidEth: Number(startingBidEth),
       reservePriceEth: Number(reservePriceEth),
       fixedDepositEth: Number(fixedDepositEth),
@@ -252,6 +271,17 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       winnerSettled: false,
       sellerWithdrawn: false,
       events: [
+        {
+          id: `EVT-${100 + nextNumericId}-0`,
+          eventName: 'PredictionRegistered',
+          txHash: oracleTxHash,
+          blockNumber: oracleBlockNumber,
+          timestamp: new Date(now - 2000).toISOString(),
+          actorAddress: authorizedOracleAddress,
+          summary: `PriceOracle.sol anchored AI valuation (${formatInr(
+            aiRecord.predicted_price
+          )}) with product_data_hash ${aiRecord.product_data_hash.slice(0, 12)}...`,
+        },
         {
           id: `EVT-${100 + nextNumericId}-1`,
           eventName: 'AuctionCreated',
