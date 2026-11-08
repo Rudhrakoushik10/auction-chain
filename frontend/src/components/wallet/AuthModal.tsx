@@ -241,16 +241,47 @@ export const AuthModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Autonomous Oracle Footnote */}
-          <div className="p-3 rounded-md bg-[#0B0C10] border border-[#232730] flex items-center gap-2.5 text-xs text-[#8E95A5]">
-            <Cpu className="w-4 h-4 text-[#C5A46D] shrink-0" />
-            <div className="truncate">
-              <span className="text-[#F4F5F7] font-medium">Autonomous Oracle (Account #4):</span>{' '}
-              <span className="font-mono text-[11px] text-[#646C7E]">
-                {ORACLE_BACKGROUND_ACCOUNT.address.slice(0, 10)}...{ORACLE_BACKGROUND_ACCOUNT.address.slice(-6)}
-              </span>{' '}
-              anchors live ETH/INR exchange rates to <code className="font-mono text-[#C5A46D]">PriceOracle.sol</code>.
+          {/* Autonomous Oracle Dedicated Card */}
+          <div className="p-3.5 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-[#059669] shrink-0" />
+                <span className="font-semibold text-[#F4F5F7]">
+                  Account 4 — Price Oracle (Background Daemon)
+                </span>
+                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#059669]/15 text-[#059669] border border-[#059669]/30">
+                  Autonomous Service
+                </span>
+              </div>
+              <span className="text-xs font-mono font-semibold text-[#F4F5F7] tabular-nums shrink-0">
+                {ORACLE_BACKGROUND_ACCOUNT.balanceEth.toFixed(1)} ETH
+              </span>
             </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[#1C2029]">
+              <div className="flex items-center gap-2 font-mono text-[11px] text-[#A6ADB8] flex-1 min-w-0">
+                <span className="text-[#8E95A5] shrink-0">Signer Address:</span>
+                <span className="text-[#F4F5F7] font-mono break-all select-all">
+                  {ORACLE_BACKGROUND_ACCOUNT.address}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyText(ORACLE_BACKGROUND_ACCOUNT.address, 'oracle-addr')}
+                  className="text-[#8E95A5] hover:text-[#C5A46D] transition-colors p-0.5 shrink-0"
+                  title="Copy Oracle Address"
+                >
+                  {copiedKey === 'oracle-addr' ? (
+                    <Check className="w-3.5 h-3.5 text-[#2E9B68]" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-[#8E95A5] leading-relaxed pt-0.5">
+              Runs as an autonomous background oracle daemon feeding live ETH/INR exchange rates and signing AI vehicle valuation hashes directly into <code className="font-mono text-[#C5A46D]">PriceOracle.sol</code>.
+            </p>
           </div>
         </div>
 
