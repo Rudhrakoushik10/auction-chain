@@ -24,7 +24,6 @@ import {
   generateRandomSalt,
   formatInr,
   formatEthToInr,
-  ETH_TO_INR_RATE,
   shortenAddress,
 } from '../lib/crypto';
 
@@ -102,6 +101,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
     isConnected,
     wallet,
     isCorrectNetwork,
+    liveEthInrRate,
     openAuthModal,
     switchNetworkToHardhat,
     inspectTransaction,
@@ -827,7 +827,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       <span>
                         Indian Rupee Equivalent: <strong className="text-[#F4F5F7]">{formatEthToInr(revealBidInput)}</strong>
                       </span>
-                      <span>1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}</span>
+                      <span>1 ETH = ₹{liveEthInrRate.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                   <div>

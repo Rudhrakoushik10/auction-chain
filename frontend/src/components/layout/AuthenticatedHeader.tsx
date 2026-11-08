@@ -25,7 +25,6 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
     wallet,
     humanWallets,
     liveEthInrRate,
-    oracleRoundId,
     selectRoleDirect,
     openAuthModal,
     disconnectWallet,
@@ -56,8 +55,8 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
     guest: 'Guest Session',
     seller: 'Seller Workspace',
     bidder: 'Bidder Workspace',
-    admin: 'Protocol Auditor Console',
-    oracle: 'Oracle Signer',
+    admin: 'Admin Workspace',
+    oracle: 'Price Feed Service',
   }[wallet.role];
 
   const recentEvents = [...events].reverse().slice(0, 6);
@@ -65,7 +64,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 h-20 bg-[#0B0C10]/95 backdrop-blur-md border-b border-[#232730]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-6">
-        {/* Zone 1: Brand Identity & Workspace Context */}
+        {/* Brand Identity & Workspace Context */}
         <div className="flex items-center gap-6">
           <button
             type="button"
@@ -76,20 +75,18 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
           </button>
         </div>
 
-        {/* Zone 2 & 3: Unboxed Institutional Telemetry & Signer Controls */}
+        {/* Live Exchange Rate, Activity & Account Switcher */}
         <div className="flex items-center gap-5">
-          {/* Unboxed Financial Telemetry (Zero-Pill Discipline, no pulsing dot) */}
           <div className="hidden lg:flex items-center gap-3 text-xs font-mono text-[#8E95A5]">
             <span>
-              Oracle ETH/INR:{' '}
+              1 ETH ={' '}
               <strong className="text-[#F4F5F7] font-medium tabular-nums">
                 {formatInr(liveEthInrRate)}
-              </strong>{' '}
-              <span className="text-[#646C7E]">(R#{oracleRoundId})</span>
+              </strong>
             </span>
             <span className="text-[#232730]">·</span>
-            <span className="uppercase tracking-wider text-[#C5A46D]">
-              {wallet.label} · {wallet.roleTitle}
+            <span className="text-[#C5A46D]">
+              {wallet.roleTitle}
             </span>
             <span className="text-[#232730]">·</span>
             <span className="text-[#F4F5F7] tabular-nums">
@@ -97,13 +94,13 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
             </span>
           </div>
 
-          {/* Notifications Dropdown */}
+          {/* Activity Dropdown */}
           <div className="relative" ref={notifRef}>
             <button
               type="button"
               onClick={() => setNotifOpen((prev) => !prev)}
               className="relative p-2.5 rounded-md bg-[#12141A] border border-[#232730] text-[#8E95A5] hover:text-[#F4F5F7] hover:border-[#363C4A] transition-colors cursor-pointer"
-              title="On-Chain Event Feed"
+              title="Recent Activity"
             >
               <Bell className="w-4 h-4" />
               {recentEvents.length > 0 && (
@@ -114,17 +111,17 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-[#12141A] border border-[#232730] rounded-md shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-[#232730] flex items-center justify-between bg-[#0B0C10]/60">
-                  <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
-                    Contract Event Log
+                  <span className="text-xs font-medium text-[#F4F5F7]">
+                    Recent Activity
                   </span>
-                  <span className="text-[11px] font-mono text-[#C5A46D]">
-                    {recentEvents.length} Recorded
+                  <span className="text-xs font-mono text-[#C5A46D]">
+                    {recentEvents.length} Updates
                   </span>
                 </div>
                 <div className="divide-y divide-[#232730] max-h-72 overflow-y-auto">
                   {recentEvents.length === 0 ? (
                     <div className="px-4 py-6 text-center text-xs text-[#646C7E]">
-                      No contract events emitted in current session.
+                      No activity recorded in this session yet.
                     </div>
                   ) : (
                     recentEvents.map((ev) => (
@@ -159,7 +156,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
             )}
           </div>
 
-          {/* Signer Account Switcher */}
+          {/* Account Switcher */}
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
@@ -168,7 +165,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
             >
               <span className="w-2 h-2 rounded-full bg-[#C5A46D]" />
               <span className="font-medium text-[#F4F5F7]">
-                {wallet.label}
+                {wallet.roleTitle}
               </span>
               <span className="font-mono text-[#8E95A5] hidden sm:inline">
                 {shortenAddress(wallet.address)}
@@ -184,18 +181,18 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
               <div className="absolute right-0 mt-2 w-80 bg-[#12141A] border border-[#232730] rounded-md shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3.5 border-b border-[#232730] bg-[#0B0C10]/60">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
-                      Active Signer
+                    <span className="text-xs text-[#8E95A5]">
+                      Signed In Account
                     </span>
-                    <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+                    <span className="text-xs font-medium text-[#C5A46D]">
                       {wallet.roleTitle}
                     </span>
                   </div>
                   <p className="text-xs font-mono text-[#F4F5F7] mt-1 break-all">
                     {wallet.address}
                   </p>
-                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#232730] text-[11px] font-mono">
-                    <span className="text-[#8E95A5]">Balance</span>
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#232730] text-xs font-mono">
+                    <span className="text-[#8E95A5]">Wallet Balance</span>
                     <span className="text-[#F4F5F7] tabular-nums">
                       {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
                     </span>
@@ -203,10 +200,10 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                 </div>
 
                 <div className="p-2 border-b border-[#232730]">
-                  <div className="px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono text-[#8E95A5] uppercase tracking-[0.14em]">
+                  <div className="px-2.5 py-1.5 flex items-center justify-between text-xs text-[#8E95A5]">
                     <span className="flex items-center gap-1.5">
                       <Repeat className="w-3 h-3 text-[#C5A46D]" />
-                      Switch Role Signer (Instant)
+                      Switch Role Account (1-Click)
                     </span>
                   </div>
                   <div className="space-y-1 mt-1">
@@ -229,13 +226,13 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                         >
                           <div>
                             <div className="font-medium text-[#F4F5F7] flex items-center gap-1.5">
-                              <span>{acc.label}</span>
-                              <span className="text-[10px] font-mono uppercase text-[#C5A46D]">
-                                · {acc.roleTitle}
+                              <span>{acc.roleTitle}</span>
+                              <span className="text-[11px] font-mono text-[#8E95A5]">
+                                ({acc.label})
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-[#8E95A5] tabular-nums">
-                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(2)} ETH
+                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(1)} ETH
                             </div>
                           </div>
                           {isCurrent && <Check className="w-3.5 h-3.5 text-[#C5A46D]" />}
@@ -255,7 +252,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium text-[#F4F5F7] hover:bg-[#171A22] transition-colors cursor-pointer"
                   >
                     <Repeat className="w-3.5 h-3.5 text-[#C5A46D]" />
-                    <span>Open Full Wallet & Role Modal</span>
+                    <span>Wallet & Connection Settings</span>
                   </button>
                   <button
                     type="button"
@@ -266,7 +263,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium text-[#C94A4A] hover:bg-[#C94A4A]/10 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Disconnect Session</span>
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>

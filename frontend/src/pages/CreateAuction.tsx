@@ -16,7 +16,6 @@ import {
   formatInr,
   toInrPaise,
   formatEthToInr,
-  ETH_TO_INR_RATE,
   shortenAddress,
   generateDeterministicTxHash,
 } from '../lib/crypto';
@@ -48,14 +47,15 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     openAuthModal,
     switchNetworkToHardhat,
     authorizedOracleAddress,
+    liveEthInrRate,
     reportNonceMismatch,
     inspectTransaction,
   } = useWallet();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [title, setTitle] = useState('2020 Ford F-150 XLT SuperCrew 4WD (3.5L V6 400hp Twin Turbo)');
+  const [title, setTitle] = useState('2021 Hyundai Creta SX 1.5L CRDi Diesel');
   const [subtitle, setSubtitle] = useState(
-    'Single-owner 3.5L EcoBoost V6 pickup with 45,000 miles, 10-speed automatic transmission, Jet Black exterior, and clean history.'
+    'Single-owner well maintained diesel compact SUV with 32,000 km, touch infotainment, and full service records.'
   );
   const [selectedImagePreset, setSelectedImagePreset] = useState<'suv' | 'coupe' | 'sedan'>('suv');
 
@@ -646,10 +646,10 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           <div className="border-b border-[#232730] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-[#F4F5F7]">
-                03. Configure Sealed-Bid Escrow Terms (Test ETH + Live ₹ INR Value)
+                03. Set Auction Prices &amp; Security Deposit (ETH + Live ₹ INR Value)
               </h2>
               <p className="text-xs text-[#8E95A5] mt-1">
-                The AI valuation ({formatInr(aiRecord.predicted_price)}) is an informational benchmark in Indian Rupees (INR). As you enter Test ETH below, the equivalent value in Indian Rupees (1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}) is calculated in real time.
+                The AI valuation ({formatInr(aiRecord.predicted_price)}) is a helpful guide in Indian Rupees (₹). As you enter ETH prices below, the Rupee equivalent (1 ETH = ₹{liveEthInrRate.toLocaleString('en-IN')}) updates automatically.
               </p>
             </div>
           </div>

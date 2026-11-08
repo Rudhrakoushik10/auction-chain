@@ -122,9 +122,14 @@ async function getIndianVehicleValuation(attrs: Record<string, any>) {
   const t0 = performance.now();
   let result;
   try {
-    result = await estimateVehiclePriceWithGemini(attrs);
+    result = await Promise.race([
+      estimateVehiclePriceWithGemini(attrs),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Valuation timeout')), 6000)
+      ),
+    ]);
   } catch (_err) {
-    // If Gemini API fails or limit is hit, simulate strictly between 1 to 5 Lakhs
+    // If Gemini API fails, times out, or limit is hit, simulate strictly between 1 to 5 Lakhs
     // DO NOT reveal simulation to user - presented as standard AI estimated
     result = simulatePriceBetween1And5Lakhs(attrs);
   }

@@ -417,9 +417,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateLivePriceFeed = useCallback(
     async (newRateInr: number): Promise<boolean> => {
       if (newRateInr <= 0) return false;
+      localStorage.setItem('auctionchain_oracle_eth_inr_rate', String(newRateInr));
       setLiveEthInrRate(newRateInr);
       setOracleRoundId((prev) => prev + 1);
-      localStorage.setItem('auctionchain_oracle_eth_inr_rate', String(newRateInr));
       return true;
     },
     []

@@ -18,6 +18,7 @@ import { BidderDashboard } from './pages/bidder/BidderDashboard';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AuctionItem, LocalRevealBackupSecret } from './types/auction';
 import {
+  computeCommitmentHash,
   generateDeterministicTxHash,
   shortenAddress,
 } from './lib/crypto';
@@ -219,6 +220,20 @@ function AuctionChainAppContent() {
       return {
         success: false,
         message: `BidBelowStartingPrice(): Revealed bid (${bidAmountEth} ETH) is below starting bid (${targetAuction.startingBidEth} ETH).`,
+      };
+    }
+
+    const recomputedHash = await computeCommitmentHash(
+      targetAuction.numericId,
+      wallet.address,
+      bidAmountEth,
+      salt
+    );
+    if (recomputedHash.toLowerCase() !== myComm.commitmentHash.toLowerCase()) {
+      return {
+        success: false,
+        message:
+          'Hash Mismatch: The bid amount or secret key you entered does not match your original sealed envelope.',
       };
     }
 
