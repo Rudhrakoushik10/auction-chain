@@ -5,7 +5,7 @@ import {
 
 /**
  * AI API Client (`src/services/api/aiService.ts`)
- * Connects directly to `/api/predict-price` (backed by LightGBM v1.0.0 in `/backend`).
+ * Connects directly to `/api/predict-price` (backed by Gemini 3.8 Flash Indian Car Valuation).
  */
 export async function predictVehiclePrice(
   attributes: VehicleAttributes
@@ -23,17 +23,17 @@ export async function predictVehiclePrice(
     );
   }
 
-  const usdPrice = Number(data.predicted_price ?? data.predicted_price_inr);
-  const cents = Math.round(usdPrice * 100);
+  const inrPrice = Number(data.predicted_price ?? data.predicted_price_inr);
+  const paise = data.predicted_price_paise ?? Math.round(inrPrice * 100);
 
   return {
     prediction_id: data.prediction_id,
     category: 'vehicle',
-    predicted_price: usdPrice,
-    predicted_price_inr: usdPrice,
-    predicted_price_paise: data.predicted_price_paise ?? cents,
-    currency: 'USD',
-    model_version: data.model_version || '1.0.0',
+    predicted_price: inrPrice,
+    predicted_price_inr: inrPrice,
+    predicted_price_paise: paise,
+    currency: 'INR',
+    model_version: data.model_version || 'Gemini 3.8 Flash',
     in_training_distribution: data.in_training_distribution ?? true,
     warnings: data.warnings || [],
     inference_ms: data.inference_ms ?? 1.5,

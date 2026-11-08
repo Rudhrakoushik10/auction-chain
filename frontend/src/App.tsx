@@ -625,7 +625,7 @@ function AuctionChainAppContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#090D1A] text-[#F8FAFC]">
+    <div className="min-h-screen flex flex-col bg-[#0B0C10] text-[#F4F5F7] selection:bg-[#C5A46D]/20 selection:text-[#F4F5F7]">
       {/* Dynamic Header: Public Pre-Login vs Authenticated Dashboard */}
       {!isConnected || !wallet ? (
         <PublicHeader
@@ -645,7 +645,7 @@ function AuctionChainAppContent() {
       )}
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
         {nonceMismatch && (
           <div className="mb-6">
             <NonceMismatchBanner

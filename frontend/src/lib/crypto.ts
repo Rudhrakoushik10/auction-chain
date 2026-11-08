@@ -124,8 +124,8 @@ export const ETH_TO_INR_RATE = 250000;
 
 export function convertUsdToInr(amount: number): number {
   const num = Number(amount) || 0;
-  // If value is already in typical INR range (> 500,000), return as-is; otherwise convert USD -> INR
-  if (num > 500000) return Math.round(num);
+  // If value is already in typical INR car price range (>= 10,000 INR), return as-is; otherwise convert USD -> INR
+  if (num >= 10000) return Math.round(num);
   return Math.round(num * USD_TO_INR_RATE);
 }
 

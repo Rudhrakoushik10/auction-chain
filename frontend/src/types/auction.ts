@@ -36,11 +36,11 @@ export interface ModelEvaluationMetrics {
 export interface AIPredictionRecord {
   prediction_id: number;
   category: ProductCategory;
-  predicted_price: number; // USD predicted price from LightGBM v1.0.0
-  predicted_price_inr: number; // Alias kept equal to predicted_price (USD) for component compatibility
-  predicted_price_paise: number; // Integer cents (Math.round(predicted_price * 100)) for PriceOracle.sol
-  currency: 'USD' | 'INR';
-  model_version: string; // "1.0.0"
+  predicted_price: number; // Valuation price in INR from Gemini AI
+  predicted_price_inr: number; // Valuation in INR (₹)
+  predicted_price_paise: number; // Integer paise (Math.round(predicted_price * 100)) for PriceOracle.sol
+  currency: 'INR' | 'USD';
+  model_version: string; // e.g. "Gemini 3.8 Flash"
   in_training_distribution?: boolean;
   warnings?: string[];
   inference_ms?: number;

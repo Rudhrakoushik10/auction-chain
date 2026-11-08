@@ -58,19 +58,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   );
   const [selectedImagePreset, setSelectedImagePreset] = useState<'suv' | 'coupe' | 'sedan'>('suv');
 
-  // Structured Vehicle Schema (matching /backend LightGBM v1.0.0)
-  const [vhBrand, setVhBrand] = useState('Ford');
-  const [vhModel, setVhModel] = useState('F-150 XLT');
-  const [vhYear, setVhYear] = useState(2020);
-  const [vhMileage, setVhMileage] = useState(45000);
-  const [vhFuelType, setVhFuelType] = useState('Gasoline');
-  const [vhEngineType, setVhEngineType] = useState('3.5L V6 400hp Twin Turbo');
-  const [vhTransmission, setVhTransmission] = useState('10-Speed Automatic');
-  const [vhExteriorColor, setVhExteriorColor] = useState('Black');
-  const [vhInteriorColor, setVhInteriorColor] = useState('Black');
+  // Structured Vehicle Schema (matching Gemini AI Indian Car Valuation)
+  const [vhBrand, setVhBrand] = useState('Hyundai');
+  const [vhModel, setVhModel] = useState('Creta SX');
+  const [vhYear, setVhYear] = useState(2021);
+  const [vhMileage, setVhMileage] = useState(32000);
+  const [vhFuelType, setVhFuelType] = useState('Diesel');
+  const [vhEngineType, setVhEngineType] = useState('1.5L CRDi Diesel');
+  const [vhTransmission, setVhTransmission] = useState('Manual');
+  const [vhExteriorColor, setVhExteriorColor] = useState('Polar White');
+  const [vhInteriorColor, setVhInteriorColor] = useState('Dual Tone');
   const [vhAccidentHistory, setVhAccidentHistory] = useState<boolean | null>(false);
 
-  // Step 2 State: AI Resale Valuation (LightGBM in INR)
+  // Step 2 State: AI Resale Valuation (Gemini AI in INR)
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [aiRecord, setAiRecord] = useState<AIPredictionRecord | null>(null);
@@ -79,9 +79,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   >('idle');
 
   // Step 3 State: Auction Terms in Test ETH (with real-time INR display)
-  const [startingBidEth, setStartingBidEth] = useState<string>('12.50');
-  const [reservePriceEth, setReservePriceEth] = useState<string>('14.50');
-  const [fixedDepositEth, setFixedDepositEth] = useState<string>('2.00');
+  const [startingBidEth, setStartingBidEth] = useState<string>('1.50');
+  const [reservePriceEth, setReservePriceEth] = useState<string>('1.80');
+  const [fixedDepositEth, setFixedDepositEth] = useState<string>('0.25');
   const [commitMinutes, setCommitMinutes] = useState<number>(60);
   const [revealMinutes, setRevealMinutes] = useState<number>(60);
   const [termsError, setTermsError] = useState<string | null>(null);
@@ -90,44 +90,44 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     setSelectedImagePreset(preset);
     setAiRecord(null);
     if (preset === 'suv') {
-      setVhBrand('Ford');
-      setVhModel('F-150 XLT');
-      setVhYear(2020);
-      setVhMileage(45000);
-      setVhFuelType('Gasoline');
-      setVhEngineType('3.5L V6 400hp Twin Turbo');
-      setVhTransmission('10-Speed Automatic');
-      setVhExteriorColor('Black');
-      setVhInteriorColor('Black');
+      setVhBrand('Hyundai');
+      setVhModel('Creta SX');
+      setVhYear(2021);
+      setVhMileage(32000);
+      setVhFuelType('Diesel');
+      setVhEngineType('1.5L CRDi Diesel');
+      setVhTransmission('Manual');
+      setVhExteriorColor('Polar White');
+      setVhInteriorColor('Dual Tone');
       setVhAccidentHistory(false);
-      setTitle('2020 Ford F-150 XLT SuperCrew 4WD (3.5L V6 400hp Twin Turbo)');
-      setSubtitle('Single-owner 3.5L EcoBoost V6 with 45,000 miles, 10-speed automatic, and clean history.');
+      setTitle('2021 Hyundai Creta SX 1.5L CRDi Diesel');
+      setSubtitle('Single-owner well maintained diesel compact SUV with 32,000 km, touch infotainment, and full service records.');
     } else if (preset === 'coupe') {
-      setVhBrand('Toyota');
-      setVhModel('Camry Hybrid XLE');
-      setVhYear(2022);
-      setVhMileage(21500);
-      setVhFuelType('Hybrid');
-      setVhEngineType('2.5L I4 208hp Hybrid');
+      setVhBrand('Honda');
+      setVhModel('City ZX');
+      setVhYear(2020);
+      setVhMileage(38500);
+      setVhFuelType('Gasoline');
+      setVhEngineType('1.5L i-VTEC Petrol');
       setVhTransmission('Automatic');
-      setVhExteriorColor('White');
-      setVhInteriorColor('Black');
+      setVhExteriorColor('Golden Brown');
+      setVhInteriorColor('Beige');
       setVhAccidentHistory(false);
-      setTitle('2022 Toyota Camry Hybrid XLE Executive Sedan (2.5L I4)');
-      setSubtitle('Executive hybrid sedan with 21,500 miles, Pearl White exterior, and full service records.');
+      setTitle('2020 Honda City ZX 1.5L i-VTEC Automatic');
+      setSubtitle('Executive sedan with sunroof, leather upholstery, pristine mechanicals, and clean accident-free history.');
     } else {
-      setVhBrand('Kia');
-      setVhModel('EV6 GT-Line');
-      setVhYear(2023);
-      setVhMileage(16200);
-      setVhFuelType('Electric');
-      setVhEngineType('Electric Motor');
-      setVhTransmission('Single-Speed');
-      setVhExteriorColor('Gray');
+      setVhBrand('Maruti Suzuki');
+      setVhModel('Swift ZXi');
+      setVhYear(2022);
+      setVhMileage(24000);
+      setVhFuelType('Gasoline');
+      setVhEngineType('1.2L K12 DualJet Petrol');
+      setVhTransmission('Manual');
+      setVhExteriorColor('Solid Fire Red');
       setVhInteriorColor('Black');
       setVhAccidentHistory(false);
-      setTitle('2023 Kia EV6 GT-Line Dual-Motor AWD (Electric Motor)');
-      setSubtitle('800V ultra-fast charging electric crossover with 16,200 miles and clean accident-free report.');
+      setTitle('2022 Maruti Suzuki Swift ZXi DualJet Petrol');
+      setSubtitle('Fuel-efficient hatchback with 24,000 km, alloy wheels, smart infotainment, and showroom condition.');
     }
   };
 
@@ -278,17 +278,17 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
   if (!isConnected) {
     return (
-      <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-        <h2 className="text-lg font-bold text-white">
+      <div className="bg-[#12141A] rounded-lg border border-[#232730] p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+        <h2 className="text-lg font-semibold text-[#F4F5F7]">
           Seller Wallet Connection Required
         </h2>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Connect your Hardhat Seller account on Chain ID 31337 to compute a LightGBM v1.0.0 vehicle valuation in INR (₹), anchor the hash on PriceOracle.sol, and deploy a sealed-bid auction.
+        <p className="text-xs text-[#8E95A5] leading-relaxed">
+          Connect your Hardhat Seller account on Chain ID 31337 to compute an AI vehicle valuation in INR (₹), anchor the hash on PriceOracle.sol, and deploy a sealed-bid auction.
         </p>
         <button
           type="button"
           onClick={openAuthModal}
-          className="px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+          className="px-5 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
         >
           Connect Seller Wallet
         </button>
@@ -298,27 +298,27 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
   return (
     <div className="max-w-4xl space-y-6 pb-12">
-      {/* Compact 5-Step Progress Header */}
-      <div className="bg-[#0F172A] rounded-xl p-6 border border-[#1E293B] space-y-4">
+      {/* Compact 4-Step Progress Header */}
+      <div className="bg-[#12141A] rounded-lg p-6 border border-[#232730] space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <div className="text-xs font-mono text-slate-400">
-              Seller Auction Deployment · Hardhat #31337 · LightGBM v1.0.0
+            <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+              Seller Consignment Desk · Hardhat #31337
             </div>
-            <h1 className="text-xl font-bold text-white mt-0.5">
-              Create Sealed-Bid Vehicle Auction
+            <h1 className="text-xl font-semibold text-[#F4F5F7] mt-1 tracking-tight">
+              Deploy Sealed-Bid Vehicle Auction
             </h1>
           </div>
-          <span className="text-xs font-mono text-slate-400 tabular-nums">
+          <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
             Seller: {shortenAddress(wallet?.address || '')}
           </span>
         </div>
 
         <div className="grid grid-cols-4 gap-2 text-xs">
           {[
-            { num: 1, label: '01. Specs' },
+            { num: 1, label: '01. Specifications' },
             { num: 2, label: '02. AI Valuation' },
-            { num: 3, label: '03. ETH Terms' },
+            { num: 3, label: '03. Escrow Terms' },
             { num: 4, label: '04. Review & Deploy' },
           ].map((s) => {
             const active = step === s.num;
@@ -326,12 +326,12 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             return (
               <div
                 key={s.num}
-                className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
+                className={`py-2.5 px-3 rounded-md border text-center font-medium transition-colors ${
                   active
-                    ? 'bg-[#2563EB] border-[#2563EB] text-white'
+                    ? 'bg-[#C5A46D] border-[#C5A46D] text-[#0B0C10] font-semibold'
                     : done
-                    ? 'bg-[#090D1A] border-emerald-500/40 text-emerald-400'
-                    : 'bg-[#090D1A] border-[#1E293B] text-slate-500'
+                    ? 'bg-[#0B0C10] border-emerald-500/40 text-emerald-400'
+                    : 'bg-[#0B0C10] border-[#232730] text-[#646C7E]'
                 }`}
               >
                 {s.label}
@@ -342,7 +342,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       </div>
 
       {predictionError && (
-        <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 flex items-center gap-2">
+        <div className="p-4 rounded-lg bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
           <span>{predictionError}</span>
         </div>
@@ -350,33 +350,33 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
       {/* STEP 1: VEHICLE SPECIFICATIONS */}
       {step === 1 && (
-        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="border-b border-[#1E293B] pb-4 flex items-center justify-between flex-wrap gap-2">
+        <div className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-6">
+          <div className="border-b border-[#232730] pb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h2 className="text-base font-semibold text-white">
-                01. Vehicle Specifications (US Market · Miles)
+              <h2 className="text-base font-semibold text-[#F4F5F7]">
+                01. Vehicle Specifications (Indian Pre-Owned Market)
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Attributes are scored by LightGBM v1.0.0 and hashed with SHA-256 to generate <code className="text-slate-200">product_data_hash</code>.
+              <p className="text-xs text-[#8E95A5] mt-0.5">
+                Attributes are evaluated by the AI Valuation Engine and hashed with SHA-256 to generate <code className="text-[#F4F5F7] font-mono">product_data_hash</code>.
               </p>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#090D1A] p-1 rounded-lg border border-[#1E293B]">
+            <div className="flex items-center gap-1 bg-[#0B0C10] p-1 rounded-md border border-[#232730]">
               {(
                 [
-                  { id: 'suv', label: '2020 Ford F-150 XLT' },
-                  { id: 'coupe', label: '2022 Camry Hybrid' },
-                  { id: 'sedan', label: '2023 Kia EV6' },
+                  { id: 'suv', label: '2021 Hyundai Creta' },
+                  { id: 'coupe', label: '2020 Honda City' },
+                  { id: 'sedan', label: '2022 Maruti Swift' },
                 ] as const
               ).map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => applyVehiclePreset(p.id)}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                     selectedImagePreset === p.id
-                      ? 'bg-[#1E293B] text-white'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-[#171A22] text-[#C5A46D] border border-[#C5A46D]/30'
+                      : 'text-[#8E95A5] hover:text-[#F4F5F7]'
                   }`}
                 >
                   {p.label}
@@ -387,72 +387,72 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
                 Listing Title
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs font-medium text-white focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] text-xs font-medium text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
                 Service History & Provenance Summary
               </label>
               <input
                 type="text"
                 value={subtitle}
                 onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-xs text-slate-300 focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] text-xs text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2 border-t border-[#1E293B]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-[#232730]">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Brand / Manufacturer *</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Brand / Manufacturer *</label>
               <input
                 type="text"
                 value={vhBrand}
                 onChange={(e) => setVhBrand(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Model & Trim *</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Model & Trim *</label>
               <input
                 type="text"
                 value={vhModel}
                 onChange={(e) => setVhModel(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Model Year (1974–2024) *</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Model Year (1974–2024) *</label>
               <input
                 type="number"
                 value={vhYear}
                 onChange={(e) => setVhYear(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs font-mono tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Mileage (miles / mi.) *</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Odometer Mileage *</label>
               <input
                 type="number"
                 value={vhMileage}
                 onChange={(e) => setVhMileage(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs font-mono tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs font-mono tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Fuel Type</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Fuel Type</label>
               <select
                 value={vhFuelType}
                 onChange={(e) => setVhFuelType(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               >
                 <option value="Gasoline">Gasoline</option>
                 <option value="Electric">Electric</option>
@@ -463,43 +463,43 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Engine Description</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Engine Description</label>
               <input
                 type="text"
                 value={vhEngineType}
                 onChange={(e) => setVhEngineType(e.target.value)}
-                placeholder="e.g., 3.5L V6 400hp Twin Turbo"
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                placeholder="e.g., 1.5L VVT-i Petrol"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Transmission</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Transmission</label>
               <input
                 type="text"
                 value={vhTransmission}
                 onChange={(e) => setVhTransmission(e.target.value)}
-                placeholder="e.g., 10-Speed Automatic"
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                placeholder="e.g., 6-Speed Automatic"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Exterior Color</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Exterior Color</label>
               <input
                 type="text"
                 value={vhExteriorColor}
                 onChange={(e) => setVhExteriorColor(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Accident History</label>
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">Accident History</label>
               <select
                 value={vhAccidentHistory === true ? 'yes' : vhAccidentHistory === false ? 'no' : 'unknown'}
                 onChange={(e) => {
                   const v = e.target.value;
                   setVhAccidentHistory(v === 'yes' ? true : v === 'no' ? false : null);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white text-xs focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] text-xs focus:outline-none focus:border-[#C5A46D]"
               >
                 <option value="no">None Reported</option>
                 <option value="yes">Accident Reported</option>
@@ -508,16 +508,16 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-end pt-2 border-t border-[#1E293B]">
+          <div className="flex justify-end pt-4 border-t border-[#232730]">
             <button
               type="button"
               onClick={handleRunAiPrediction}
               disabled={isPredicting}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
             >
               <span>
                 {isPredicting
-                  ? 'Scoring 934 LightGBM Trees...'
+                  ? 'Computing AI Market Valuation (INR)...'
                   : 'Compute AI Valuation (INR)'}
               </span>
               <ArrowRight className="w-4 h-4" />
@@ -526,40 +526,39 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
         </div>
       )}
 
-      {/* STEP 2: OFF-CHAIN AI PREDICTION COMPLETED (NOT YET REGISTERED ON ORACLE) */}
+      {/* STEP 2: OFF-CHAIN AI PREDICTION COMPLETED */}
       {step === 2 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="flex items-start justify-between flex-wrap gap-4 border-b border-[#1E293B] pb-5">
+        <div className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-6">
+          <div className="flex items-start justify-between flex-wrap gap-4 border-b border-[#232730] pb-5">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
+              <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-[#C5A46D]">
                 <Clock className="w-3.5 h-3.5" />
-                <span>State 1/2: Off-Chain AI Valuation Complete · Pending On-Chain Oracle Registration</span>
+                <span>State 1/2: AI Valuation Certificate Ready · Pending Consignment Terms</span>
               </div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-semibold text-[#F4F5F7]">
                 02. Advisory Vehicle Market Valuation (INR)
               </h2>
-              <p className="text-xs text-slate-400">
-                Computed by LightGBM <code className="text-slate-200">v{aiRecord.model_version}</code> ({aiRecord.inference_ms ?? 1.5} ms). Next, anchor this valuation hash onto <code className="text-slate-200">PriceOracle.sol</code>.
+              <p className="text-xs text-[#8E95A5]">
+                Computed by AI Valuation Engine <code className="text-[#F4F5F7] font-mono">({aiRecord.model_version || 'Gemini 3.8 Flash'})</code>. Next, configure your starting bid and reserve thresholds.
               </p>
             </div>
 
             <div className="text-right font-mono tabular-nums">
-              <div className="text-xs font-sans text-slate-400">Predicted Fair Market Value</div>
-              <div className="text-2xl font-bold text-white mt-0.5">
+              <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Estimated Fair Market Value</div>
+              <div className="text-2xl font-semibold text-[#F4F5F7] mt-0.5">
                 {formatInr(aiRecord.predicted_price)}
               </div>
-              <div className="text-xs text-slate-500">
-                {toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise ·{' '}
-                {aiRecord.in_training_distribution !== false ? 'In-Distribution' : 'OOD'}
+              <div className="text-xs text-[#646C7E]">
+                {toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise
               </div>
             </div>
           </div>
 
           {aiRecord.warnings && aiRecord.warnings.length > 0 && (
-            <div className="p-3.5 rounded-lg bg-amber-950/30 border border-amber-500/30 space-y-1 text-xs text-amber-200">
+            <div className="p-3.5 rounded-md bg-amber-950/30 border border-amber-500/30 space-y-1 text-xs text-amber-200">
               <div className="font-semibold text-amber-300 flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>Model Advisory Warnings</span>
+                <span>Valuation Advisory Notes</span>
               </div>
               <ul className="list-disc list-inside space-y-0.5">
                 {aiRecord.warnings.map((w, idx) => (
@@ -569,23 +568,23 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             </div>
           )}
 
-          <div className="divide-y divide-[#1E293B] border-t border-b border-[#1E293B]">
+          <div className="divide-y divide-[#232730] border-t border-b border-[#232730]">
             {aiRecord.feature_breakdown.map((f, i) => (
               <div key={i} className="py-2.5 flex items-center justify-between text-xs">
-                <span className="text-slate-300">{f.factor}</span>
-                <span className="font-mono font-semibold text-white tabular-nums">{f.impact}</span>
+                <span className="text-[#8E95A5]">{f.factor}</span>
+                <span className="font-mono font-semibold text-[#F4F5F7] tabular-nums">{f.impact}</span>
               </div>
             ))}
           </div>
 
-          <div className="p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] space-y-2 text-xs font-mono">
+          <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2 text-xs font-mono">
             <div>
-              <span className="text-slate-500">Canonical Vehicle JSON: </span>
-              <span className="text-slate-300 break-all">{aiRecord.canonical_json}</span>
+              <span className="text-[#646C7E]">Canonical Vehicle JSON: </span>
+              <span className="text-[#8E95A5] break-all">{aiRecord.canonical_json}</span>
             </div>
             <div>
-              <span className="text-slate-500">product_data_hash (SHA-256): </span>
-              <span className="text-white break-all">{aiRecord.product_data_hash}</span>
+              <span className="text-[#646C7E]">product_data_hash (SHA-256): </span>
+              <span className="text-[#F4F5F7] break-all">{aiRecord.product_data_hash}</span>
             </div>
           </div>
 
@@ -593,7 +592,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-[#232730] text-xs font-medium text-[#8E95A5] hover:text-[#F4F5F7] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Edit Specifications</span>
@@ -602,9 +601,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
             >
-              <span>Configure ETH Terms</span>
+              <span>Configure Escrow Terms</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -613,20 +612,20 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
       {/* STEP 3: AUCTION TERMS IN TEST ETH */}
       {step === 3 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="border-b border-[#1E293B] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-6">
+          <div className="border-b border-[#232730] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-white">
-                03. Configure Sealed-Bid Terms (Test ETH + Live ₹ INR Value)
+              <h2 className="text-base font-semibold text-[#F4F5F7]">
+                03. Configure Sealed-Bid Escrow Terms (Test ETH + Live ₹ INR Value)
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-[#8E95A5] mt-1">
                 The AI valuation ({formatInr(aiRecord.predicted_price)}) is an informational benchmark in Indian Rupees (INR). As you enter Test ETH below, the equivalent value in Indian Rupees (1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}) is calculated in real time.
               </p>
             </div>
           </div>
 
           {termsError && (
-            <div className="p-3 rounded-lg bg-rose-950/30 border border-rose-500/30 text-xs font-medium text-rose-200">
+            <div className="p-3 rounded-md bg-rose-950/30 border border-rose-500/30 text-xs font-medium text-rose-200">
               {termsError}
             </div>
           )}
@@ -634,10 +633,10 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-slate-300">
-                  Starting Bid (Test ETH)
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
+                  Starting Bid (ETH)
                 </label>
-                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
                   ≈ {formatEthToInr(startingBidEth)}
                 </span>
               </div>
@@ -646,19 +645,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 step="0.01"
                 value={startingBidEth}
                 onChange={(e) => setStartingBidEth(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
-              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
-                Value in INR: <strong className="text-emerald-400">{formatEthToInr(startingBidEth)}</strong>
+              <div className="mt-1.5 text-[11px] font-mono text-[#8E95A5] tabular-nums">
+                Value in INR: <strong className="text-[#F4F5F7]">{formatEthToInr(startingBidEth)}</strong>
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-slate-300">
-                  Reserve Price (Test ETH, &ge; Start)
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
+                  Reserve Price (ETH)
                 </label>
-                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
                   ≈ {formatEthToInr(reservePriceEth)}
                 </span>
               </div>
@@ -667,19 +666,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 step="0.01"
                 value={reservePriceEth}
                 onChange={(e) => setReservePriceEth(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
-              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
-                Value in INR: <strong className="text-emerald-400">{formatEthToInr(reservePriceEth)}</strong>
+              <div className="mt-1.5 text-[11px] font-mono text-[#8E95A5] tabular-nums">
+                Value in INR: <strong className="text-[#F4F5F7]">{formatEthToInr(reservePriceEth)}</strong>
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-slate-300">
-                  Fixed Collateral Deposit (Test ETH)
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
+                  Collateral Deposit (ETH)
                 </label>
-                <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
                   ≈ {formatEthToInr(fixedDepositEth)}
                 </span>
               </div>
@@ -688,44 +687,44 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 step="0.01"
                 value={fixedDepositEth}
                 onChange={(e) => setFixedDepositEth(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
-              <div className="mt-1.5 text-[11px] font-mono text-slate-400 tabular-nums">
-                Value in INR: <strong className="text-emerald-400">{formatEthToInr(fixedDepositEth)}</strong>
+              <div className="mt-1.5 text-[11px] font-mono text-[#8E95A5] tabular-nums">
+                Value in INR: <strong className="text-[#F4F5F7]">{formatEthToInr(fixedDepositEth)}</strong>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
                 Commit Window Duration (Minutes)
               </label>
               <input
                 type="number"
                 value={commitMinutes}
                 onChange={(e) => setCommitMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white font-mono text-xs tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] font-mono text-xs tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
                 Reveal Window Duration (Minutes)
               </label>
               <input
                 type="number"
                 value={revealMinutes}
                 onChange={(e) => setRevealMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] text-white font-mono text-xs tabular-nums focus:outline-none focus:border-[#2563EB]"
+                className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] text-[#F4F5F7] font-mono text-xs tabular-nums focus:outline-none focus:border-[#C5A46D]"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
+          <div className="flex items-center justify-between pt-4 border-t border-[#232730]">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-[#232730] text-xs font-medium text-[#8E95A5] hover:text-[#F4F5F7] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -733,7 +732,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             <button
               type="button"
               onClick={handleValidateTerms}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
             >
               <span>Review Deployment</span>
               <ArrowRight className="w-4 h-4" />
@@ -744,43 +743,43 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
       {/* STEP 4: REVIEW & SIGN TRANSACTION */}
       {step === 4 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="border-b border-[#1E293B] pb-4">
-            <h2 className="text-base font-semibold text-white">
+        <div className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-6">
+          <div className="border-b border-[#232730] pb-4">
+            <h2 className="text-base font-semibold text-[#F4F5F7]">
               04. Review & Deploy to SealedAuction.sol
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#8E95A5] mt-1">
               Confirm your vehicle listing parameters and Test ETH (with ₹ INR equivalents) escrow terms before signing.
             </p>
           </div>
 
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] text-xs">
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-md bg-[#0B0C10] border border-[#232730] text-xs">
             <div>
-              <dt className="text-slate-500">Vehicle Title</dt>
-              <dd className="text-white font-semibold mt-0.5">{title}</dd>
+              <dt className="text-[#646C7E]">Vehicle Title</dt>
+              <dd className="text-[#F4F5F7] font-semibold mt-0.5">{title}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">AI Valuation (Advisory Benchmark)</dt>
-              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
-                {formatInr(aiRecord.predicted_price)} (LightGBM v{aiRecord.model_version})
+              <dt className="text-[#646C7E]">AI Valuation (Advisory Benchmark)</dt>
+              <dd className="text-[#F4F5F7] font-mono font-semibold tabular-nums mt-0.5">
+                {formatInr(aiRecord.predicted_price)} ({aiRecord.model_version})
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Starting Bid / Seller Reserve</dt>
-              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
+              <dt className="text-[#646C7E]">Starting Bid / Seller Reserve</dt>
+              <dd className="text-[#F4F5F7] font-mono font-semibold tabular-nums mt-0.5">
                 {Number(startingBidEth).toFixed(2)} ETH ({formatEthToInr(startingBidEth)}) / {Number(reservePriceEth).toFixed(2)} ETH ({formatEthToInr(reservePriceEth)})
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Fixed Collateral Deposit</dt>
-              <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
+              <dt className="text-[#646C7E]">Fixed Collateral Deposit</dt>
+              <dd className="text-[#F4F5F7] font-mono font-semibold tabular-nums mt-0.5">
                 {Number(fixedDepositEth).toFixed(2)} ETH ({formatEthToInr(fixedDepositEth)}) · {commitMinutes}m Commit · {revealMinutes}m Reveal
               </dd>
             </div>
           </dl>
 
           {deployTxStage !== 'idle' && (
-            <div className="p-3 rounded-lg bg-[#090D1A] border border-[#2563EB]/50 text-xs font-mono text-slate-200">
+            <div className="p-3 rounded-md bg-[#0B0C10] border border-[#C5A46D]/50 text-xs font-mono text-[#F4F5F7]">
               {deployTxStage === 'waiting_approval' && '1/4 Waiting for Seller wallet approval...'}
               {deployTxStage === 'submitted' && '2/4 Transaction createAuction() submitted...'}
               {deployTxStage === 'pending' && '3/4 Pending block confirmation on Chain 31337...'}
@@ -788,21 +787,21 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
+          <div className="flex items-center justify-between pt-4 border-t border-[#232730]">
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-[#232730] text-xs font-medium text-[#8E95A5] hover:text-[#F4F5F7] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Modify ETH Terms</span>
+              <span>Modify Escrow Terms</span>
             </button>
 
             {!isCorrectNetwork ? (
               <button
                 type="button"
                 onClick={switchNetworkToHardhat}
-                className="px-5 py-2.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-semibold cursor-pointer"
+                className="px-5 py-2.5 rounded-md bg-[#C5A46D] text-[#0B0C10] text-xs font-semibold cursor-pointer"
               >
                 Switch to Hardhat Chain ID 31337
               </button>
@@ -811,7 +810,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
                 type="button"
                 onClick={handleSignAndCreateAuction}
                 disabled={deployTxStage !== 'idle'}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Sign & Deploy Vehicle Auction</span>

@@ -1,302 +1,387 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Wallet,
   X,
-  ArrowRight,
+  Wallet,
+  ShieldCheck,
   AlertTriangle,
-  RefreshCw,
-  Wifi,
-  WifiOff,
   Copy,
   Check,
+  RefreshCw,
+  ArrowRight,
+  Cpu,
+  KeyRound,
   Zap,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
-import { shortenAddress, formatEthToInr } from '../../lib/crypto';
-import { WalletAccount } from '../../types/auction';
-import { NonceMismatchBanner } from './NonceMismatchBanner';
+import {
+  HARDHAT_CHAIN_ID,
+  HARDHAT_NETWORK_NAME,
+  HARDHAT_RPC_URL,
+  ORACLE_BACKGROUND_ACCOUNT,
+} from '../../lib/hardhatConfig';
+import { Logo } from '../common/Logo';
 
 export const AuthModal: React.FC = () => {
   const {
     isAuthModalOpen,
     closeAuthModal,
     humanWallets,
+    wallet,
+    isConnected,
+    chainId,
+    isCorrectNetwork,
+    isNodeOnline,
+    latestBlock,
+    isMetaMaskAvailable,
+    errorMessage,
+    isConnecting,
     connectMetaMask,
     devBypassLogin,
     selectRoleDirect,
-    isConnecting,
-    errorMessage,
-    nonceMismatch,
-    autoSyncNonce,
-    confirmManualNonceClear,
     switchNetworkToHardhat,
-    isCorrectNetwork,
-    chainId,
-    isNodeOnline,
-    latestBlock,
     refreshHardhatNode,
   } = useWallet();
 
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
-  const [checkingNode, setCheckingNode] = useState<boolean>(false);
+  const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
+  const [showPrivateKeys, setShowPrivateKeys] = React.useState<boolean>(false);
 
   if (!isAuthModalOpen) return null;
 
-  const handleCopy = (address: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(address);
-    setCopiedAddress(address);
-    setTimeout(() => setCopiedAddress(null), 2000);
-  };
-
-  const handleRetryNode = async () => {
-    setCheckingNode(true);
-    await refreshHardhatNode();
-    setCheckingNode(false);
+  const copyText = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(label);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-      <div className="relative w-full max-w-2xl rounded-xl bg-[#0F172A] border border-[#1E293B] shadow-2xl overflow-hidden text-white">
-        {/* Header */}
-        <div className="px-6 py-4 bg-[#090D1A] flex items-center justify-between border-b border-[#1E293B]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-base font-bold text-white">
-                Connect Wallet to AuctionChain
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl bg-[#12141A] border border-[#232730] rounded-md shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#232730] bg-[#0B0C10]">
+          <div className="flex items-center gap-3">
+            <Logo size="sm" showText={false} />
+            <div>
+              <h2 className="text-base font-display font-semibold text-[#F4F5F7]">
+                Authenticate Signer Session
               </h2>
-              {isNodeOnline ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-semibold">
-                  <Wifi className="w-3 h-3 text-emerald-400" />
-                  Hardhat RPC Online · Block #{latestBlock ?? 0}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-rose-950/90 border border-rose-500/40 text-rose-300 text-[11px] font-mono font-semibold">
-                  <WifiOff className="w-3 h-3 text-rose-400" />
-                  Hardhat RPC Offline (127.0.0.1:8545 Closed)
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-400 mt-0.5">
-              Connect via MetaMask or use 1-click Dev Bypass for instant debugging.
+              <p className="text-xs text-[#8E95A5]">
+                EVM Chain ID {HARDHAT_CHAIN_ID} · Role-Mapped Cryptographic Access
+              </p>
             </div>
           </div>
           <button
-            type="button"
             onClick={closeAuthModal}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-[#1E293B] transition-colors cursor-pointer"
-            aria-label="Close modal"
+            className="p-2 rounded text-[#8E95A5] hover:text-[#F4F5F7] hover:bg-[#171A22] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {/* 1-Click Dev Bypass Banner for Development and Debugging */}
-          <div className="bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 rounded-xl border border-blue-500/30 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-[11px] font-bold border border-blue-500/40 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-amber-400" />
-                  DEV BYPASS
-                </span>
-                <span className="text-sm font-semibold text-white">Instant 1-Click Login</span>
+        {/* Scrollable Body */}
+        <div className="p-6 overflow-y-auto space-y-5">
+          {/* 1-Click Instant Bypass Login Panel (Champagne-Gold Executive Highlight) */}
+          <div className="p-4 rounded-md bg-[#171A22] border border-[#C5A46D]/35 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-[#C5A46D]" />
+                  <span className="text-xs font-mono font-semibold text-[#C5A46D] uppercase tracking-[0.12em]">
+                    Instant Bypass Login · All Roles Unlocked
+                  </span>
+                </div>
+                <p className="text-xs text-[#8E95A5] leading-relaxed">
+                  Enter immediately as <strong className="text-[#F4F5F7]">Seller (Account #1)</strong> or pick any role below with 10,000 ETH test liquidity—no MetaMask popup required.
+                </p>
               </div>
-              <p className="text-xs text-slate-300">
-                Bypass MetaMask popups during development. Logs in directly as <strong>Account #1 (Seller)</strong> with 10,000 ETH test balance.
-              </p>
+              <button
+                type="button"
+                onClick={() => devBypassLogin()}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold uppercase tracking-[0.1em] transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>⚡ Bypass Login (Seller)</span>
+              </button>
+            </div>
+
+            {/* Direct 1-Click Bypass Role Switcher */}
+            <div className="pt-3 border-t border-[#232730] flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-mono text-[#8E95A5] mr-1">
+                Quick Bypass As:
+              </span>
+              {humanWallets.map((acc) => {
+                const isCurrent =
+                  isConnected &&
+                  wallet?.address.toLowerCase() === acc.address.toLowerCase();
+                return (
+                  <button
+                    key={acc.address}
+                    type="button"
+                    onClick={() => devBypassLogin(acc.address)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                      isCurrent
+                        ? 'bg-[#C5A46D] text-[#0B0C10] font-semibold'
+                        : 'bg-[#0B0C10] hover:bg-[#12141A] text-[#F4F5F7] border border-[#232730] hover:border-[#C5A46D]/50'
+                    }`}
+                  >
+                    {acc.label} ({acc.roleTitle})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Hardhat RPC Telemetry Bar */}
+          <div
+            className={`p-3.5 rounded-md border flex flex-wrap items-center justify-between gap-3 ${
+              isNodeOnline
+                ? 'bg-[#0B0C10] border-[#232730]'
+                : 'bg-[#0B0C10] border-[#D49B38]/40'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isNodeOnline ? 'bg-[#2E9B68]' : 'bg-[#D49B38]'
+                }`}
+              />
+              <div>
+                <div className="text-xs font-medium text-[#F4F5F7] flex items-center gap-2">
+                  <span>{HARDHAT_NETWORK_NAME}</span>
+                  <span className="font-mono text-[11px] text-[#8E95A5]">
+                    ({HARDHAT_RPC_URL})
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#8E95A5] font-mono mt-0.5">
+                  {isNodeOnline
+                    ? `RPC Synchronized · Chain ID ${chainId} · Block #${latestBlock ?? 0}`
+                    : 'Local Hardhat RPC not detected — Bypass Login & Role Switching active'}
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => devBypassLogin()}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20 whitespace-nowrap shrink-0"
+              onClick={() => refreshHardhatNode()}
+              className="px-3 py-1.5 rounded bg-[#12141A] hover:bg-[#171A22] text-xs font-mono text-[#F4F5F7] border border-[#232730] flex items-center gap-1.5 cursor-pointer"
             >
-              <Zap className="w-4 h-4 text-amber-300" />
-              <span>⚡ Bypass Login (Seller)</span>
+              <RefreshCw className="w-3 h-3 text-[#C5A46D]" />
+              Refresh RPC
             </button>
           </div>
 
-          {/* Hardhat RPC Offline Warning */}
-          {!isNodeOnline && (
-            <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-4 space-y-2 text-xs text-rose-200">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-semibold text-rose-300">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>Hardhat RPC Server Disconnected (http://127.0.0.1:8545 is Closed)</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRetryNode}
-                  disabled={checkingNode}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3 h-3 ${checkingNode ? 'animate-spin' : ''}`} />
-                  <span>{checkingNode ? 'Checking...' : 'Retry Connection'}</span>
-                </button>
-              </div>
-              <p className="text-xs text-rose-200/90 leading-relaxed">
-                Make sure <strong>Terminal 1 (Hardhat Node)</strong> is running on{' '}
-                <code className="font-mono text-white">http://127.0.0.1:8545</code>, then click{' '}
-                <strong>Retry Connection</strong>.
-              </p>
-            </div>
-          )}
-
-          {/* MetaMask Nonce Mismatch Warning (When Hardhat Terminal was closed & reopened) */}
-          {isNodeOnline && nonceMismatch && (
-            <NonceMismatchBanner
-              mismatch={nonceMismatch}
-              onAutoSyncNonce={autoSyncNonce}
-              onConfirmManualClear={confirmManualNonceClear}
-            />
-          )}
-
-          {/* Network Mismatch Warning */}
+          {/* Wrong Chain Warning */}
           {isNodeOnline && !isCorrectNetwork && (
-            <div className="rounded-lg bg-amber-950/40 border border-amber-500/40 p-4 flex items-center justify-between gap-3 text-xs text-amber-200">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-4 rounded-md bg-[#D49B38]/10 border border-[#D49B38]/40 flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-[#D49B38] shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-white">Network Mismatch: </span>
-                  Connected to Chain ID {chainId}. Please switch to Hardhat Local (31337).
+                  <h4 className="text-xs font-semibold text-[#F4F5F7]">
+                    Network Mismatch (Connected to Chain {chainId})
+                  </h4>
+                  <p className="text-xs text-[#8E95A5] mt-0.5">
+                    AuctionChain contracts require Hardhat Localhost (Chain ID{' '}
+                    {HARDHAT_CHAIN_ID}).
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={switchNetworkToHardhat}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition-colors shrink-0 cursor-pointer"
+                className="px-3.5 py-2 rounded bg-[#D49B38] hover:bg-[#D49B38]/90 text-[#0B0C10] text-xs font-semibold shrink-0 cursor-pointer"
               >
-                Switch to 31337
+                Switch Network
               </button>
             </div>
           )}
 
+          {/* Error Alert */}
           {errorMessage && (
-            <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-3.5 text-xs text-rose-200 flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div>{errorMessage}</div>
+            <div className="p-4 rounded-md bg-[#C94A4A]/10 border border-[#C94A4A]/30 flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-[#C94A4A] shrink-0 mt-0.5" />
+              <div className="text-xs text-[#F4F5F7] leading-relaxed">
+                {errorMessage}
+              </div>
             </div>
           )}
 
-          {/* Primary Action: Connect MetaMask */}
-          <div className="bg-[#090D1A] rounded-xl border border-[#1E293B] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <div className="text-sm font-semibold text-white flex items-center gap-2">
-                <span>Connect Browser Extension (MetaMask)</span>
-                <span className="text-[11px] font-mono font-normal bg-[#1E293B] text-slate-300 px-2 py-0.5 rounded">
-                  Chain ID: 31337
+          {/* Primary MetaMask Action */}
+          <div className="p-5 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Wallet className="w-4 h-4 text-[#C5A46D]" />
+                <span className="text-sm font-semibold text-[#F4F5F7]">
+                  Connect with MetaMask (Web3 Provider)
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Connect MetaMask on <code className="font-mono text-emerald-400">http://127.0.0.1:8545</code> for live browser popup signing.
-              </p>
+              <span className="text-[10px] font-mono uppercase tracking-[0.12em] px-2 py-0.5 rounded bg-[#12141A] text-[#8E95A5] border border-[#232730]">
+                {isMetaMaskAvailable ? 'Provider Ready' : 'Simulation Mode'}
+              </span>
             </div>
-
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              Authenticates your active EVM signer via <code className="font-mono text-[#F4F5F7]">eth_requestAccounts</code>{' '}
+              and maps it to its designated platform role.
+            </p>
             <button
               type="button"
-              onClick={() => connectMetaMask()}
-              disabled={isConnecting || !isNodeOnline}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+              onClick={connectMetaMask}
+              disabled={isConnecting}
+              className="w-full py-2.5 px-4 rounded-md bg-[#171A22] hover:bg-[#1E222D] border border-[#C5A46D]/40 disabled:opacity-50 text-[#F4F5F7] font-semibold text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
-              <Wallet className="w-4 h-4" />
-              <span>
-                {isConnecting
-                  ? 'Connecting...'
-                  : isNodeOnline
-                  ? 'Connect MetaMask'
-                  : 'Hardhat Offline'}
-              </span>
+              <Wallet className="w-3.5 h-3.5 text-[#C5A46D]" />
+              {isConnecting
+                ? 'Requesting Signer Handshake...'
+                : 'Connect MetaMask Wallet'}
+              <ArrowRight className="w-3.5 h-3.5 text-[#C5A46D]" />
             </button>
           </div>
 
-          {/* Role-Based Account Selection */}
+          {/* Role-Mapped Hardhat Signers */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-300">
-                Dedicated Single-Role Hardhat Accounts
-              </span>
-              <span className="font-mono text-slate-400">Direct 1-Click Role Access</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-mono uppercase tracking-[0.14em] text-[#F4F5F7]">
+                  Select Role-Mapped Signer Account
+                </h3>
+                <p className="text-[11px] text-[#8E95A5] mt-0.5">
+                  Switch between Seller, Qualified Bidders, and Protocol Auditor roles at any time:
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrivateKeys(!showPrivateKeys)}
+                className="text-[11px] font-mono text-[#C5A46D] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <KeyRound className="w-3 h-3" />
+                {showPrivateKeys ? 'Hide Signer Info' : 'Show Signer Info'}
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {humanWallets.map((acct: WalletAccount) => (
-                <div
-                  key={acct.address}
-                  onClick={() => {
-                    if (!isConnecting && isNodeOnline) {
-                      selectRoleDirect(acct);
-                    }
-                  }}
-                  className={`bg-[#090D1A] rounded-xl p-4 border transition-colors flex flex-col justify-between gap-3 ${
-                    isNodeOnline
-                      ? 'border-[#1E293B] hover:border-blue-500/50 cursor-pointer'
-                      : 'border-[#1E293B]/60 opacity-75 cursor-not-allowed'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-white">{acct.label}</span>
-                      <div className="flex items-center gap-1 font-mono text-slate-400 tabular-nums">
-                        <span>{shortenAddress(acct.address)}</span>
+            <div className="grid grid-cols-1 gap-2.5">
+              {humanWallets.map((acc) => {
+                const isSelected =
+                  isConnected &&
+                  wallet?.address.toLowerCase() === acc.address.toLowerCase();
+
+                return (
+                  <div
+                    key={acc.address}
+                    className={`p-3.5 rounded-md border transition-colors ${
+                      isSelected
+                        ? 'bg-[#171A22] border-[#C5A46D]'
+                        : 'bg-[#0B0C10] border-[#232730] hover:border-[#363C4A]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-[#F4F5F7]">
+                            {acc.label}
+                          </span>
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-[#C5A46D]">
+                            · {acc.roleTitle}
+                          </span>
+                          <span className="text-[11px] font-mono text-[#8E95A5]">
+                            (Account #{acc.accountIndex})
+                          </span>
+                        </div>
+                        <div className="text-xs font-mono text-[#8E95A5] flex items-center gap-2">
+                          <span>{acc.address}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyText(acc.address, `addr-${acc.accountIndex}`)}
+                            className="text-[#646C7E] hover:text-[#F4F5F7]"
+                            title="Copy Address"
+                          >
+                            {copiedKey === `addr-${acc.accountIndex}` ? (
+                              <Check className="w-3 h-3 text-[#2E9B68]" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-xs font-mono font-semibold text-[#F4F5F7] tabular-nums">
+                            {acc.balanceEth.toFixed(2)} ETH
+                          </div>
+                          <div className="text-[10px] text-[#646C7E] font-mono">
+                            Hardhat Funded
+                          </div>
+                        </div>
+
                         <button
                           type="button"
-                          onClick={(e) => handleCopy(acct.address, e)}
-                          className="text-slate-400 hover:text-white p-0.5 transition-colors cursor-pointer"
-                          title="Copy full address"
+                          onClick={() => selectRoleDirect(acc)}
+                          className={`px-3.5 py-2 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#2E9B68]/20 text-[#2E9B68] border border-[#2E9B68]/40'
+                              : 'bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10]'
+                          }`}
                         >
-                          {copiedAddress === acct.address ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
+                          {isSelected ? 'Active Role' : acc.connectButtonText}
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs text-slate-400 font-mono">
-                      Role: <span className="text-slate-200 font-sans font-medium">{acct.roleTitle}</span> · Account #{acct.accountIndex}
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed pt-1">
-                      {acct.description}
-                    </p>
-                  </div>
 
-                  <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between">
-                    <span className="font-mono text-xs text-slate-300 tabular-nums">
-                      {isNodeOnline
-                        ? `${acct.balanceEth.toFixed(2)} ETH (${formatEthToInr(acct.balanceEth)})`
-                        : '— ETH'}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        selectRoleDirect(acct);
-                      }}
-                      disabled={isConnecting || !isNodeOnline}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-600 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <span>{acct.connectButtonText}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    {showPrivateKeys && (
+                      <div className="mt-3 pt-2.5 border-t border-[#232730] flex items-center justify-between gap-2 text-[11px] font-mono">
+                        <span className="text-[#8E95A5] truncate">
+                          Signer Index: <span className="text-[#F4F5F7]">Hardhat Account #{acc.accountIndex}</span>
+                        </span>
+                        <button
+                          onClick={() => copyText(acc.address, `pk-${acc.accountIndex}`)}
+                          className="px-2 py-1 rounded bg-[#12141A] hover:bg-[#171A22] text-[#C5A46D] border border-[#232730] flex items-center gap-1 shrink-0"
+                        >
+                          {copiedKey === `pk-${acc.accountIndex}` ? (
+                            <>
+                              <Check className="w-3 h-3 text-[#2E9B68]" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              Copy Address
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Footer Note */}
-          <div className="text-xs text-slate-400 border-t border-[#1E293B] pt-4 flex items-center justify-between">
-            <span>
-              {isNodeOnline
-                ? `Connected to Hardhat RPC http://127.0.0.1:8545 (Chain ID ${chainId}).`
-                : 'Disconnected: Hardhat RPC http://127.0.0.1:8545 is currently closed.'}
-            </span>
-            <span className="font-mono text-slate-400">
-              Oracle Signer: Account #4 (0x15d34...6A65)
-            </span>
+          {/* Oracle Account #19 Footnote */}
+          <div className="p-3.5 rounded-md bg-[#0B0C10] border border-[#232730] flex items-start gap-3">
+            <Cpu className="w-4 h-4 text-[#C5A46D] shrink-0 mt-0.5" />
+            <div className="text-[11px] text-[#8E95A5] leading-relaxed">
+              <strong className="text-[#F4F5F7]">
+                Automated Oracle Signer (Hardhat Account #19):
+              </strong>{' '}
+              Address{' '}
+              <span className="font-mono text-[#F4F5F7]">
+                {ORACLE_BACKGROUND_ACCOUNT.address.slice(0, 12)}...
+              </span>{' '}
+              operates as an automated background service signing AI valuation records into{' '}
+              <code className="font-mono text-[#C5A46D]">PriceOracle.sol</code>.
+            </div>
           </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-3.5 bg-[#0B0C10] border-t border-[#232730] flex items-center justify-between text-xs text-[#646C7E]">
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#2E9B68]" />
+            EIP-1193 Provider · Deterministic Commit-Reveal Escrow
+          </span>
+          <button
+            onClick={closeAuthModal}
+            className="text-[#8E95A5] hover:text-[#F4F5F7] font-medium cursor-pointer"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

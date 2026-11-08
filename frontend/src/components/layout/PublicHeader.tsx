@@ -1,5 +1,7 @@
 import React from 'react';
+import { Wallet } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
+import { Logo } from '../common/Logo';
 
 export type PublicNavTab =
   | 'home'
@@ -12,39 +14,37 @@ export type PublicNavTab =
 interface PublicHeaderProps {
   activeTab: PublicNavTab;
   setActiveTab: (tab: PublicNavTab) => void;
-  onOpenDashboard?: () => void;
 }
 
 export const PublicHeader: React.FC<PublicHeaderProps> = ({
   activeTab,
   setActiveTab,
-  onOpenDashboard,
 }) => {
-  const { isConnected, wallet, openAuthModal } = useWallet();
+  const { openAuthModal } = useWallet();
 
   const navItems: { id: PublicNavTab; label: string }[] = [
-    { id: 'home', label: 'Home' },
-    { id: 'explore', label: 'Explore Auctions' },
+    { id: 'home', label: 'Overview' },
+    { id: 'explore', label: 'Live Auctions' },
     { id: 'how-it-works', label: 'How It Works' },
-    { id: 'ai-estimator', label: 'AI Price Estimator' },
-    { id: 'security', label: 'Security & Transparency' },
-    { id: 'about', label: 'About Us' },
+    { id: 'ai-estimator', label: 'AI Valuation' },
+    { id: 'security', label: 'Security & Audit' },
+    { id: 'about', label: 'Institution' },
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#090D1A]/95 backdrop-blur-sm border-b border-[#1E293B]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
-        {/* Zone 1: Single-line Brand Wordmark */}
+    <header className="sticky top-0 z-40 h-20 bg-[#0B0C10]/95 backdrop-blur-md border-b border-[#232730]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-6">
+        {/* Zone 1: Brand Identity */}
         <button
           type="button"
           onClick={() => setActiveTab('home')}
-          className="text-lg font-bold tracking-tight text-white hover:text-slate-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] rounded"
+          className="flex items-center gap-3 text-left group focus:outline-none shrink-0 cursor-pointer"
         >
-          AuctionChain
+          <Logo size="md" subtitle="Automotive Sealed-Bid Exchange" />
         </button>
 
-        {/* Zone 2: Clean single-line typography navigation links */}
-        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
+        {/* Zone 2: Primary Editorial Navigation */}
+        <nav className="hidden lg:flex items-center gap-7">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -52,59 +52,32 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
-                className={`py-5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`relative py-2 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   isActive
-                    ? 'border-[#2563EB] text-white font-semibold'
-                    : 'border-transparent text-slate-400 hover:text-white'
+                    ? 'text-[#F4F5F7]'
+                    : 'text-[#8E95A5] hover:text-[#F4F5F7]'
                 }`}
               >
                 {item.label}
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#C5A46D]" />
+                )}
               </button>
             );
           })}
         </nav>
 
-        {/* Zone 3: Single Primary Action */}
-        <div className="flex items-center gap-3 shrink-0">
-          {isConnected && wallet && onOpenDashboard ? (
-            <button
-              type="button"
-              onClick={onOpenDashboard}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              {wallet.roleTitle} Dashboard
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={openAuthModal}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Connect Wallet
-            </button>
-          )}
+        {/* Zone 3: Single Restrained Champagne-Gold Action */}
+        <div className="flex items-center gap-4 shrink-0">
+          <button
+            type="button"
+            onClick={openAuthModal}
+            className="flex items-center gap-2.5 bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] px-5 py-2.5 rounded-md text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer"
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span>Connect Wallet</span>
+          </button>
         </div>
-      </div>
-
-      {/* Mobile / Tablet Navigation Bar */}
-      <div className="lg:hidden flex items-center gap-5 overflow-x-auto px-4 py-2.5 bg-[#090D1A] border-t border-[#1E293B]">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id)}
-              className={`text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                isActive
-                  ? 'text-white font-semibold underline underline-offset-4 decoration-[#2563EB]'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
       </div>
     </header>
   );

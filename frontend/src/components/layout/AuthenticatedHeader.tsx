@@ -1,210 +1,272 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell,
-  LogOut,
   ChevronDown,
-  CheckCircle2,
-  ShieldAlert,
+  LogOut,
+  Check,
+  Repeat,
+  ArrowUpRight,
 } from 'lucide-react';
+import { OnChainEventRecord } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
-import { shortenAddress, formatEthToInr } from '../../lib/crypto';
-import { WalletAccount, OnChainEventRecord } from '../../types/auction';
+import { shortenAddress, formatInr, formatEthToInr } from '../../lib/crypto';
+import { Logo } from '../common/Logo';
 
 interface AuthenticatedHeaderProps {
-  onLogoClick?: () => void;
-  events?: OnChainEventRecord[];
+  events: OnChainEventRecord[];
+  onLogoClick: () => void;
 }
 
 export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
+  events,
   onLogoClick,
-  events = [],
 }) => {
   const {
     wallet,
     humanWallets,
-    chainId,
-    isCorrectNetwork,
-    disconnectWallet,
-    selectRoleDirect,
-    switchNetworkToHardhat,
     liveEthInrRate,
+    oracleRoundId,
+    selectRoleDirect,
+    openAuthModal,
+    disconnectWallet,
+    inspectTransaction,
   } = useWallet();
 
-  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const switcherRef = useRef<HTMLDivElement>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
-        setIsSwitcherOpen(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
       }
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setIsNotificationsOpen(false);
+        setNotifOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   if (!wallet) return null;
 
-  return (
-    <header className="sticky top-0 z-40 w-full bg-[#090D1A]/95 backdrop-blur-sm text-white border-b border-[#1E293B]">
-      {!isCorrectNetwork && (
-        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 shrink-0" />
-            <span>
-              Network Mismatch: Connected to Chain ID {chainId}. AuctionChain requires Hardhat Network (Chain ID 31337).
-            </span>
-          </div>
-          <button
-            onClick={switchNetworkToHardhat}
-            className="px-3 py-1 rounded bg-slate-950 text-white hover:bg-slate-800 transition-colors font-mono text-[11px] whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            Switch to 31337
-          </button>
-        </div>
-      )}
+  const roleTitle = {
+    guest: 'Guest Session',
+    seller: 'Seller Workspace',
+    bidder: 'Bidder Workspace',
+    admin: 'Protocol Auditor Console',
+    oracle: 'Oracle Signer',
+  }[wallet.role];
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
-        {/* Zone 1: Brand Wordmark + Contextual Breadcrumb */}
-        <div className="flex items-center gap-3 whitespace-nowrap shrink-0">
+  const recentEvents = [...events].reverse().slice(0, 6);
+
+  return (
+    <header className="sticky top-0 z-40 h-20 bg-[#0B0C10]/95 backdrop-blur-md border-b border-[#232730]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-6">
+        {/* Zone 1: Brand Identity & Workspace Context */}
+        <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={onLogoClick}
-            className="text-lg font-bold tracking-tight text-white hover:text-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-3 text-left focus:outline-none cursor-pointer"
           >
-            AuctionChain
+            <Logo size="sm" subtitle={roleTitle} />
           </button>
-          <span className="text-slate-600" aria-hidden="true">/</span>
-          <span className="text-xs font-medium text-slate-400">
-            {wallet.roleTitle} Workspace
-          </span>
         </div>
 
-        {/* Zone 2: Quiet Unboxed Session Context & Live Oracle Price Feed */}
-        <div className="hidden md:flex items-center gap-3 text-xs text-slate-400 font-mono tabular-nums">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-[11px]">Oracle (ETH/INR):</span>
-            <span className="text-white font-bold text-[11px]">₹{liveEthInrRate.toLocaleString('en-IN')}</span>
+        {/* Zone 2 & 3: Unboxed Institutional Telemetry & Signer Controls */}
+        <div className="flex items-center gap-5">
+          {/* Unboxed Financial Telemetry (Zero-Pill Discipline, no pulsing dot) */}
+          <div className="hidden lg:flex items-center gap-3 text-xs font-mono text-[#8E95A5]">
+            <span>
+              Oracle ETH/INR:{' '}
+              <strong className="text-[#F4F5F7] font-medium tabular-nums">
+                {formatInr(liveEthInrRate)}
+              </strong>{' '}
+              <span className="text-[#646C7E]">(R#{oracleRoundId})</span>
+            </span>
+            <span className="text-[#232730]">·</span>
+            <span className="uppercase tracking-wider text-[#C5A46D]">
+              {wallet.label} · {wallet.roleTitle}
+            </span>
+            <span className="text-[#232730]">·</span>
+            <span className="text-[#F4F5F7] tabular-nums">
+              {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+            </span>
           </div>
-          <span aria-hidden="true">·</span>
-          <span>{wallet.label}</span>
-          <span aria-hidden="true">·</span>
-          <span className="text-slate-200 font-semibold">
-            {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth, liveEthInrRate)})
-          </span>
-        </div>
 
-        {/* Zone 3: Account Switcher & Notifications */}
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Notifications Drawer */}
+          {/* Notifications Dropdown */}
           <div className="relative" ref={notifRef}>
             <button
               type="button"
-              onClick={() => setIsNotificationsOpen((prev) => !prev)}
-              className="p-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white transition-colors relative cursor-pointer"
-              aria-label="Notifications"
+              onClick={() => setNotifOpen((prev) => !prev)}
+              className="relative p-2.5 rounded-md bg-[#12141A] border border-[#232730] text-[#8E95A5] hover:text-[#F4F5F7] hover:border-[#363C4A] transition-colors cursor-pointer"
+              title="On-Chain Event Feed"
             >
               <Bell className="w-4 h-4" />
+              {recentEvents.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#C5A46D]" />
+              )}
             </button>
 
-            {isNotificationsOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 rounded-xl bg-[#0F172A] border border-[#1E293B] shadow-2xl text-white z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-[#1E293B] flex items-center justify-between text-xs">
-                  <span className="font-semibold text-white">On-Chain Activity</span>
-                  <span className="font-mono text-slate-400 tabular-nums">{events.length} events</span>
+            {notifOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-[#12141A] border border-[#232730] rounded-md shadow-2xl overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-[#232730] flex items-center justify-between bg-[#0B0C10]/60">
+                  <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
+                    Contract Event Log
+                  </span>
+                  <span className="text-[11px] font-mono text-[#C5A46D]">
+                    {recentEvents.length} Recorded
+                  </span>
                 </div>
-                {events.length === 0 ? (
-                  <div className="p-4 text-xs text-slate-400">
-                    No on-chain events recorded in this session yet.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-[#1E293B] max-h-72 overflow-y-auto">
-                    {events.slice(-6).reverse().map((ev) => (
-                      <div
+                <div className="divide-y divide-[#232730] max-h-72 overflow-y-auto">
+                  {recentEvents.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-[#646C7E]">
+                      No contract events emitted in current session.
+                    </div>
+                  ) : (
+                    recentEvents.map((ev) => (
+                      <button
                         key={ev.id}
-                        className="p-3.5 text-xs space-y-1 hover:bg-[#131E3A] transition-colors"
+                        type="button"
+                        onClick={() => {
+                          setNotifOpen(false);
+                          inspectTransaction(ev.txHash);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-[#171A22] transition-colors flex items-start justify-between gap-3 cursor-pointer"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono font-semibold text-white">{ev.eventName}</span>
-                          <span className="text-[11px] font-mono text-slate-500 tabular-nums">#{ev.blockNumber}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono font-medium text-[#C5A46D]">
+                              {ev.eventName}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#646C7E]">
+                              #{ev.blockNumber}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#F4F5F7] mt-0.5 line-clamp-2">
+                            {ev.summary}
+                          </p>
                         </div>
-                        <p className="text-slate-400 text-xs leading-relaxed">{ev.summary}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        <ArrowUpRight className="w-3.5 h-3.5 text-[#8E95A5] shrink-0 mt-0.5" />
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Role & Wallet Switcher Button */}
-          <div className="relative" ref={switcherRef}>
+          {/* Signer Account Switcher */}
+          <div className="relative" ref={dropdownRef}>
             <button
               type="button"
-              onClick={() => setIsSwitcherOpen((prev) => !prev)}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] border border-[#1E293B] text-xs font-medium text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-2.5 bg-[#12141A] hover:bg-[#171A22] border border-[#232730] hover:border-[#363C4A] px-3.5 py-2 rounded-md transition-colors text-xs cursor-pointer"
             >
-              <span className="font-mono tabular-nums">{shortenAddress(wallet.address)}</span>
-              <span className="text-slate-500" aria-hidden="true">·</span>
-              <span className="text-slate-300">{wallet.roleTitle}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <span className="w-2 h-2 rounded-full bg-[#C5A46D]" />
+              <span className="font-medium text-[#F4F5F7]">
+                {wallet.label}
+              </span>
+              <span className="font-mono text-[#8E95A5] hidden sm:inline">
+                {shortenAddress(wallet.address)}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[#8E95A5] transition-transform ${
+                  dropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
             </button>
 
-            {isSwitcherOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 rounded-xl bg-[#0F172A] border border-[#1E293B] shadow-2xl text-white z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-[#1E293B]">
-                  <div className="text-xs font-semibold text-white">Switch Hardhat Account</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Instant role switch — no re-authorization required
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-[#12141A] border border-[#232730] rounded-md shadow-2xl overflow-hidden z-50">
+                <div className="px-4 py-3.5 border-b border-[#232730] bg-[#0B0C10]/60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
+                      Active Signer
+                    </span>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+                      {wallet.roleTitle}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-[#F4F5F7] mt-1 break-all">
+                    {wallet.address}
+                  </p>
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#232730] text-[11px] font-mono">
+                    <span className="text-[#8E95A5]">Balance</span>
+                    <span className="text-[#F4F5F7] tabular-nums">
+                      {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+                    </span>
                   </div>
                 </div>
 
-                <div className="divide-y divide-[#1E293B] max-h-72 overflow-y-auto">
-                  {humanWallets.map((acct: WalletAccount) => {
-                    const isActive = acct.address.toLowerCase() === wallet.address.toLowerCase();
-                    return (
-                      <button
-                        key={acct.address}
-                        type="button"
-                        onClick={() => {
-                          selectRoleDirect(acct);
-                          setIsSwitcherOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-3 flex items-center justify-between transition-colors cursor-pointer ${
-                          isActive ? 'bg-[#131E3A]' : 'hover:bg-[#131E3A]/60'
-                        }`}
-                      >
-                        <div className="space-y-0.5">
-                          <div className="text-xs font-semibold text-white">
-                            {acct.label} <span className="text-slate-400 font-normal">· {acct.roleTitle}</span>
+                <div className="p-2 border-b border-[#232730]">
+                  <div className="px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono text-[#8E95A5] uppercase tracking-[0.14em]">
+                    <span className="flex items-center gap-1.5">
+                      <Repeat className="w-3 h-3 text-[#C5A46D]" />
+                      Switch Role Signer (Instant)
+                    </span>
+                  </div>
+                  <div className="space-y-1 mt-1">
+                    {humanWallets.map((acc) => {
+                      const isCurrent =
+                        acc.address.toLowerCase() === wallet.address.toLowerCase();
+                      return (
+                        <button
+                          key={acc.address}
+                          type="button"
+                          onClick={() => {
+                            selectRoleDirect(acc);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                            isCurrent
+                              ? 'bg-[#171A22] text-[#F4F5F7] border border-[#C5A46D]/40'
+                              : 'text-[#8E95A5] hover:bg-[#171A22] hover:text-[#F4F5F7]'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-medium text-[#F4F5F7] flex items-center gap-1.5">
+                              <span>{acc.label}</span>
+                              <span className="text-[10px] font-mono uppercase text-[#C5A46D]">
+                                · {acc.roleTitle}
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-[#8E95A5] tabular-nums">
+                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(2)} ETH
+                            </div>
                           </div>
-                          <div className="text-[11px] font-mono text-slate-400 tabular-nums">
-                            {shortenAddress(acct.address)} · {acct.balanceEth.toFixed(1)} ETH ({formatEthToInr(acct.balanceEth)})
-                          </div>
-                        </div>
-                        {isActive && <CheckCircle2 className="w-4 h-4 text-[#2563EB] shrink-0" />}
-                      </button>
-                    );
-                  })}
+                          {isCurrent && <Check className="w-3.5 h-3.5 text-[#C5A46D]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="p-3 bg-[#090D1A] border-t border-[#1E293B]">
+                <div className="p-2 space-y-1">
                   <button
                     type="button"
                     onClick={() => {
-                      disconnectWallet();
-                      setIsSwitcherOpen(false);
+                      setDropdownOpen(false);
+                      openAuthModal();
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium text-[#F4F5F7] hover:bg-[#171A22] transition-colors cursor-pointer"
+                  >
+                    <Repeat className="w-3.5 h-3.5 text-[#C5A46D]" />
+                    <span>Open Full Wallet & Role Modal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      disconnectWallet();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium text-[#C94A4A] hover:bg-[#C94A4A]/10 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Disconnect Wallet</span>
+                    <span>Disconnect Session</span>
                   </button>
                 </div>
               </div>

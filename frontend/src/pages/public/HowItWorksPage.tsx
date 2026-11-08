@@ -1,126 +1,150 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import {
+  Scale,
+  Lock,
+  Eye,
+  Award,
+  ArrowRight,
+  Wallet,
+  FileCode2,
+} from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
 
 export const HowItWorksPage: React.FC = () => {
   const { openAuthModal } = useWallet();
 
+  const stages = [
+    {
+      step: '01',
+      icon: Scale,
+      title: 'AI Vehicle Valuation & Oracle Registration',
+      subtitle: 'Off-Chain Gemini AI Valuation → PriceOracle.sol',
+      description:
+        'Before a vehicle is listed, 13 structured specification attributes (year, manufacturer, model, odometer, condition, fuel, transmission, drivetrain, title status) are evaluated to establish an advisory Indian Rupee (INR) valuation. A canonical SHA-256 hash of the attributes and integer paise valuation is committed to PriceOracle.sol by the authorized Oracle signer.',
+      codeSnippet: `// PriceOracle.sol
+function storePrediction(
+    uint256 _predictedPrice, // Valuation in paise (INR * 100)
+    bytes32 _dataHash        // Canonical SHA-256 vehicle spec hash
+) external onlyOracle returns (uint256 predictionId)`,
+    },
+    {
+      step: '02',
+      icon: Lock,
+      title: 'Sealed Bid Commitment (Commit Phase)',
+      subtitle: 'Keccak-256 Salted Hash + Uniform Collateral Deposit',
+      description:
+        'During the Commit window, bidders compute a local Keccak-256 commitment hash combining their true bid (in wei) and a 32-byte cryptographic salt. Every bidder locks the exact same fixed collateral deposit in ETH so that transaction value on the public ledger never leaks the underlying bid amount.',
+      codeSnippet: `// SealedAuction.sol
+bytes32 commitment = keccak256(abi.encodePacked(uint256(bidWei), bytes32(salt)));
+auction.commitBid{value: fixedDepositWei}(auctionId, commitment);`,
+    },
+    {
+      step: '03',
+      icon: Eye,
+      title: 'Cryptographic Verification (Reveal Phase)',
+      subtitle: 'On-Chain Hash Matching & Reserve Price Enforcement',
+      description:
+        'Once the Commit deadline expires, bidders submit their plaintext bid amount and secret salt. SealedAuction.sol recomputes keccak256(abi.encodePacked(_bidAmount, _salt)) on-chain, verifies equality against the stored commitment, and updates the highest verified bid if it meets the seller reserve threshold.',
+      codeSnippet: `// SealedAuction.sol
+bytes32 computed = keccak256(abi.encodePacked(_bidAmount, _salt));
+if (computed != c.commitmentHash) revert HashMismatch();`,
+    },
+    {
+      step: '04',
+      icon: Award,
+      title: 'Deterministic Finalization & Pull-Based Escrow',
+      subtitle: 'Winner Settlement, Deposit Refunds & Seller Proceeds',
+      description:
+        'After the Reveal window closes, finalizeAuction() locks the winning bidder. Non-winning revealed bidders reclaim 100% of their collateral deposit via pull-based claimRefund(), while the winning bidder settles any remaining balance above their deposit and the seller withdraws proceeds.',
+      codeSnippet: `// Pull-over-Push Settlement Pattern
+auction.finalizeAuction(auctionId);
+auction.claimRefund(auctionId);            // Losing revealed bidders
+auction.withdrawSellerProceeds(auctionId); // Consigning seller`,
+    },
+  ];
+
   return (
     <div className="space-y-12 pb-16">
-      {/* Page Header */}
-      <div className="border-b border-[#1E293B] pb-6 space-y-2">
-        <div className="text-xs font-mono text-slate-400">
-          Protocol Specification · Hardhat Chain ID 31337
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-          How AuctionChain Works
+      {/* Header */}
+      <div className="bg-[#12141A] border border-[#232730] rounded-md p-8 sm:p-10">
+        <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#C5A46D]">
+          Protocol Specification
+        </span>
+        <h1 className="text-2xl sm:text-4xl font-display font-semibold text-[#F4F5F7] mt-2">
+          How the Commit-Reveal Reserve Protocol Operates
         </h1>
-        <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
-          AuctionChain combines LightGBM machine-learning vehicle resale valuation displayed in Indian Rupees (INR / ₹) with two-phase Keccak-256 commit-reveal bidding in Test ETH, eliminating mempool front-running and bid sniping.
+        <p className="text-sm sm:text-base text-[#8E95A5] mt-3 max-w-3xl leading-relaxed">
+          Traditional open-outcry and transparent blockchain auctions expose bidders
+          to mempool front-running, shill bidding, and last-second sniping.
+          AuctionChain eliminates information asymmetry through a four-stage
+          cryptographic state machine.
         </p>
       </div>
 
-      {/* 1. Seller & Bidder Workflows */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-5">
-          <div className="border-b border-[#1E293B] pb-4">
-            <div className="text-xs font-mono text-slate-400">01. Seller Workflow (Account 1)</div>
-            <h2 className="text-lg font-bold text-white mt-0.5">
-              Valuation, Oracle Anchor & Lot Deployment
-            </h2>
-          </div>
+      {/* Stages */}
+      <div className="space-y-6">
+        {stages.map((st) => {
+          const Icon = st.icon;
+          return (
+            <div
+              key={st.step}
+              className="bg-[#12141A] border border-[#232730] rounded-md p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+            >
+              <div className="lg:col-span-7 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded bg-[#0B0C10] border border-[#C5A46D]/40 text-[#C5A46D]">
+                    STAGE {st.step}
+                  </span>
+                  <span className="text-xs font-mono text-[#8E95A5]">
+                    {st.subtitle}
+                  </span>
+                </div>
+                <h2 className="text-xl font-display font-semibold text-[#F4F5F7] flex items-center gap-2.5">
+                  <Icon className="w-5 h-5 text-[#C5A46D]" />
+                  <span>{st.title}</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8E95A5] leading-relaxed">
+                  {st.description}
+                </p>
+              </div>
 
-          <div className="divide-y divide-[#1E293B] text-xs">
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">1. Canonicalize Vehicle Attributes</div>
-              <p className="text-slate-400 leading-relaxed">
-                Seller enters brand, model, year, odometer mileage in miles, fuel type, engine specification, transmission, colors, and accident history. Attributes are sorted into canonical JSON and hashed with SHA-256.
-              </p>
+              <div className="lg:col-span-5 bg-[#0B0C10] border border-[#232730] rounded-md p-4">
+                <div className="flex items-center justify-between text-[10px] font-mono text-[#646C7E] pb-2 mb-2 border-b border-[#232730]">
+                  <span className="flex items-center gap-1.5 text-[#8E95A5]">
+                    <FileCode2 className="w-3.5 h-3.5 text-[#C5A46D]" />
+                    SOLIDITY 0.8.20 VERIFICATION
+                  </span>
+                  <span>EVM</span>
+                </div>
+                <pre className="text-[11px] font-mono text-[#F4F5F7] overflow-x-auto leading-relaxed">
+                  {st.codeSnippet}
+                </pre>
+              </div>
             </div>
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">2. Compute Off-Chain Valuation & Anchor on Oracle</div>
-              <p className="text-slate-400 leading-relaxed">
-                The <code className="text-slate-200">LightGBM v1.0.0</code> model estimates fair market value (converted and displayed in Indian Rupees / INR). The Oracle relayer anchors the prediction ID, integer valuation, and SHA-256 data hash on <code className="text-slate-200">PriceOracle.sol</code>.
-              </p>
-            </div>
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">3. Configure Test ETH Escrow Parameters</div>
-              <p className="text-slate-400 leading-relaxed">
-                Seller sets the starting bid, reserve threshold, uniform participation deposit, and commit/reveal window durations on <code className="text-slate-200">SealedAuction.sol</code>.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-5">
-          <div className="border-b border-[#1E293B] pb-4">
-            <div className="text-xs font-mono text-slate-400">02. Bidder Workflow (Accounts 2 & 3)</div>
-            <h2 className="text-lg font-bold text-white mt-0.5">
-              Commit, Reveal & Pull Settlement
-            </h2>
-          </div>
-
-          <div className="divide-y divide-[#1E293B] text-xs">
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">1. Submit Sealed Commitment Hash</div>
-              <p className="text-slate-400 leading-relaxed">
-                Bidder computes <code className="text-slate-200">keccak256(abi.encode(auctionId, bidder, bidAmountWei, salt))</code> locally, exports a JSON backup of the secret salt, and locks the uniform fixed ETH collateral deposit.
-              </p>
-            </div>
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">2. Verify Hash in Reveal Window</div>
-              <p className="text-slate-400 leading-relaxed">
-                After the commit window closes, bidders submit their plaintext ETH bid and 32-byte salt. The smart contract recomputes the Keccak-256 hash to verify authenticity and evaluates the highest valid bid against the seller&apos;s reserve.
-              </p>
-            </div>
-            <div className="py-3.5 space-y-1">
-              <div className="font-semibold text-white">3. Settle Balance or Claim Pull Refund</div>
-              <p className="text-slate-400 leading-relaxed">
-                The winning bidder settles the remaining difference (<code className="text-slate-200">winningBid - fixedDeposit</code>). Losing revealed bidders withdraw 100% of their locked deposit via pull-based claims.
-              </p>
-            </div>
-          </div>
-        </section>
+          );
+        })}
       </div>
 
-      {/* 2. On-Chain Event Audit Trail Specification */}
-      <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
-        <div className="border-b border-[#1E293B] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="text-xs font-mono text-slate-400">03. Deterministic EVM Audit Trail</div>
-            <h2 className="text-lg font-bold text-white mt-0.5">
-              Smart Contract Events & State Transitions
-            </h2>
-          </div>
-          <span className="text-xs font-mono text-slate-400">Solidity ^0.8.24</span>
-        </div>
-
-        <div className="p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] font-mono text-xs text-slate-300 space-y-1.5 overflow-x-auto">
-          <div>event PredictionRegistered(uint256 indexed predictionId, bytes32 indexed productDataHash, uint256 predictedPricePaise);</div>
-          <div>event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 startingBid, uint256 reservePrice);</div>
-          <div>event BidCommitted(uint256 indexed auctionId, address indexed bidder, bytes32 commitmentHash, uint256 depositWei);</div>
-          <div>event BidRevealed(uint256 indexed auctionId, address indexed bidder, uint256 revealedBidWei);</div>
-          <div>event AuctionFinalized(uint256 indexed auctionId, bool sold, address winningBidder, uint256 highestBidWei);</div>
-        </div>
-      </section>
-
-      {/* CTA Banner */}
-      <section className="rounded-xl bg-[#0F172A] border border-[#1E293B] p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-bold text-white">Ready to Inspect or Participate?</h2>
-          <p className="text-xs text-slate-400 max-w-xl">
-            Connect with any preconfigured Hardhat account to test vehicle auction creation, Oracle anchoring, or sealed commit-reveal bidding.
+      {/* Bottom CTA */}
+      <div className="bg-[#12141A] border border-[#232730] rounded-md p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div>
+          <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+            Ready to Execute a Full Commit-Reveal Cycle?
+          </h3>
+          <p className="text-xs text-[#8E95A5] mt-1">
+            Connect with any role-mapped Hardhat signer or use the 1-click Seller
+            evaluation bypass.
           </p>
         </div>
         <button
-          type="button"
           onClick={openAuthModal}
-          className="px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white font-semibold text-xs transition-colors inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+          className="px-6 py-3 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] font-semibold text-xs uppercase tracking-[0.12em] flex items-center gap-2 shrink-0 transition-colors cursor-pointer"
         >
+          <Wallet className="w-4 h-4" />
           <span>Connect Wallet</span>
           <ArrowRight className="w-4 h-4" />
         </button>
-      </section>
+      </div>
     </div>
   );
 };

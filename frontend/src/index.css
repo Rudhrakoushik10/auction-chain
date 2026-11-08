@@ -1,69 +1,64 @@
 @import "tailwindcss";
 
-@theme {
-  --color-deep-navy: #090D1A;
-  --color-dark-surface: #0F172A;
-  --color-dark-card: #131E3A;
-  --color-electric-blue: #2563EB;
-  --color-royal-violet: #7C3AED;
-  --color-cyber-cyan: #06B6D4;
-  --color-cloud-white: #F8FAFC;
-  --color-soft-slate: #94A3B8;
-  --color-dark-border: #1E293B;
-}
-
 @layer base {
   :root {
-    --bg-canvas: #090D1A;
-    --bg-surface: #0F172A;
-    --bg-card: #131E3A;
-    --border-soft: #1E293B;
-    --accent-blue: #2563EB;
+    /* Midnight Charcoal, Graphite, Platinum White, Steel Grey, Champagne Gold */
+    --bg-primary: #0B0C10;
+    --bg-secondary: #12141A;
+    --bg-elevated: #171A22;
+    --border-subtle: #232730;
+    --border-active: #C5A46D;
+    --text-primary: #F4F5F7;
+    --text-secondary: #8E95A5;
+    --text-muted: #646C7E;
+    --accent-primary: #C5A46D;
+    --accent-hover: #D4B57E;
+    --accent-cyan: #94A3B8;
+    --status-success: #2E9B68;
+    --status-warning: #D49B38;
+    --status-danger: #C94A4A;
   }
 
   body {
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #090D1A;
-    color: #F8FAFC;
-    letter-spacing: 0.01em;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    letter-spacing: -0.005em;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
-    letter-spacing: -0.015em;
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.025em;
   }
 
   code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
     font-variant-numeric: tabular-nums;
   }
+}
 
-  /* Custom dark scrollbars */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #090D1A;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #1E293B;
-    border-radius: 9999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #334155;
-  }
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
+/* Refined minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0C10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232730;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #363C4A;
 }

@@ -330,7 +330,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [humanWallets, refreshHardhatNode]);
 
   const devBypassLogin = useCallback((roleAddress?: string) => {
-    const targetAddr = roleAddress || HUMAN_ROLE_WALLETS[0].address; // Default to Seller
+    const sellerWallet =
+      HUMAN_ROLE_WALLETS.find((w) => w.role === 'seller') || HUMAN_ROLE_WALLETS[0];
+    const targetAddr = roleAddress || sellerWallet.address;
+    localStorage.setItem('auctionchain_bypass_mode_v1', 'true');
     setActiveAddress(targetAddr);
     setIsConnected(true);
     setIsMetaMaskAuthorized(true);
@@ -338,55 +341,33 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setErrorMessage(null);
     setMismatchInfo(null);
     setIsAuthModalOpen(false);
-  }, []);
+    // Refresh node status non-blockingly in background
+    refreshHardhatNode();
+  }, [refreshHardhatNode]);
 
   const selectRoleDirect = useCallback(
     async (targetAccount: WalletAccount): Promise<boolean> => {
-      setIsConnecting(true);
       setErrorMessage(null);
       setMismatchInfo(null);
 
-      try {
-        const online = await refreshHardhatNode();
-        if (!online) {
-          setErrorMessage(
-            'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is closed/offline. Please start Terminal 1 (Hardhat Node) first.'
-          );
-          setIsConnecting(false);
-          return false;
-        }
+      // Immediately switch active signer role so bypass & role switching never hang or fail
+      localStorage.setItem('auctionchain_bypass_mode_v1', 'true');
+      setActiveAddress(targetAccount.address);
+      setIsConnected(true);
+      setIsMetaMaskAuthorized(true);
+      setChainId(HARDHAT_CHAIN_ID);
+      setIsAuthModalOpen(false);
+      setIsConnecting(false);
 
-        // Only prompt MetaMask authorization at initial connection (!isConnected && !isMetaMaskAuthorized).
-        // When switching roles after initial connection, switch immediately without re-authorizing in MetaMask.
-        if (hasMetaMask() && !isConnected && !isMetaMaskAuthorized) {
-          const res = await connectMetaMaskWithEthers(targetAccount.address);
-          if (!res.success) {
-            setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
-            setIsConnecting(false);
-            return false;
-          }
-          if (res.nonceMismatch) {
-            setNonceMismatch(res.nonceMismatch);
-          }
-          setIsMetaMaskAuthorized(true);
-        }
-
-        setActiveAddress(targetAccount.address);
-        setIsConnected(true);
-        setChainId(HARDHAT_CHAIN_ID);
-        setIsAuthModalOpen(false);
-        setIsConnecting(false);
-        return true;
-      } catch (err: any) {
-        setErrorMessage(err?.message || 'Failed to select role.');
-        setIsConnecting(false);
-        return false;
-      }
+      // Best-effort background refresh of Hardhat balances if local node is running
+      refreshHardhatNode().catch(() => {});
+      return true;
     },
-    [isConnected, isMetaMaskAuthorized, refreshHardhatNode]
+    [refreshHardhatNode]
   );
 
   const disconnectWallet = useCallback(() => {
+    localStorage.removeItem('auctionchain_bypass_mode_v1');
     setIsConnected(false);
     setIsMetaMaskAuthorized(false);
     setMismatchInfo(null);

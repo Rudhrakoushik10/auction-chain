@@ -352,20 +352,20 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   return (
     <div className="space-y-8 pb-16">
       {/* Top Bar: Navigation & Phase Transition Control */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#1E293B] pb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#232730] pb-4">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-[#8E95A5] hover:text-[#F4F5F7] transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Auctions</span>
         </button>
 
         <div className="flex items-center gap-4">
-          <div className="text-xs font-mono text-slate-400 tabular-nums">
+          <div className="text-xs font-mono text-[#8E95A5] tabular-nums">
             <span>Lot #{auction.numericId} ({auction.id})</span>
-            <span className="mx-2" aria-hidden="true">·</span>
+            <span className="mx-2 text-[#646C7E]" aria-hidden="true">·</span>
             <span>Seller: {shortenAddress(auction.sellerAddress)}</span>
           </div>
 
@@ -373,7 +373,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             <button
               type="button"
               onClick={() => onAdvancePhaseDemo(auction.id)}
-              className="px-3.5 py-1.5 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-md bg-[#12141A] hover:bg-[#171A22] border border-[#232730] text-[#F4F5F7] text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               {auction.phase === 'Commit'
                 ? 'Advance to Reveal Phase'
@@ -388,8 +388,8 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
         {/* Left Column (7 cols): Vehicle Gallery, Specifications, AI Valuation, Event Log */}
         <div className="lg:col-span-7 space-y-8">
           {/* Vehicle Gallery & Structured Spec Sheet */}
-          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
-            <div className="relative h-80 sm:h-96 bg-[#090D1A] border-b border-[#1E293B]">
+          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
+            <div className="relative h-80 sm:h-96 bg-[#0B0C10] border-b border-[#232730]">
               <img
                 src={auction.imageUrl}
                 alt={auction.title}
@@ -400,31 +400,31 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
             <div className="p-6 space-y-6">
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-mono text-slate-400 tabular-nums">
+                <div className="flex items-center gap-2 text-xs font-mono text-[#8E95A5] tabular-nums">
                   <span>{String(auction.attributes.manufacturing_year || '2024')}</span>
-                  <span aria-hidden="true">·</span>
+                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
                   <span>{String(auction.attributes.fuel_type || 'Electric')}</span>
-                  <span aria-hidden="true">·</span>
+                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
                   <span>{Number(auction.attributes.mileage_km || 0).toLocaleString('en-IN')} km</span>
-                  <span aria-hidden="true">·</span>
+                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
                   <span>{String(auction.attributes.condition || 'Excellent')}</span>
                 </div>
-                <h1 className="text-2xl font-bold text-white">{auction.title}</h1>
-                <p className="text-sm text-slate-400 leading-relaxed">{auction.subtitle}</p>
+                <h1 className="text-2xl font-semibold text-[#F4F5F7] tracking-tight">{auction.title}</h1>
+                <p className="text-sm text-[#8E95A5] leading-relaxed">{auction.subtitle}</p>
               </div>
 
               {/* Structured Specifications Table */}
-              <div className="pt-4 border-t border-[#1E293B] space-y-3">
-                <h2 className="text-xs font-semibold text-slate-300">
-                  Vehicle Specifications (Canonical Input to PriceOracle.sol)
+              <div className="pt-5 border-t border-[#232730] space-y-3">
+                <h2 className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
+                  Vehicle Dossier Specifications
                 </h2>
                 <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6 pt-2 text-xs">
                   {Object.entries(auction.attributes).map(([key, val]) => (
                     <div key={key} className="space-y-0.5">
-                      <dt className="text-slate-400">
+                      <dt className="text-[#646C7E]">
                         {ATTRIBUTE_LABELS[key] || key}
                       </dt>
-                      <dd className="font-mono font-semibold text-white tabular-nums">
+                      <dd className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
                         {key === 'original_price_inr'
                           ? formatInr(Number(val))
                           : key === 'mileage_km'
@@ -442,40 +442,40 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
           <PredictionWidget prediction={auction.aiPrediction} />
 
           {/* On-Chain Event Audit Trail Table */}
-          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#1E293B] flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">
-                On-Chain Event Log
+          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#232730] flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#F4F5F7]">
+                On-Chain Event Audit Ledger
               </h2>
-              <span className="text-xs font-mono text-slate-400 tabular-nums">
+              <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
                 {auction.events.length} events recorded
               </span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
+                <thead className="bg-[#0B0C10] text-[#8E95A5] border-b border-[#232730]">
                   <tr>
                     <th className="py-2.5 px-4 font-medium">Event</th>
                     <th className="py-2.5 px-4 font-medium">Summary</th>
                     <th className="py-2.5 px-4 font-medium text-right">Block / Tx</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1E293B]">
+                <tbody className="divide-y divide-[#232730]">
                   {auction.events.map((ev) => (
-                    <tr key={ev.id} className="hover:bg-[#131E3A]/50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-200 whitespace-nowrap align-top">
+                    <tr key={ev.id} className="hover:bg-[#171A22]/60 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-[#F4F5F7] whitespace-nowrap align-top">
                         {ev.eventName}
                       </td>
-                      <td className="py-3 px-4 text-slate-300 leading-relaxed align-top">
+                      <td className="py-3 px-4 text-[#8E95A5] leading-relaxed align-top">
                         {ev.summary}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-400 text-right whitespace-nowrap tabular-nums align-top">
+                      <td className="py-3 px-4 font-mono text-[#8E95A5] text-right whitespace-nowrap tabular-nums align-top">
                         <div>#{ev.blockNumber}</div>
                         <button
                           type="button"
                           onClick={() => inspectTransaction(ev.txHash)}
-                          className="text-[11px] text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                          className="text-[11px] text-[#C5A46D] hover:text-[#D4B57E] underline cursor-pointer"
                           title="Inspect live transaction receipt on Hardhat RPC"
                         >
                           {shortenAddress(ev.txHash)}
@@ -492,24 +492,24 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
         {/* Right Column (5 cols): Contiguous Auction Terms & Bidding / Settlement Module */}
         <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
           {/* Auction Terms & Price Comparison Module */}
-          <section className="bg-[#0F172A] text-white rounded-xl border border-[#1E293B] overflow-hidden">
-            <div className="p-6 border-b border-[#1E293B] flex items-center justify-between gap-4">
+          <section className="bg-[#12141A] text-[#F4F5F7] rounded-lg border border-[#232730] overflow-hidden">
+            <div className="p-6 border-b border-[#232730] flex items-center justify-between gap-4">
               <div>
-                <div className="text-xs font-mono text-slate-400">
+                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
                   SealedAuction.sol Escrow
                 </div>
-                <h2 className="text-base font-semibold text-white mt-0.5">
+                <h2 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
                   Phase: {auction.phase}
                 </h2>
               </div>
 
               {(auction.phase === 'Commit' || auction.phase === 'Reveal') && (
                 <div className="text-right font-mono tabular-nums">
-                  <div className="text-[11px] text-slate-400 flex items-center justify-end gap-1">
-                    <Clock className="w-3 h-3" />
+                  <div className="text-[11px] text-[#8E95A5] flex items-center justify-end gap-1">
+                    <Clock className="w-3 h-3 text-[#C5A46D]" />
                     <span>{auction.phase} Window</span>
                   </div>
-                  <div className="text-sm font-semibold text-white mt-0.5">
+                  <div className="text-sm font-semibold text-[#F4F5F7] mt-0.5">
                     {countdown}
                   </div>
                 </div>
@@ -520,44 +520,44 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             <div className="p-6 space-y-5">
               <div className="grid grid-cols-3 gap-4 font-mono tabular-nums">
                 <div>
-                  <div className="text-xs font-sans text-slate-400">Starting Bid</div>
-                  <div className="text-base font-bold text-white mt-0.5">
+                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Starting Bid</div>
+                  <div className="text-base font-semibold text-[#F4F5F7] mt-1">
                     {auction.startingBidEth.toFixed(2)} ETH
                   </div>
-                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
                     {formatEthToInr(auction.startingBidEth)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs font-sans text-slate-400">Seller Reserve</div>
-                  <div className="text-base font-bold text-[#3B82F6] mt-0.5">
+                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Seller Reserve</div>
+                  <div className="text-base font-semibold text-[#C5A46D] mt-1">
                     {auction.reservePriceEth.toFixed(2)} ETH
                   </div>
-                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
                     {formatEthToInr(auction.reservePriceEth)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs font-sans text-slate-400">Fixed Deposit</div>
-                  <div className="text-base font-bold text-white mt-0.5">
+                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Fixed Deposit</div>
+                  <div className="text-base font-semibold text-[#F4F5F7] mt-1">
                     {auction.fixedDepositEth.toFixed(2)} ETH
                   </div>
-                  <div className="text-[11px] text-emerald-400 mt-0.5">
+                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
                     {formatEthToInr(auction.fixedDepositEth)}
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#1E293B] flex items-center justify-between text-xs">
-                <span className="text-slate-400">Advisory AI Valuation (INR)</span>
-                <span className="font-mono font-semibold text-slate-200 tabular-nums">
-                  {formatInr(auction.aiPrediction.predicted_price ?? auction.aiPrediction.predicted_price_inr)} (Informational)
+              <div className="pt-4 border-t border-[#232730] flex items-center justify-between text-xs">
+                <span className="text-[#8E95A5]">Advisory AI Valuation (INR)</span>
+                <span className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
+                  {formatInr(auction.aiPrediction.predicted_price ?? auction.aiPrediction.predicted_price_inr)}
                 </span>
               </div>
 
-              <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between text-xs">
-                <span className="text-slate-400">Highest Revealed Bid</span>
-                <span className="font-mono font-semibold text-white tabular-nums">
+              <div className="pt-3 border-t border-[#232730] flex items-center justify-between text-xs">
+                <span className="text-[#8E95A5]">Highest Revealed Bid</span>
+                <span className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
                   {auction.phase === 'Commit'
                     ? 'Concealed until Reveal Phase'
                     : auction.highestBidEth
@@ -571,22 +571,22 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
           {/* Transaction Lifecycle Status Bar */}
           {txStatusLabel && (
             <div
-              className={`px-4 py-3 rounded-xl border text-xs font-mono flex items-center justify-between ${
+              className={`px-4 py-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
                 txState === 'confirmed'
                   ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
                   : txState === 'failed'
                   ? 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-                  : 'bg-[#0F172A] border-[#2563EB]/50 text-slate-200'
+                  : 'bg-[#12141A] border-[#C5A46D]/50 text-[#F4F5F7]'
               }`}
             >
               <span>{txStatusLabel}</span>
-              <span className="text-[11px] text-slate-400">Chain 31337</span>
+              <span className="text-[11px] text-[#8E95A5]">Chain 31337</span>
             </div>
           )}
 
           {actionFeedback && (
             <div
-              className={`p-4 rounded-xl border text-xs flex items-start gap-2.5 ${
+              className={`p-4 rounded-lg border text-xs flex items-start gap-2.5 ${
                 actionFeedback.type === 'success'
                   ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
                   : 'bg-rose-950/30 border-rose-500/30 text-rose-200'
@@ -603,19 +603,19 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
           {/* CASE 1: GUEST VIEW */}
           {!isConnected && (
-            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-4">
               <div className="space-y-1">
-                <h3 className="text-base font-semibold text-white">
+                <h3 className="text-base font-semibold text-[#F4F5F7]">
                   Connect Wallet to Participate
                 </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-[#8E95A5] leading-relaxed">
                   Connect MetaMask or select a preconfigured Hardhat role (Seller, Bidder 1, Bidder 2, or Admin) to submit sealed commitments or reveal bids.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={openAuthModal}
-                className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
               >
                 Connect Wallet
               </button>
@@ -624,45 +624,45 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
           {/* CASE 2: COMMIT PHASE PANEL */}
           {isConnected && auction.phase === 'Commit' && (
-            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-[#1E293B] pb-4">
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-[#3B82F6]" />
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-[#232730] pb-4">
+                <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#C5A46D]" />
                   <span>Submit Sealed Commitment</span>
                 </h3>
-                <span className="text-xs font-mono text-slate-400 tabular-nums">
+                <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
                   Deposit: {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                 </span>
               </div>
 
               {isSeller && (
-                <div className="p-3.5 rounded-lg bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+                <div className="p-3.5 rounded-md bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
                   <strong>Seller Restriction:</strong> You are connected as the seller of this vehicle. Switch to <strong>Bidder 1</strong> or <strong>Bidder 2</strong> in the top header to place a sealed bid.
                 </div>
               )}
 
               {myCommitment ? (
-                <div className="p-4 rounded-lg bg-emerald-950/30 border border-emerald-500/30 space-y-2 text-xs">
-                  <div className="font-semibold text-white flex items-center gap-1.5">
+                <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 space-y-2 text-xs">
+                  <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Sealed Commitment Recorded On-Chain</span>
                   </div>
-                  <div className="font-mono text-[11px] text-slate-300 break-all">
+                  <div className="font-mono text-[11px] text-[#8E95A5] break-all">
                     Hash: {myCommitment.commitmentHash}
                   </div>
-                  <div className="text-slate-400 font-mono tabular-nums">
-                    Locked Deposit: <strong className="text-white">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Bid value remains concealed until Reveal phase.
+                  <div className="text-[#8E95A5] font-mono tabular-nums">
+                    Locked Deposit: <strong className="text-[#F4F5F7]">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Bid value remains concealed until Reveal phase.
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleCommitSubmit} className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-medium text-slate-300">
-                        Confidential Bid Amount (Test ETH, min {auction.startingBidEth.toFixed(2)} ETH / {formatEthToInr(auction.startingBidEth)})
+                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
+                        Confidential Bid (min {auction.startingBidEth.toFixed(2)} ETH / {formatEthToInr(auction.startingBidEth)})
                       </label>
-                      <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
-                        ≈ {formatEthToInr(bidAmountEth)} INR
+                      <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
+                        ≈ {formatEthToInr(bidAmountEth)}
                       </span>
                     </div>
                     <input
@@ -670,11 +670,11 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       step="0.01"
                       value={bidAmountEth}
                       onChange={(e) => setBidAmountEth(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
+                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
                     />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-[#8E95A5] tabular-nums">
                       <span>
-                        Indian Rupee Equivalent: <strong className="text-emerald-400">{formatEthToInr(bidAmountEth)}</strong>
+                        Indian Rupee Equivalent: <strong className="text-[#F4F5F7]">{formatEthToInr(bidAmountEth)}</strong>
                       </span>
                       <span>Rate: 1 ETH = {formatEthToInr(1)}</span>
                     </div>
@@ -682,13 +682,13 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium text-slate-300">
+                      <label className="text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
                         32-Byte Secret Salt
                       </label>
                       <button
                         type="button"
                         onClick={() => setSalt(generateRandomSalt())}
-                        className="text-xs font-medium text-[#3B82F6] hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-xs font-medium text-[#C5A46D] hover:text-[#D4B57E] flex items-center gap-1 cursor-pointer"
                       >
                         <RefreshCw className="w-3 h-3" /> Regenerate
                       </button>
@@ -698,7 +698,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                         type="text"
                         readOnly
                         value={salt}
-                        className="flex-1 px-3 py-2 rounded-lg bg-[#090D1A] border border-[#1E293B] font-mono text-xs text-slate-300"
+                        className="flex-1 px-3 py-2 rounded-md bg-[#0B0C10] border border-[#232730] font-mono text-xs text-[#8E95A5]"
                       />
                       <button
                         type="button"
@@ -707,7 +707,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                           setCopiedSalt(true);
                           setTimeout(() => setCopiedSalt(false), 1500);
                         }}
-                        className="px-3 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] hover:bg-[#131E3A] text-xs text-slate-200 transition-colors cursor-pointer"
+                        className="px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] hover:bg-[#171A22] text-xs text-[#F4F5F7] transition-colors cursor-pointer"
                         aria-label="Copy salt"
                       >
                         {copiedSalt ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -715,39 +715,39 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-[#090D1A] border border-[#1E293B] font-mono text-[11px] space-y-1">
-                    <div className="text-slate-400">
+                  <div className="p-3 rounded-md bg-[#0B0C10] border border-[#232730] font-mono text-[11px] space-y-1">
+                    <div className="text-[#646C7E]">
                       keccak256(auctionId, bidder, bidAmountWei, salt)
                     </div>
-                    <div className="break-all text-slate-200">{computedHash}</div>
+                    <div className="break-all text-[#F4F5F7]">{computedHash}</div>
                   </div>
 
                   {/* Salt Backup Export & Acknowledgement */}
-                  <div className="p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] space-y-3">
+                  <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-slate-200">
+                      <span className="text-xs font-medium text-[#F4F5F7]">
                         Reveal Key Backup (.json)
                       </span>
                       <button
                         type="button"
                         onClick={handleDownloadRevealJson}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#12141A] border border-[#232730] hover:border-[#C5A46D]/40 text-[#F4F5F7] text-xs font-medium transition-colors cursor-pointer"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 text-[#C5A46D]" />
                         <span>Download Backup</span>
                       </button>
                     </div>
 
-                    <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-pointer">
+                    <label className="flex items-start gap-2.5 text-xs text-[#8E95A5] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={backupSavedAck}
                         onChange={(e) => setBackupSavedAck(e.target.checked)}
-                        className="mt-0.5 rounded border-slate-600 bg-[#090D1A]"
+                        className="mt-0.5 rounded border-[#232730] bg-[#0B0C10]"
                       />
                       <span className="leading-relaxed">
                         I have saved my bid amount and secret salt. Unrevealed commitments forfeit the{' '}
-                        <strong className="text-slate-200 font-mono">{auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})</strong> deposit.
+                        <strong className="text-[#F4F5F7] font-mono">{auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})</strong> deposit.
                       </span>
                     </label>
                   </div>
@@ -756,7 +756,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     <button
                       type="button"
                       onClick={switchNetworkToHardhat}
-                      className="w-full py-2.5 px-4 rounded-lg bg-amber-500 text-slate-950 text-xs font-semibold cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] text-[#0B0C10] text-xs font-semibold cursor-pointer"
                     >
                       Switch to Hardhat Chain ID 31337
                     </button>
@@ -764,7 +764,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                     <button
                       type="submit"
                       disabled={!backupSavedAck || Boolean(isSeller) || txState === 'waiting_approval' || txState === 'pending'}
-                      className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                     >
                       Commit Sealed Hash & Lock {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                     </button>
@@ -776,14 +776,14 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
           {/* CASE 3: REVEAL PHASE PANEL */}
           {isConnected && auction.phase === 'Reveal' && (
-            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-[#1E293B] pb-4">
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-amber-400" />
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-[#232730] pb-4">
+                <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-[#C5A46D]" />
                   <span>Reveal Sealed Bid</span>
                 </h3>
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#090D1A] border border-[#1E293B] text-slate-200 text-xs font-medium cursor-pointer hover:bg-[#131E3A] transition-colors">
-                  <Upload className="w-3.5 h-3.5" />
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0B0C10] border border-[#232730] text-[#F4F5F7] text-xs font-medium cursor-pointer hover:border-[#C5A46D]/40 transition-colors">
+                  <Upload className="w-3.5 h-3.5 text-[#C5A46D]" />
                   <span>Import Backup JSON</span>
                   <input
                     type="file"
@@ -795,8 +795,8 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
               </div>
 
               {myCommitment?.revealed ? (
-                <div className="p-4 rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-1.5">
-                  <div className="font-semibold text-white flex items-center gap-1.5">
+                <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-1.5">
+                  <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Bid Verified & Revealed On-Chain</span>
                   </div>
@@ -808,11 +808,11 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                 <form onSubmit={handleRevealSubmit} className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-medium text-slate-300">
+                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
                         Original Committed Bid Amount (Test ETH)
                       </label>
-                      <span className="text-xs font-mono font-semibold text-emerald-400 tabular-nums">
-                        ≈ {formatEthToInr(revealBidInput)} INR
+                      <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
+                        ≈ {formatEthToInr(revealBidInput)}
                       </span>
                     </div>
                     <input
@@ -821,17 +821,17 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       value={revealBidInput}
                       onChange={(e) => setRevealBidInput(e.target.value)}
                       placeholder="e.g., 15.00"
-                      className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-sm font-semibold text-white tabular-nums focus:outline-none focus:border-[#2563EB]"
+                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
                     />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-[#8E95A5] tabular-nums">
                       <span>
-                        Indian Rupee Equivalent: <strong className="text-emerald-400">{formatEthToInr(revealBidInput)}</strong>
+                        Indian Rupee Equivalent: <strong className="text-[#F4F5F7]">{formatEthToInr(revealBidInput)}</strong>
                       </span>
                       <span>1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
                       Original 32-Byte Secret Salt (0x...)
                     </label>
                     <input
@@ -839,19 +839,19 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       value={revealSaltInput}
                       onChange={(e) => setRevealSaltInput(e.target.value)}
                       placeholder="0x..."
-                      className="w-full px-3.5 py-2 rounded-lg border border-[#1E293B] bg-[#090D1A] font-mono text-xs text-white focus:outline-none focus:border-[#2563EB]"
+                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-xs text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
                     />
                   </div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                    className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Verify Hash & Reveal Bid
                   </button>
                 </form>
               )}
 
-              <div className="pt-4 border-t border-[#1E293B]">
+              <div className="pt-4 border-t border-[#232730]">
                 <button
                   type="button"
                   onClick={() =>
@@ -863,7 +863,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                       };
                     })
                   }
-                  className="w-full py-2.5 px-4 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-md bg-[#0B0C10] border border-[#232730] hover:border-[#C5A46D]/40 text-[#F4F5F7] text-xs font-medium transition-colors cursor-pointer"
                 >
                   Execute finalizeAuction() & Resolve Reserve Check
                 </button>
@@ -873,10 +873,10 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
           {/* CASE 4: FINALIZED OUTCOME & PULL-BASED SETTLEMENT */}
           {(auction.phase === 'Sold' || auction.phase === 'No Sale') && (
-            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-5">
-              <div className="border-b border-[#1E293B] pb-4">
-                <div className="text-xs font-mono text-slate-400">Finalized Settlement</div>
-                <h3 className="text-base font-semibold text-white mt-0.5">
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
+              <div className="border-b border-[#232730] pb-4">
+                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">Finalized Settlement</div>
+                <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
                   Outcome: {auction.phase === 'Sold' ? 'Sold (Reserve Met)' : 'No Sale (Below Reserve)'}
                 </h3>
               </div>
@@ -884,28 +884,28 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
               {auction.phase === 'Sold' ? (
                 <dl className="space-y-2 text-xs font-mono tabular-nums">
                   <div className="flex justify-between">
-                    <dt className="font-sans text-slate-400">Winning Bidder</dt>
-                    <dd className="text-white font-semibold">
+                    <dt className="font-sans text-[#8E95A5]">Winning Bidder</dt>
+                    <dd className="text-[#F4F5F7] font-semibold">
                       {shortenAddress(auction.winningBidderAddress || '')} ({auction.winningBidderEns})
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="font-sans text-slate-400">Winning Bid</dt>
-                    <dd className="text-emerald-400 font-bold">
+                    <dt className="font-sans text-[#8E95A5]">Winning Bid</dt>
+                    <dd className="text-[#C5A46D] font-semibold">
                       {auction.highestBidEth?.toFixed(2)} ETH ({formatEthToInr(auction.highestBidEth || 0)}) · Reserve {auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="font-sans text-slate-400">Escrow Status</dt>
-                    <dd className="text-slate-200 font-sans font-medium">
+                    <dt className="font-sans text-[#8E95A5]">Escrow Status</dt>
+                    <dd className="text-[#F4F5F7] font-sans font-medium">
                       {auction.winnerSettled ? 'Winner Balance Settled' : 'Awaiting Winner Settlement'}
                     </dd>
                   </div>
                 </dl>
               ) : (
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-[#8E95A5] leading-relaxed">
                   Highest revealed bid ({auction.highestBidEth?.toFixed(2) || '0.00'} ETH / {formatEthToInr(auction.highestBidEth || 0)}) did not meet the seller&apos;s reserve price of{' '}
-                  <strong className="text-white font-mono">{auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})</strong>. All revealed bidders may claim a full pull-based deposit refund.
+                  <strong className="text-[#F4F5F7] font-mono">{auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})</strong>. All revealed bidders may claim a full pull-based deposit refund.
                 </p>
               )}
 
@@ -926,7 +926,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                             };
                           })
                         }
-                        className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                       >
                         Settle Remaining Balance (
                         {((auction.highestBidEth || 0) - auction.fixedDepositEth).toFixed(2)} ETH /{' '}
@@ -949,7 +949,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                             };
                           })
                         }
-                        className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                       >
                         Withdraw Sale Proceeds ({auction.highestBidEth?.toFixed(2)} ETH /{' '}
                         {formatEthToInr(auction.highestBidEth || 0)})
@@ -973,7 +973,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                             };
                           })
                         }
-                        className="w-full py-2.5 px-4 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                       >
                         Claim Deposit Refund ({myCommitment.depositEth.toFixed(2)} ETH /{' '}
                         {formatEthToInr(myCommitment.depositEth)})
@@ -985,32 +985,32 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
           )}
 
           {/* Recorded Commitments Table (Strict Confidentiality in Commit Phase) */}
-          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#1E293B] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">
+          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#232730] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#F4F5F7]">
                 Commitments ({auction.commitments.length})
               </h3>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-[#8E95A5]">
                 {auction.phase === 'Commit' ? 'Values Sealed' : 'Reveal Verification'}
               </span>
             </div>
 
             {auction.commitments.length === 0 ? (
-              <div className="p-6 text-xs text-slate-400">
+              <div className="p-6 text-xs text-[#8E95A5]">
                 No sealed commitments submitted for this lot yet.
               </div>
             ) : (
-              <div className="divide-y divide-[#1E293B]">
+              <div className="divide-y divide-[#232730]">
                 {auction.commitments.map((c) => (
                   <div
                     key={c.id}
                     className="px-6 py-3.5 flex items-center justify-between gap-4 text-xs"
                   >
                     <div className="space-y-0.5">
-                      <div className="font-medium text-white">
-                        {c.bidderEns} <span className="font-mono text-slate-400">({shortenAddress(c.bidderAddress)})</span>
+                      <div className="font-medium text-[#F4F5F7]">
+                        {c.bidderEns} <span className="font-mono text-[#8E95A5]">({shortenAddress(c.bidderAddress)})</span>
                       </div>
-                      <div className="font-mono text-[11px] text-slate-500">
+                      <div className="font-mono text-[11px] text-[#646C7E]">
                         Hash: {c.commitmentHash.slice(0, 16)}...
                       </div>
                     </div>
@@ -1021,7 +1021,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                           Revealed: {c.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(c.revealedAmountEth || 0)})
                         </span>
                       ) : (
-                        <span className="text-slate-400">
+                        <span className="text-[#8E95A5]">
                           Sealed · {c.depositEth.toFixed(2)} ETH ({formatEthToInr(c.depositEth)}) locked
                         </span>
                       )}

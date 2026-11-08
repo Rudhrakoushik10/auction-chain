@@ -1,128 +1,157 @@
 import React from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  Lock,
+  FileCode2,
+  CheckCircle2,
+  Cpu,
+  AlertTriangle,
+} from 'lucide-react';
+import {
+  PRICE_ORACLE_CONTRACT_ADDRESS,
+  SEALED_AUCTION_CONTRACT_ADDRESS,
+  HARDHAT_CHAIN_ID,
+} from '../../lib/hardhatConfig';
 
 export const SecurityTransparencyPage: React.FC = () => {
+  const securityInvariants = [
+    {
+      rule: 'Uniform Collateral Deposit (Zero Value Leakage)',
+      contract: 'SealedAuction.sol :: commitBid()',
+      detail:
+        'During the Commit Phase, every participant sends the identical fixedDeposit amount in msg.value. Observers inspecting pending or mined transactions cannot infer a bidder’s valuation from the ETH transferred.',
+    },
+    {
+      rule: 'Salted Keccak-256 Preimage Resistance',
+      contract: 'SealedAuction.sol :: revealBid()',
+      detail:
+        'Each bid is combined with a 256-bit cryptographically random salt prior to hashing. Brute-forcing or dictionary-attacking commitment hashes over the finite bid space is computationally infeasible.',
+    },
+    {
+      rule: 'Strict Oracle Existence Check on Listing',
+      contract: 'SealedAuction.sol :: createAuction()',
+      detail:
+        'Every auction listing must pass a valid predictionId that exists inside PriceOracle.sol, ensuring an immutable AI valuation and SHA-256 vehicle specification hash precede bidding.',
+    },
+    {
+      rule: 'Pull-Over-Push Escrow & Reentrancy Protection',
+      contract: 'SealedAuction.sol :: claimRefund() / withdrawSellerProceeds()',
+      detail:
+        'State variables (refunded flags and pending balances) are zeroed before external ETH transfers, eliminating reentrancy vectors and denial-of-service griefing.',
+    },
+  ];
+
   return (
-    <div className="space-y-12 pb-16">
-      {/* Page Header */}
-      <div className="border-b border-[#1E293B] pb-6 space-y-2">
-        <div className="text-xs font-mono text-slate-400">
-          Cryptographic Guarantees & Escrow Architecture
+    <div className="space-y-10 pb-16">
+      {/* Header */}
+      <div className="bg-[#12141A] border border-[#232730] rounded-md p-8 sm:p-10">
+        <div className="flex items-center gap-2 text-[#C5A46D] text-[11px] font-mono uppercase tracking-[0.16em] mb-2">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Smart Contract Audit & Security Architecture</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-          Security & Transparency
+        <h1 className="text-2xl sm:text-4xl font-display font-semibold text-[#F4F5F7]">
+          Cryptographic Guarantees & On-Chain Invariants
         </h1>
-        <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
-          How AuctionChain prevents mempool front-running, enforces seller reserve thresholds, and anchors off-chain AI valuations on Hardhat Chain ID 31337.
+        <p className="text-sm sm:text-base text-[#8E95A5] mt-3 max-w-3xl leading-relaxed">
+          AuctionChain enforces financial integrity at the EVM bytecode level.
+          Review our deployed contract registry, security invariants, and non-revealer
+          slashing mechanics below.
         </p>
       </div>
 
-      {/* 4 Core Security Guarantees */}
+      {/* Contract Registry Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
-          <div className="text-xs font-mono text-slate-400">01. Smart Contract Execution</div>
-          <h2 className="text-base font-semibold text-white">
-            Deterministic Escrow & Reentrancy Protection
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            All state transitions execute deterministically on <code className="text-slate-200">SealedAuction.sol</code>:
-          </p>
-          <ul className="space-y-2 text-xs text-slate-300">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong className="text-white">Pull-Over-Push Refunds:</strong> Losing bidders and sellers claim funds individually via pull calls, preventing fallback denial-of-service vectors.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong className="text-white">Self-Bid Prevention:</strong> Contract reverts with <code className="text-slate-200">SellerCannotBidOnOwnAuction()</code> if the listing creator attempts to submit a commitment.</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
-          <div className="text-xs font-mono text-slate-400">02. Sealed-Bid Confidentiality</div>
-          <h2 className="text-base font-semibold text-white">
-            Keccak-256 Commit-Reveal Protocol
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            During the commitment window, only a one-way 32-byte hash and uniform ETH deposit are transmitted on-chain:
-          </p>
-          <div className="p-3.5 rounded-lg bg-[#090D1A] border border-[#1E293B] font-mono text-xs text-slate-200 overflow-x-auto">
-            commitment = keccak256(abi.encode(auctionId, bidder, bidAmountWei, salt));
+        <div className="bg-[#12141A] border border-[#232730] rounded-md p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+              Contract 01 · Valuation Registry
+            </span>
+            <FileCode2 className="w-4 h-4 text-[#8E95A5]" />
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Because every participant locks the exact same fixed collateral deposit, observers cannot infer bid amounts from transaction value until the reveal window opens.
+          <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+            PriceOracle.sol
+          </h3>
+          <div className="p-3 rounded bg-[#0B0C10] border border-[#232730] font-mono text-xs text-[#F4F5F7] break-all">
+            {PRICE_ORACLE_CONTRACT_ADDRESS}
+          </div>
+          <p className="text-xs text-[#8E95A5] leading-relaxed">
+            Stores AI-generated vehicle valuations in integer paise alongside the
+            canonical SHA-256 hash of the 13 vehicle specification fields. Restricted
+            via <code className="font-mono text-[#F4F5F7]">onlyOracle</code> and{' '}
+            <code className="font-mono text-[#F4F5F7]">onlyAdmin</code> modifiers.
           </p>
-        </section>
+        </div>
 
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
-          <div className="text-xs font-mono text-slate-400">03. Oracle Attestation</div>
-          <h2 className="text-base font-semibold text-white">
-            Canonical Feature Hashing on PriceOracle.sol
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Smart contracts cannot execute gradient-boosted decision trees directly. Instead, the background Oracle service (Account 4) normalizes vehicle attributes into canonical JSON, computes a SHA-256 <code className="text-slate-200">product_data_hash</code>, and signs the integer valuation onto <code className="text-slate-200">PriceOracle.sol</code> (displayed across the frontend in Indian Rupees / INR).
+        <div className="bg-[#12141A] border border-[#232730] rounded-md p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+              Contract 02 · Commit-Reveal Escrow
+            </span>
+            <Lock className="w-4 h-4 text-[#8E95A5]" />
+          </div>
+          <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+            SealedAuction.sol
+          </h3>
+          <div className="p-3 rounded bg-[#0B0C10] border border-[#232730] font-mono text-xs text-[#F4F5F7] break-all">
+            {SEALED_AUCTION_CONTRACT_ADDRESS}
+          </div>
+          <p className="text-xs text-[#8E95A5] leading-relaxed">
+            Manages auction creation, uniform collateral deposits, Keccak-256
+            commitment storage, on-chain reveal verification, reserve price checks,
+            and pull-based ETH settlement on Chain ID {HARDHAT_CHAIN_ID}.
           </p>
-        </section>
-
-        <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
-          <div className="text-xs font-mono text-slate-400">04. Immutable Audit Trail</div>
-          <h2 className="text-base font-semibold text-white">
-            Verifiable On-Chain Event Logs
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Every prediction registration, lot deployment, sealed commitment, hash reveal, finalization, and refund emits an indexed Solidity event with block number and transaction hash for full auditability.
-          </p>
-        </section>
+        </div>
       </div>
 
-      {/* On-Chain vs Off-Chain Data Storage Table */}
-      <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#1E293B]">
-          <h2 className="text-base font-semibold text-white">
-            On-Chain vs. Off-Chain Data Architecture
-          </h2>
+      {/* Security Invariants Matrix */}
+      <div className="bg-[#12141A] border border-[#232730] rounded-md p-6 sm:p-8 space-y-6">
+        <div className="border-b border-[#232730] pb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Verified Smart Contract Security Invariants
+            </h2>
+            <p className="text-xs text-[#8E95A5] mt-0.5">
+              Enforced deterministically across every transaction on SealedAuction.sol
+            </p>
+          </div>
+          <Cpu className="w-5 h-5 text-[#C5A46D]" />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[#090D1A]/60 text-slate-400 border-b border-[#1E293B]">
-              <tr>
-                <th className="py-3 px-4 font-medium">Data Component</th>
-                <th className="py-3 px-4 font-medium">Storage Location</th>
-                <th className="py-3 px-4 font-medium">Visibility</th>
-                <th className="py-3 px-4 font-medium">Integrity Mechanism</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1E293B] text-slate-300">
-              <tr>
-                <td className="py-3 px-4 font-semibold text-white">Bid Amount & 32-Byte Salt</td>
-                <td className="py-3 px-4 font-mono text-slate-400">Bidder Client / Local JSON</td>
-                <td className="py-3 px-4 text-emerald-400 font-medium">Private until Reveal</td>
-                <td className="py-3 px-4 text-slate-400">Never transmitted in plaintext during Commit phase</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold text-white">Commitment Hash</td>
-                <td className="py-3 px-4 font-mono text-slate-400">SealedAuction.sol</td>
-                <td className="py-3 px-4">Public 32-byte hash</td>
-                <td className="py-3 px-4 text-slate-400">Verified against plaintext bid + salt on reveal</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold text-white">Collateral Deposit (ETH)</td>
-                <td className="py-3 px-4 font-mono text-slate-400">SealedAuction.sol Escrow</td>
-                <td className="py-3 px-4">Public uniform amount</td>
-                <td className="py-3 px-4 text-slate-400">Credited to winner or refunded via pull claim</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold text-white">AI Valuation & Spec Hash</td>
-                <td className="py-3 px-4 font-mono text-slate-400">PriceOracle.sol</td>
-                <td className="py-3 px-4">Public on-chain record</td>
-                <td className="py-3 px-4 text-slate-400">Restricted to authorized Oracle signer address</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {securityInvariants.map((item) => (
+            <div
+              key={item.rule}
+              className="p-5 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-[#F4F5F7] flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#2E9B68] shrink-0" />
+                  {item.rule}
+                </span>
+              </div>
+              <div className="text-[11px] font-mono text-[#C5A46D]">
+                {item.contract}
+              </div>
+              <p className="text-xs text-[#8E95A5] leading-relaxed pt-1">
+                {item.detail}
+              </p>
+            </div>
+          ))}
         </div>
-      </section>
+
+        {/* Non-Revealer Policy Note */}
+        <div className="p-4 rounded-md bg-[#0B0C10] border border-[#D49B38]/40 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-[#D49B38] shrink-0 mt-0.5" />
+          <div className="text-xs text-[#8E95A5] leading-relaxed">
+            <strong className="text-[#F4F5F7]">
+              Anti-Griefing Deposit Policy:
+            </strong>{' '}
+            Bidders who commit a sealed hash during the Commit Phase but fail to
+            reveal their bid before the Reveal deadline are ineligible for automated
+            collateral refunds—deterring tactical option-value bidding.
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
