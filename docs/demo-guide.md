@@ -50,39 +50,43 @@ cd ..
 
 ## 3. Starting the Services
 
-You need 3 processes running simultaneously.
-
 ### Option A: 1-Click Launch (Windows)
 Double-click or run:
 ```cmd
 scripts\start-all.bat
 ```
-*This opens 3 dedicated command prompt windows and starts each service in sequence.*
+*This opens 4 dedicated command prompt windows in sequence:*
+1. **Terminal 1**: Hardhat EVM Blockchain Node (Port 8545)
+2. **Terminal 2**: FastAPI LightGBM AI Valuation Service (Port 8000)
+3. **Terminal 3**: Autonomous Price Oracle Daemon (Account 4)
+4. **Terminal 4**: React Web3 Frontend (Port 3000)
 
 ---
 
-### Option B: Manual Launch (3 Separate Terminals)
+### Option B: Manual Launch (Separate Terminals)
 
 #### Terminal 1: Hardhat EVM Blockchain Node (Port 8545)
 ```bash
 cd blockchain
 npm start
 ```
-*Output*: Starts local EVM node at `http://127.0.0.1:8545` (Chain ID `31337`), deploys `PriceOracle.sol` and `Auction.sol`, and writes deployed addresses to `frontend/src/contracts/contractAddresses.json`.
 
 #### Terminal 2: FastAPI AI Valuation Microservice (Port 8000)
 ```bash
 cd backend
 uvicorn src.api.main:app --port 8000 --reload
 ```
-*Output*: LightGBM model loaded into memory, serving valuation API at `http://127.0.0.1:8000/docs`.
 
-#### Terminal 3: React Web3 Application (Port 3000)
+#### Terminal 3: Autonomous Price Oracle Daemon (Account 4)
 ```bash
-# In the project root or frontend directory:
+cd blockchain
+npx hardhat run scripts/priceFeedDaemon.js --network localhost
+```
+
+#### Terminal 4: React Web3 Application (Port 3000)
+```bash
 npm run dev
 ```
-*Output*: Vite dev server listening at `http://localhost:3000`.
 
 ---
 

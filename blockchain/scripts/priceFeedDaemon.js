@@ -1,9 +1,50 @@
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 const hre = require("hardhat");
 
 /**
- * Autonomous Chainlink-Style Price Feed Worker Daemon
+ * Check if the local Hardhat EVM node is active
+ */
+function checkNodeReady() {
+  return new Promise((resolve) => {
+    const postData = JSON.stringify({
+      jsonrpc: "2.0",
+      method: "eth_blockNumber",
+      params: [],
+      id: 1,
+    });
+
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: 8545,
+        path: "/",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 1500,
+      },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      }
+    );
+
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * Autonomous Price Oracle Worker Daemon
  * Signs and broadcasts real-world ETH/INR market prices onto PriceOracle.sol on Hardhat.
  */
 async function fetchEthInrFromMarket() {
@@ -39,9 +80,26 @@ async function fetchEthInrFromMarket() {
 }
 
 async function main() {
+  console.log("============================================================================");
+  console.log("  AuctionChain - Autonomous Price Oracle Daemon (Account 4)");
+  console.log("============================================================================");
+
+  // 1. Verify blockchain node is reachable
+  const isOnline = await checkNodeReady();
+  if (!isOnline) {
+    console.error("\n[ERROR] Cannot connect to local Hardhat node at http://127.0.0.1:8545.");
+    console.error("Please start the blockchain node first in Terminal 1:");
+    console.error("  -> Run: scripts\\start-blockchain.bat (or 'npm start' in blockchain/)");
+    console.error("============================================================================\n");
+    process.exit(1);
+  }
+
+  // 2. Verify deployed addresses file
   const addressesPath = path.join(__dirname, "../../frontend/src/contracts/contractAddresses.json");
   if (!fs.existsSync(addressesPath)) {
-    console.error("Contract addresses file not found. Deploy contracts first: npm start in blockchain/");
+    console.error("\n[ERROR] Contract addresses file not found.");
+    console.error("Please deploy contracts first: run 'npm start' in blockchain/");
+    console.error("============================================================================\n");
     process.exit(1);
   }
 
@@ -49,14 +107,11 @@ async function main() {
   const oracleContractAddress = addresses.PriceOracle;
 
   const signers = await hre.ethers.getSigners();
-  const oracleSigner = signers[4]; // Account 4 — Authorized Oracle Feeder
+  const oracleSigner = signers[4]; // Account 4 — Authorized Oracle
 
-  console.log("============================================================================");
-  console.log("  AuctionChain - Chainlink-Style Autonomous Price Feed Daemon");
-  console.log("============================================================================");
   console.log("Contract Address:", oracleContractAddress);
-  console.log("Oracle Feeder:", oracleSigner.address, "(Hardhat Account #4)");
-  console.log("Target Feed: ETH / INR (8 decimals, AggregatorV3Interface)");
+  console.log("Oracle Signer:   ", oracleSigner.address, "(Hardhat Account #4)");
+  console.log("Target Feed:      ETH / INR (8 decimals, AggregatorV3Interface)");
   console.log("Polling interval: 30 seconds");
   console.log("----------------------------------------------------------------------------\n");
 
@@ -94,6 +149,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Fatal daemon error:", err);
+  console.error("Fatal daemon error:", err.message || err);
   process.exit(1);
 });
