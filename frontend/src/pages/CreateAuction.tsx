@@ -22,11 +22,9 @@ import {
 } from '../lib/crypto';
 import {
   SEALED_AUCTION_CONTRACT_ADDRESS,
-  PRICE_ORACLE_CONTRACT_ADDRESS,
 } from '../lib/hardhatConfig';
 import {
   predictVehiclePrice,
-  registerPredictionOnOracle,
 } from '../services/api/aiService';
 import { executeMetaMaskTransaction } from '../services/blockchain/walletService';
 import vehicleSuvImg from '../assets/images/vehicle-suv.jpg';
@@ -53,7 +51,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     inspectTransaction,
   } = useWallet();
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [title, setTitle] = useState('2020 Ford F-150 XLT SuperCrew 4WD (3.5L V6 400hp Twin Turbo)');
   const [subtitle, setSubtitle] = useState(
     'Single-owner 3.5L EcoBoost V6 pickup with 45,000 miles, 10-speed automatic transmission, Jet Black exterior, and clean history.'
@@ -72,18 +70,15 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   const [vhInteriorColor, setVhInteriorColor] = useState('Black');
   const [vhAccidentHistory, setVhAccidentHistory] = useState<boolean | null>(false);
 
-  // Step 2 & 3 State: Separate AI Prediction vs Oracle Blockchain Registration
+  // Step 2 State: AI Resale Valuation (LightGBM in INR)
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [aiRecord, setAiRecord] = useState<AIPredictionRecord | null>(null);
-  const [oracleTxStage, setOracleTxStage] = useState<
-    'idle' | 'waiting_approval' | 'submitted' | 'pending' | 'confirmed'
-  >('idle');
   const [deployTxStage, setDeployTxStage] = useState<
     'idle' | 'waiting_approval' | 'submitted' | 'pending' | 'confirmed'
   >('idle');
 
-  // Step 4 State: Auction Terms in Test ETH
+  // Step 3 State: Auction Terms in Test ETH (with real-time INR display)
   const [startingBidEth, setStartingBidEth] = useState<string>('12.50');
   const [reservePriceEth, setReservePriceEth] = useState<string>('14.50');
   const [fixedDepositEth, setFixedDepositEth] = useState<string>('2.00');
@@ -94,7 +89,6 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   const applyVehiclePreset = (preset: 'suv' | 'coupe' | 'sedan') => {
     setSelectedImagePreset(preset);
     setAiRecord(null);
-    setOracleTxStage('idle');
     if (preset === 'suv') {
       setVhBrand('Ford');
       setVhModel('F-150 XLT');
@@ -155,7 +149,6 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   const handleRunAiPrediction = async () => {
     setPredictionError(null);
     setIsPredicting(true);
-    setOracleTxStage('idle');
     try {
       const attrs = buildCurrentVehicleAttributes();
       const record = await predictVehiclePrice(attrs);
@@ -170,52 +163,6 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       setPredictionError(err.message || 'Vehicle AI prediction failed');
     } finally {
       setIsPredicting(false);
-    }
-  };
-
-  // Step 3: Register Prediction on PriceOracle.sol with MetaMask confirmation & receipt modal
-  const handleRegisterOnOracle = async () => {
-    if (!aiRecord || !wallet) return;
-    setPredictionError(null);
-    try {
-      setOracleTxStage('waiting_approval');
-      const txRes = await executeMetaMaskTransaction({
-        senderAddress: wallet.address,
-        toAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
-        valueEth: 0,
-      });
-
-      if (!txRes.success) {
-        setOracleTxStage('idle');
-        if (txRes.nonceMismatch) {
-          reportNonceMismatch(txRes.nonceMismatch);
-        }
-        setPredictionError(
-          txRes.error || 'Rejected: Transaction was rejected by the user in MetaMask.'
-        );
-        return;
-      }
-
-      setOracleTxStage('submitted');
-      await new Promise((r) => setTimeout(r, 120));
-      setOracleTxStage('pending');
-      const registered = await registerPredictionOnOracle(aiRecord, authorizedOracleAddress);
-      const finalOracleTxHash = txRes.receipt?.txHash || registered.oracle_tx_hash;
-      const finalOracleBlock = txRes.receipt?.blockNumber || registered.oracle_block_number;
-      setAiRecord({
-        ...registered,
-        oracle_registered: true,
-        oracle_tx_hash: finalOracleTxHash,
-        oracle_block_number: finalOracleBlock,
-      });
-      setOracleTxStage('confirmed');
-      if (finalOracleTxHash) {
-        inspectTransaction(finalOracleTxHash);
-      }
-      setStep(3);
-    } catch (err: any) {
-      setOracleTxStage('idle');
-      setPredictionError(err.message || 'Oracle registration error');
     }
   };
 
@@ -237,7 +184,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       setTermsError('Fixed participation deposit must be greater than 0 ETH.');
       return;
     }
-    setStep(5);
+    setStep(4);
   };
 
   const handleSignAndCreateAuction = async () => {
@@ -307,17 +254,6 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       events: [
         {
           id: `EVT-${100 + nextNumericId}-1`,
-          eventName: 'PredictionRegistered',
-          txHash: aiRecord.oracle_tx_hash,
-          blockNumber: aiRecord.oracle_block_number,
-          timestamp: new Date(now - 15000).toISOString(),
-          actorAddress: aiRecord.oracle_address,
-          summary: `Oracle registered Vehicle Prediction #${aiRecord.prediction_id} (${formatInr(
-            aiRecord.predicted_price
-          )} INR / ${toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise, LightGBM v${aiRecord.model_version}) on PriceOracle.sol`,
-        },
-        {
-          id: `EVT-${100 + nextNumericId}-2`,
           eventName: 'AuctionCreated',
           txHash: createTxHash,
           blockNumber: createBlockNumber,
@@ -378,13 +314,12 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-5 gap-2 text-xs">
+        <div className="grid grid-cols-4 gap-2 text-xs">
           {[
             { num: 1, label: '01. Specs' },
             { num: 2, label: '02. AI Valuation' },
-            { num: 3, label: '03. Oracle Anchor' },
-            { num: 4, label: '04. ETH Terms' },
-            { num: 5, label: '05. Deploy' },
+            { num: 3, label: '03. ETH Terms' },
+            { num: 4, label: '04. Review & Deploy' },
           ].map((s) => {
             const active = step === s.num;
             const done = step > s.num;
@@ -654,14 +589,6 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
             </div>
           </div>
 
-          {oracleTxStage !== 'idle' && (
-            <div className="p-3 rounded-lg bg-[#090D1A] border border-[#2563EB]/50 text-xs font-mono text-slate-200">
-              {oracleTxStage === 'waiting_approval' && '1/3 Requesting Oracle relayer signature...'}
-              {oracleTxStage === 'submitted' && '2/3 Submitting registerPrediction() to PriceOracle.sol...'}
-              {oracleTxStage === 'pending' && '3/3 Waiting for block confirmation on Hardhat #31337...'}
-            </div>
-          )}
-
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
@@ -674,85 +601,23 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
             <button
               type="button"
-              onClick={handleRegisterOnOracle}
-              disabled={oracleTxStage !== 'idle'}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <span>Register Valuation on PriceOracle.sol</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: ORACLE REGISTRATION CONFIRMED ON-CHAIN */}
-      {step === 3 && aiRecord && (
-        <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
-          <div className="flex items-start gap-3 text-emerald-200 bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-lg">
-            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400 mt-0.5" />
-            <div className="space-y-0.5">
-              <h2 className="text-sm font-semibold text-white">
-                State 2/2: Valuation Anchored on PriceOracle.sol (Record #{aiRecord.prediction_id})
-              </h2>
-              <p className="text-xs text-slate-300">
-                Oracle signer recorded the integer valuation and canonical SHA-256 vehicle hash on Hardhat Chain ID 31337.
-              </p>
-            </div>
-          </div>
-
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-[#090D1A] border border-[#1E293B] text-xs font-mono tabular-nums">
-            <div>
-              <dt className="text-slate-500 font-sans">Oracle Prediction ID</dt>
-              <dd className="text-white font-semibold mt-0.5">#{aiRecord.prediction_id}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500 font-sans">Anchored Value (Paise / INR)</dt>
-              <dd className="text-white font-semibold mt-0.5">
-                {toInrPaise(aiRecord.predicted_price).toLocaleString('en-IN')} paise ({formatInr(aiRecord.predicted_price)})
-              </dd>
-            </div>
-            <div className="md:col-span-2">
-              <dt className="text-slate-500 font-sans">Oracle Transaction Hash</dt>
-              <dd className="text-slate-200 break-all mt-0.5">{aiRecord.oracle_tx_hash}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500 font-sans">Authorized Oracle Signer</dt>
-              <dd className="text-slate-300 mt-0.5">{aiRecord.oracle_address}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500 font-sans">Block Number</dt>
-              <dd className="text-slate-300 mt-0.5">#{aiRecord.oracle_block_number}</dd>
-            </div>
-          </dl>
-
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(4)}
+              onClick={() => setStep(3)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <span>Configure ETH Auction Terms</span>
+              <span>Configure ETH Terms</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 4: AUCTION TERMS IN TEST ETH */}
-      {step === 4 && aiRecord && (
+      {/* STEP 3: AUCTION TERMS IN TEST ETH */}
+      {step === 3 && aiRecord && (
         <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
           <div className="border-b border-[#1E293B] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-white">
-                04. Configure Sealed-Bid Terms (Test ETH + Live ₹ INR Value)
+                03. Configure Sealed-Bid Terms (Test ETH + Live ₹ INR Value)
               </h2>
               <p className="text-xs text-slate-400 mt-1">
                 The AI valuation ({formatInr(aiRecord.predicted_price)}) is an informational benchmark in Indian Rupees (INR). As you enter Test ETH below, the equivalent value in Indian Rupees (1 ETH = ₹{ETH_TO_INR_RATE.toLocaleString('en-IN')}) is calculated in real time.
@@ -859,7 +724,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
             <button
               type="button"
-              onClick={() => setStep(3)}
+              onClick={() => setStep(2)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -877,15 +742,15 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
         </div>
       )}
 
-      {/* STEP 5: REVIEW & SIGN TRANSACTION */}
-      {step === 5 && aiRecord && (
+      {/* STEP 4: REVIEW & SIGN TRANSACTION */}
+      {step === 4 && aiRecord && (
         <div className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
           <div className="border-b border-[#1E293B] pb-4">
             <h2 className="text-base font-semibold text-white">
-              05. Review & Deploy to SealedAuction.sol
+              04. Review & Deploy to SealedAuction.sol
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Confirm the anchored Oracle valuation record and Test ETH (with ₹ INR equivalents) escrow parameters before signing.
+              Confirm your vehicle listing parameters and Test ETH (with ₹ INR equivalents) escrow terms before signing.
             </p>
           </div>
 
@@ -895,7 +760,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
               <dd className="text-white font-semibold mt-0.5">{title}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Anchored AI Valuation (Oracle #{aiRecord.prediction_id})</dt>
+              <dt className="text-slate-500">AI Valuation (Advisory Benchmark)</dt>
               <dd className="text-white font-mono font-semibold tabular-nums mt-0.5">
                 {formatInr(aiRecord.predicted_price)} (LightGBM v{aiRecord.model_version})
               </dd>
@@ -926,7 +791,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
             <button
               type="button"
-              onClick={() => setStep(4)}
+              onClick={() => setStep(3)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for integrating the proven MetaMask signing, nonce mismatch detection & recovery, live on-chain transaction receipt inspector modal, probe-safe smart contract selectors, and dedicated deployer account patterns from the reference project into AuctionChain.",
-  "updatedAt":  "2026-11-07T12:41:39.845811296Z",
+  "summary":  "Plan to remove the Oracle completely to simplify architecture, direct auction creation from AI valuation, and add a 1-click Dev Bypass Login button to the wallet modal for seamless testing.",
+  "updatedAt":  "2026-11-08T07:16:46.035993432Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

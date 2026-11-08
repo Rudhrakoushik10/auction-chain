@@ -56,6 +56,7 @@ interface WalletContextValue {
   inspectTransaction: (txHash: string) => void;
   refreshHardhatNode: () => Promise<boolean>;
   connectMetaMask: () => Promise<boolean>;
+  devBypassLogin: (roleAddress?: string) => void;
   selectRoleDirect: (targetAccount: WalletAccount) => Promise<boolean>;
   disconnectWallet: () => void;
   switchNetworkToHardhat: () => Promise<void>;
@@ -302,6 +303,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return false;
   }, [humanWallets, refreshHardhatNode]);
 
+  const devBypassLogin = useCallback((roleAddress?: string) => {
+    const targetAddr = roleAddress || HUMAN_ROLE_WALLETS[0].address; // Default to Seller
+    setActiveAddress(targetAddr);
+    setIsConnected(true);
+    setIsMetaMaskAuthorized(true);
+    setChainId(HARDHAT_CHAIN_ID);
+    setErrorMessage(null);
+    setMismatchInfo(null);
+    setIsAuthModalOpen(false);
+  }, []);
+
   const selectRoleDirect = useCallback(
     async (targetAccount: WalletAccount): Promise<boolean> => {
       setIsConnecting(true);
@@ -424,6 +436,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         inspectTransaction,
         refreshHardhatNode,
         connectMetaMask,
+        devBypassLogin,
         selectRoleDirect,
         disconnectWallet,
         switchNetworkToHardhat,

@@ -9,6 +9,7 @@ import {
   WifiOff,
   Copy,
   Check,
+  Zap,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
 import { shortenAddress, formatEthToInr } from '../../lib/crypto';
@@ -21,6 +22,7 @@ export const AuthModal: React.FC = () => {
     closeAuthModal,
     humanWallets,
     connectMetaMask,
+    devBypassLogin,
     selectRoleDirect,
     isConnecting,
     errorMessage,
@@ -76,7 +78,7 @@ export const AuthModal: React.FC = () => {
               )}
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
-              Connect via MetaMask or select one of the 4 dedicated Hardhat role accounts.
+              Connect via MetaMask or use 1-click Dev Bypass for instant debugging.
             </div>
           </div>
           <button
@@ -91,6 +93,30 @@ export const AuthModal: React.FC = () => {
 
         {/* Body */}
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* 1-Click Dev Bypass Banner for Development and Debugging */}
+          <div className="bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 rounded-xl border border-blue-500/30 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-[11px] font-bold border border-blue-500/40 flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  DEV BYPASS
+                </span>
+                <span className="text-sm font-semibold text-white">Instant 1-Click Login</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Bypass MetaMask popups during development. Logs in directly as <strong>Account #1 (Seller)</strong> with 10,000 ETH test balance.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => devBypassLogin()}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20 whitespace-nowrap shrink-0"
+            >
+              <Zap className="w-4 h-4 text-amber-300" />
+              <span>⚡ Bypass Login (Seller)</span>
+            </button>
+          </div>
+
           {/* Hardhat RPC Offline Warning */}
           {!isNodeOnline && (
             <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-4 space-y-2 text-xs text-rose-200">
@@ -190,7 +216,7 @@ export const AuthModal: React.FC = () => {
               <span className="font-semibold text-slate-300">
                 Dedicated Single-Role Hardhat Accounts
               </span>
-              <span className="font-mono text-slate-400">4 Human Accounts + 1 Oracle</span>
+              <span className="font-mono text-slate-400">Direct 1-Click Role Access</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
