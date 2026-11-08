@@ -17,7 +17,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-12 border-b border-[#232730]">
           {/* Col 1: Brand & Institutional Statement */}
-          <div className="md:col-span-5 space-y-4">
+          <div className="md:col-span-8 space-y-4">
             <Logo size="md" subtitle="Institutional Vehicle Reserve Exchange" />
             <p className="text-sm text-[#8E95A5] max-w-md leading-relaxed">
               AuctionChain combines luxury and commercial automotive remarketing with
@@ -33,52 +33,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
             </div>
           </div>
 
-          {/* Col 2: Navigation */}
-          <div className="md:col-span-3 space-y-3">
-            <h4 className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#F4F5F7]">
-              Marketplace & Valuation
-            </h4>
-            <ul className="space-y-2.5 text-sm text-[#8E95A5]">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigatePublic?.('explore')}
-                  className="hover:text-[#C5A46D] transition-colors cursor-pointer"
-                >
-                  Live Reserve Catalog
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigatePublic?.('ai-estimator')}
-                  className="hover:text-[#C5A46D] transition-colors cursor-pointer"
-                >
-                  AI Vehicle Valuation Desk
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigatePublic?.('how-it-works')}
-                  className="hover:text-[#C5A46D] transition-colors cursor-pointer"
-                >
-                  Commit-Reveal Mechanics
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigatePublic?.('security')}
-                  className="hover:text-[#C5A46D] transition-colors cursor-pointer"
-                >
-                  Contract Audit & Escrow
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 3: On-Chain Registry */}
+          {/* Col 2: On-Chain Registry */}
           <div className="md:col-span-4 space-y-3">
             <h4 className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#F4F5F7]">
               Verified Contract Registry
@@ -105,17 +60,24 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
           <div className="flex items-center gap-6">
             <button
               type="button"
-              onClick={() => onNavigatePublic?.('about')}
+              onClick={() => onNavigatePublic?.('home')}
               className="hover:text-[#F4F5F7] transition-colors cursor-pointer"
             >
-              Architecture
+              Overview
             </button>
             <button
               type="button"
-              onClick={() => onNavigatePublic?.('security')}
+              onClick={() => onNavigatePublic?.('how-it-works')}
               className="hover:text-[#F4F5F7] transition-colors cursor-pointer"
             >
-              Cryptographic Specification
+              How It Works
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigatePublic?.('architecture')}
+              className="hover:text-[#F4F5F7] transition-colors cursor-pointer"
+            >
+              Architecture
             </button>
           </div>
         </div>

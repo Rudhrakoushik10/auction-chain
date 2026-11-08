@@ -1,5 +1,5 @@
 import React from 'react';
-import logoImg from '../../assets/images/auctionchain_logo.jpg';
+import logoImg from '../../assets/images/auctionchain_logo.png';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -13,9 +13,9 @@ export const Logo: React.FC<LogoProps> = ({
   subtitle = 'Institutional Reserve Exchange',
 }) => {
   const dimensions = {
-    sm: 'w-8 h-8',
-    md: 'w-9 h-9',
-    lg: 'w-12 h-12',
+    sm: 'w-9 h-9',
+    md: 'w-11 h-11',
+    lg: 'w-14 h-14',
   }[size];
 
   const titleSizes = {
@@ -27,12 +27,12 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <div className="inline-flex items-center gap-3 select-none">
       <div
-        className={`${dimensions} rounded-md overflow-hidden border border-[#232730] bg-[#12141A] flex items-center justify-center shrink-0`}
+        className={`${dimensions} rounded-lg overflow-hidden flex items-center justify-center shrink-0`}
       >
         <img
           src={logoImg}
           alt="AuctionChain Logo"
-          className="w-full h-full object-cover opacity-90 contrast-125"
+          className="w-full h-full object-contain"
         />
       </div>
       {showText && (

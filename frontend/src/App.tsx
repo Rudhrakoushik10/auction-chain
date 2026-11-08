@@ -10,13 +10,9 @@ import { AuthenticatedHeader } from './components/layout/AuthenticatedHeader';
 import { Footer } from './components/layout/Footer';
 import { AuthModal } from './components/wallet/AuthModal';
 import { Home } from './pages/Home';
-import { Marketplace } from './pages/Marketplace';
-import { CreateAuction } from './pages/CreateAuction';
 import { AuctionDetails } from './pages/AuctionDetails';
 import { HowItWorksPage } from './pages/public/HowItWorksPage';
-import { AIPriceEstimatorPage } from './pages/public/AIPriceEstimatorPage';
-import { SecurityTransparencyPage } from './pages/public/SecurityTransparencyPage';
-import { AboutUsPage } from './pages/public/AboutUsPage';
+import { ArchitecturePage } from './pages/public/ArchitecturePage';
 import { SellerDashboard } from './pages/seller/SellerDashboard';
 import { BidderDashboard } from './pages/bidder/BidderDashboard';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -655,7 +651,21 @@ function AuctionChainAppContent() {
             />
           </div>
         )}
-        {selectedAuction ? (
+        {!isConnected || !wallet ? (
+          /* ================= PRE-LOGIN PUBLIC ROUTES (Overview, How It Works, Architecture) ================= */
+          publicTab === 'home' ? (
+            <Home
+              onNavigate={(tab) => {
+                setSelectedAuctionId(null);
+                setPublicTab(tab);
+              }}
+            />
+          ) : publicTab === 'how-it-works' ? (
+            <HowItWorksPage />
+          ) : (
+            <ArchitecturePage />
+          )
+        ) : selectedAuction ? (
           <AuctionDetails
             auction={selectedAuction}
             onBack={() => setSelectedAuctionId(null)}
@@ -668,31 +678,6 @@ function AuctionChainAppContent() {
             onWithdrawProceeds={handleWithdrawProceeds}
             savedSecrets={savedSecrets}
           />
-        ) : !isConnected || !wallet ? (
-          /* ================= PRE-LOGIN PUBLIC ROUTES (Section 2) ================= */
-          publicTab === 'home' ? (
-            <Home
-              auctions={auctions}
-              onSelectAuction={handleSelectAuction}
-              onNavigate={(tab) => {
-                setSelectedAuctionId(null);
-                setPublicTab(tab as PublicNavTab);
-              }}
-            />
-          ) : publicTab === 'explore' ? (
-            <Marketplace
-              auctions={auctions}
-              onSelectAuction={handleSelectAuction}
-            />
-          ) : publicTab === 'how-it-works' ? (
-            <HowItWorksPage />
-          ) : publicTab === 'ai-estimator' ? (
-            <AIPriceEstimatorPage />
-          ) : publicTab === 'security' ? (
-            <SecurityTransparencyPage />
-          ) : (
-            <AboutUsPage />
-          )
         ) : (
           /* ================= POST-LOGIN ROLE-BASED DASHBOARDS (Sections 6, 7, 8) ================= */
           wallet.role === 'seller' ? (

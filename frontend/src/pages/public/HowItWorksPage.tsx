@@ -1,150 +1,322 @@
 import React from 'react';
-import {
-  Scale,
-  Lock,
-  Eye,
-  Award,
-  ArrowRight,
-  Wallet,
-  FileCode2,
-} from 'lucide-react';
-import { useWallet } from '../../context/WalletContext';
 
 export const HowItWorksPage: React.FC = () => {
-  const { openAuthModal } = useWallet();
+  const lifecycleStages = [
+    {
+      index: '01',
+      phase: 'Vehicle Consignment & AI Valuation',
+      actor: 'Vehicle Seller',
+      plainExplanation:
+        'Before an auction begins, the seller enters the vehicle’s physical specifications—make, model, manufacturing year, odometer reading in kilometers, fuel type, transmission, and accident history. The platform’s AI valuation engine evaluates these parameters against Indian pre-owned automotive market data to establish an objective fair-market estimate in Indian Rupees (₹). Using this reference, the seller sets a public Starting Bid, a minimum Reserve Price, and the durations for the bidding and reveal windows.',
+      systemVerification: {
+        input: '11 structured vehicle attributes',
+        process: 'AI market valuation (₹ INR) + canonical SHA-256 specification hash',
+        outcome: 'Valuation fingerprint anchored on PriceOracle.sol; auction deployed on SealedAuction.sol',
+      },
+    },
+    {
+      index: '02',
+      phase: 'Sealed Bid Submission (Commit Window)',
+      actor: 'Competing Buyers',
+      plainExplanation:
+        'While the Commit timer is active, interested buyers submit their offers privately. When a buyer types a bid amount, their browser locks that price together with a randomly generated secret key—creating a digital sealed envelope—and downloads a backup passkey file to their device. Every participating buyer locks the exact same refundable security deposit in ETH so that no one watching the public ledger can deduce how much anyone else has bid.',
+      systemVerification: {
+        input: 'Private bid amount + 256-bit random salt + uniform refundable deposit',
+        process: 'Browser computes keccak256(abi.encode(auctionId, bidder, bidWei, salt))',
+        outcome: 'Only the scrambled 32-byte commitment hash and fixed deposit are recorded on-chain',
+      },
+    },
+    {
+      index: '03',
+      phase: 'Simultaneous Unsealing (Reveal Window)',
+      actor: 'Competing Buyers',
+      plainExplanation:
+        'Once the Commit deadline expires, the bidding box is permanently closed—no new offers can be submitted. The auction enters the Reveal window, where each buyer unlocks their sealed envelope using their saved secret key. The smart contract checks that the revealed price and key match the original digital fingerprint from Stage 02. Because all offers were locked before anyone’s price became visible, last-second bid sniping and reactive outbidding are impossible.',
+      systemVerification: {
+        input: 'Plaintext bid amount + saved 256-bit secret salt',
+        process: 'SealedAuction.sol recomputes the Keccak-256 hash on-chain and compares against Stage 02',
+        outcome: 'Matching bids are verified and ranked; altered or mismatched amounts are rejected',
+      },
+    },
+    {
+      index: '04',
+      phase: 'Automated Winner Determination',
+      actor: 'Smart Contract Referee',
+      plainExplanation:
+        'When the Reveal timer concludes, the smart contract finalizes the auction without human intervention. It reviews all verified bids, confirms whether the highest verified offer meets or exceeds the seller’s minimum Reserve Price, and records the winning buyer on the blockchain ledger. If no revealed bid meets the reserve threshold, the auction closes without a sale and the seller retains ownership of the vehicle.',
+      systemVerification: {
+        input: 'All verified revealed bids + seller reserve threshold',
+        process: 'Deterministic state transition via finalizeAuction(auctionId)',
+        outcome: 'Highest qualifying bidder is locked as winner; non-winning deposits are unlocked for refund',
+      },
+    },
+    {
+      index: '05',
+      phase: 'Escrow Settlement & Deposit Refunds',
+      actor: 'Winner, Non-Winners & Seller',
+      plainExplanation:
+        'All financial settlement occurs directly through the smart contract escrow without a middleman bank holding funds:\n\n• Winning Buyer: Their initial security deposit is credited toward the purchase, and they pay only the remaining balance (Winning Bid minus Deposit).\n• Non-Winning Buyers: Every buyer who revealed a valid bid reclaims 100% of their security deposit directly back to their wallet.\n• Vehicle Seller: Once the winner settles the balance, the seller withdraws the full sale proceeds.',
+      systemVerification: {
+        input: 'Finalized auction state on SealedAuction.sol',
+        process: 'Pull-over-push settlement (settleWinner, claimRefund, withdrawSellerProceeds)',
+        outcome: 'Zero custodial risk; instant self-service refunds for all non-winning participants',
+      },
+    },
+  ];
 
-  const stages = [
+  const settlementRules = [
     {
-      step: '01',
-      icon: Scale,
-      title: 'AI Vehicle Valuation & Oracle Registration',
-      subtitle: 'Off-Chain Gemini AI Valuation → PriceOracle.sol',
-      description:
-        'Before a vehicle is listed, 13 structured specification attributes (year, manufacturer, model, odometer, condition, fuel, transmission, drivetrain, title status) are evaluated to establish an advisory Indian Rupee (INR) valuation. A canonical SHA-256 hash of the attributes and integer paise valuation is committed to PriceOracle.sol by the authorized Oracle signer.',
-      codeSnippet: `// PriceOracle.sol
-function storePrediction(
-    uint256 _predictedPrice, // Valuation in paise (INR * 100)
-    bytes32 _dataHash        // Canonical SHA-256 vehicle spec hash
-) external onlyOracle returns (uint256 predictionId)`,
+      scenario: 'A buyer places a sealed bid, reveals it on time, but is outbid by another participant',
+      resolution: '100% Deposit Refunded',
+      detail:
+        'The non-winning buyer clicks Claim Refund after finalization and receives their entire security deposit back immediately.',
     },
     {
-      step: '02',
-      icon: Lock,
-      title: 'Sealed Bid Commitment (Commit Phase)',
-      subtitle: 'Keccak-256 Salted Hash + Uniform Collateral Deposit',
-      description:
-        'During the Commit window, bidders compute a local Keccak-256 commitment hash combining their true bid (in wei) and a 32-byte cryptographic salt. Every bidder locks the exact same fixed collateral deposit in ETH so that transaction value on the public ledger never leaks the underlying bid amount.',
-      codeSnippet: `// SealedAuction.sol
-bytes32 commitment = keccak256(abi.encodePacked(uint256(bidWei), bytes32(salt)));
-auction.commitBid{value: fixedDepositWei}(auctionId, commitment);`,
+      scenario: 'A participant attempts to change their bid amount while unlocking it during the Reveal window',
+      resolution: 'Rejected by Smart Contract',
+      detail:
+        'Altering the bid amount by even a single unit changes the resulting Keccak-256 hash. The smart contract detects the mismatch and rejects the transaction.',
     },
     {
-      step: '03',
-      icon: Eye,
-      title: 'Cryptographic Verification (Reveal Phase)',
-      subtitle: 'On-Chain Hash Matching & Reserve Price Enforcement',
-      description:
-        'Once the Commit deadline expires, bidders submit their plaintext bid amount and secret salt. SealedAuction.sol recomputes keccak256(abi.encodePacked(_bidAmount, _salt)) on-chain, verifies equality against the stored commitment, and updates the highest verified bid if it meets the seller reserve threshold.',
-      codeSnippet: `// SealedAuction.sol
-bytes32 computed = keccak256(abi.encodePacked(_bidAmount, _salt));
-if (computed != c.commitmentHash) revert HashMismatch();`,
+      scenario: 'The highest revealed bid is lower than the seller’s minimum Reserve Price',
+      resolution: 'No Sale · Full Refunds Issued',
+      detail:
+        'The seller is never obligated to sell below their reserve. The auction closes with no winner, and every buyer who revealed on time reclaims 100% of their deposit.',
     },
     {
-      step: '04',
-      icon: Award,
-      title: 'Deterministic Finalization & Pull-Based Escrow',
-      subtitle: 'Winner Settlement, Deposit Refunds & Seller Proceeds',
-      description:
-        'After the Reveal window closes, finalizeAuction() locks the winning bidder. Non-winning revealed bidders reclaim 100% of their collateral deposit via pull-based claimRefund(), while the winning bidder settles any remaining balance above their deposit and the seller withdraws proceeds.',
-      codeSnippet: `// Pull-over-Push Settlement Pattern
-auction.finalizeAuction(auctionId);
-auction.claimRefund(auctionId);            // Losing revealed bidders
-auction.withdrawSellerProceeds(auctionId); // Consigning seller`,
+      scenario: 'A participant submits a sealed commitment to spam the auction but refuses to reveal it',
+      resolution: 'Deposit Remains Locked',
+      detail:
+        'Only bidders who complete the Reveal phase can reclaim their security deposit, deterring fake bids and griefing attacks.',
     },
   ];
 
   return (
-    <div className="space-y-12 pb-16">
-      {/* Header */}
-      <div className="bg-[#12141A] border border-[#232730] rounded-md p-8 sm:p-10">
-        <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#C5A46D]">
-          Protocol Specification
-        </span>
-        <h1 className="text-2xl sm:text-4xl font-display font-semibold text-[#F4F5F7] mt-2">
-          How the Commit-Reveal Reserve Protocol Operates
-        </h1>
-        <p className="text-sm sm:text-base text-[#8E95A5] mt-3 max-w-3xl leading-relaxed">
-          Traditional open-outcry and transparent blockchain auctions expose bidders
-          to mempool front-running, shill bidding, and last-second sniping.
-          AuctionChain eliminates information asymmetry through a four-stage
-          cryptographic state machine.
-        </p>
-      </div>
+    <div className="space-y-24 pb-24">
+      {/* =====================================================================
+          SECTION 1: EDITORIAL HEADER & THE SEALED-TENDER PRINCIPLE
+         ===================================================================== */}
+      <section className="pt-4 space-y-12">
+        <div className="max-w-3xl space-y-4">
+          <div className="flex items-center gap-3 text-xs font-mono text-[#8E95A5]">
+            <span className="text-[#C5A46D]">Operational Workflow</span>
+            <span aria-hidden="true">·</span>
+            <span>End-to-End Auction Mechanics</span>
+          </div>
 
-      {/* Stages */}
-      <div className="space-y-6">
-        {stages.map((st) => {
-          const Icon = st.icon;
-          return (
-            <div
-              key={st.step}
-              className="bg-[#12141A] border border-[#232730] rounded-md p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+          <h1
+            className="text-3xl sm:text-5xl font-display font-semibold text-[#F4F5F7] tracking-tight leading-[1.1]"
+            style={{ textWrap: 'balance' }}
+          >
+            How a Sealed-Bid Vehicle Auction Works from Listing to Settlement
+          </h1>
+
+          <p className="text-base text-[#8E95A5] leading-relaxed max-w-2xl">
+            In a conventional open auction, everyone hears the current price in real time—allowing competitors to wait until the final seconds to outbid you by a fraction, or insiders to place artificial bids that drive up the price. AuctionChain replaces open shouting with a <strong className="text-[#F4F5F7] font-medium">digital sealed-envelope tender</strong> governed by smart contracts.
+          </p>
+        </div>
+
+        {/* Clean 2-Column Structural Comparison (Hairline Divided, No Nested Boxes) */}
+        <div className="border-t border-b border-[#232730] grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#232730]">
+          <div className="py-8 md:pr-10 space-y-3">
+            <div className="text-xs font-mono text-[#8E95A5]">
+              01. The Physical Sealed-Envelope Analogy
+            </div>
+            <h2 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Everyone Submits in Private, Everyone Opens Together
+            </h2>
+            <p className="text-sm text-[#8E95A5] leading-relaxed">
+              Imagine buying a car where every interested buyer writes their best offer on a sheet of paper, seals it inside an opaque envelope, and places it into a locked vault along with a standard refundable security deposit. Because the envelopes are sealed, no buyer can peek at a competitor’s offer, and no one can jump in after seeing the highest price. Only when the submission clock expires are all envelopes opened simultaneously.
+            </p>
+          </div>
+
+          <div className="py-8 md:pl-10 space-y-3">
+            <div className="text-xs font-mono text-[#C5A46D]">
+              02. How AuctionChain Automates This Digitally
+            </div>
+            <h2 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Cryptographic Seals & Non-Custodial Escrow
+            </h2>
+            <p className="text-sm text-[#8E95A5] leading-relaxed">
+              AuctionChain executes this exact process in software. First, an AI valuation engine estimates the vehicle’s fair market worth in Indian Rupees (₹) so buyers and sellers share an objective baseline. Next, your browser locks your bid inside a cryptographic hash during the <strong className="text-[#F4F5F7] font-medium">Commit Window</strong>. Once bidding closes, participants unlock their bids during the <strong className="text-[#F4F5F7] font-medium">Reveal Window</strong>, the smart contract verifies every seal, awards the vehicle to the highest qualifying bidder, and returns 100% of the security deposit to everyone else.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          SECTION 2: THE 5-STAGE LIFECYCLE LEDGER (CONTINUOUS EDITORIAL FLOW)
+         ===================================================================== */}
+      <section className="space-y-8">
+        <div className="max-w-2xl space-y-2">
+          <div className="text-xs font-mono text-[#C5A46D]">
+            Five-Stage Sequence
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
+            Step-by-Step Execution Flow
+          </h2>
+          <p className="text-sm text-[#8E95A5] leading-relaxed">
+            Every vehicle consignment progresses through five sequential stages. Below is what happens in plain language alongside the underlying smart contract verification at each step.
+          </p>
+        </div>
+
+        <div className="border-t border-[#232730] divide-y divide-[#232730]">
+          {lifecycleStages.map((stage) => (
+            <article
+              key={stage.index}
+              className="py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <div className="lg:col-span-7 space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded bg-[#0B0C10] border border-[#C5A46D]/40 text-[#C5A46D]">
-                    STAGE {st.step}
-                  </span>
-                  <span className="text-xs font-mono text-[#8E95A5]">
-                    {st.subtitle}
-                  </span>
+              {/* Column 1: Stage Number & Actor (3 cols) */}
+              <div className="lg:col-span-3 space-y-2">
+                <div className="text-2xl font-mono font-semibold text-[#C5A46D] tabular-nums">
+                  {stage.index}
                 </div>
-                <h2 className="text-xl font-display font-semibold text-[#F4F5F7] flex items-center gap-2.5">
-                  <Icon className="w-5 h-5 text-[#C5A46D]" />
-                  <span>{st.title}</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-[#8E95A5] leading-relaxed">
-                  {st.description}
+                <h3 className="text-lg font-display font-semibold text-[#F4F5F7] leading-snug">
+                  {stage.phase}
+                </h3>
+                <div className="text-xs font-mono text-[#8E95A5] pt-1">
+                  Actor: <span className="text-[#F4F5F7]">{stage.actor}</span>
+                </div>
+              </div>
+
+              {/* Column 2: Plain-English Narrative (5 cols) */}
+              <div className="lg:col-span-5 space-y-2">
+                <div className="text-xs font-mono text-[#646C7E]">
+                  How It Works in Plain Language
+                </div>
+                <p className="text-sm text-[#8E95A5] leading-relaxed whitespace-pre-line">
+                  {stage.plainExplanation}
                 </p>
               </div>
 
-              <div className="lg:col-span-5 bg-[#0B0C10] border border-[#232730] rounded-md p-4">
-                <div className="flex items-center justify-between text-[10px] font-mono text-[#646C7E] pb-2 mb-2 border-b border-[#232730]">
-                  <span className="flex items-center gap-1.5 text-[#8E95A5]">
-                    <FileCode2 className="w-3.5 h-3.5 text-[#C5A46D]" />
-                    SOLIDITY 0.8.20 VERIFICATION
-                  </span>
-                  <span>EVM</span>
+              {/* Column 3: Protocol Verification Ledger (4 cols) */}
+              <div className="lg:col-span-4 bg-[#12141A] border border-[#232730] rounded-md p-5 space-y-3.5 text-xs">
+                <div className="font-mono text-[#C5A46D] pb-2 border-b border-[#232730]">
+                  Protocol Verification · Stage {stage.index}
                 </div>
-                <pre className="text-[11px] font-mono text-[#F4F5F7] overflow-x-auto leading-relaxed">
-                  {st.codeSnippet}
-                </pre>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
-      {/* Bottom CTA */}
-      <div className="bg-[#12141A] border border-[#232730] rounded-md p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div>
-          <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-            Ready to Execute a Full Commit-Reveal Cycle?
-          </h3>
-          <p className="text-xs text-[#8E95A5] mt-1">
-            Connect with any role-mapped Hardhat signer or use the 1-click Seller
-            evaluation bypass.
+                <dl className="space-y-3">
+                  <div>
+                    <dt className="text-[#646C7E] font-mono">Input</dt>
+                    <dd className="text-[#F4F5F7] mt-0.5">{stage.systemVerification.input}</dd>
+                  </div>
+                  <div className="pt-2.5 border-t border-[#232730]">
+                    <dt className="text-[#646C7E] font-mono">Mechanism</dt>
+                    <dd className="text-[#F4F5F7] font-mono text-[11px] mt-0.5">
+                      {stage.systemVerification.process}
+                    </dd>
+                  </div>
+                  <div className="pt-2.5 border-t border-[#232730]">
+                    <dt className="text-[#646C7E] font-mono">Verified Outcome</dt>
+                    <dd className="text-[#8E95A5] mt-0.5">{stage.systemVerification.outcome}</dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* =====================================================================
+          SECTION 3: PARTICIPANT ROLES AT A GLANCE
+         ===================================================================== */}
+      <section className="space-y-8">
+        <div className="max-w-2xl space-y-2">
+          <div className="text-xs font-mono text-[#C5A46D]">
+            Role Responsibilities
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
+            What Each Participant Does
+          </h2>
+        </div>
+
+        <div className="border-t border-b border-[#232730] grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#232730]">
+          <div className="py-8 md:pr-8 space-y-4">
+            <div className="text-xs font-mono text-[#C5A46D]">01. Vehicle Seller</div>
+            <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Consigns the Vehicle & Collects Proceeds
+            </h3>
+            <ol className="space-y-2.5 text-sm text-[#8E95A5] leading-relaxed list-decimal list-inside">
+              <li>Submits accurate vehicle specifications for AI valuation in ₹ INR.</li>
+              <li>Configures the Starting Bid, Reserve Price, and Commit/Reveal timers.</li>
+              <li>Finalizes the auction once the Reveal deadline finishes.</li>
+              <li>Withdraws the full winning sale proceeds from escrow.</li>
+            </ol>
+          </div>
+
+          <div className="py-8 md:px-8 space-y-4">
+            <div className="text-xs font-mono text-[#C5A46D]">02. Competing Buyer (Bidder)</div>
+            <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Seals the Offer & Unlocks on Time
+            </h3>
+            <ol className="space-y-2.5 text-sm text-[#8E95A5] leading-relaxed list-decimal list-inside">
+              <li>Reviews the vehicle dossier and AI Indian Rupee benchmark.</li>
+              <li>Locks a sealed bid and refundable deposit during the Commit window.</li>
+              <li>Unlocks the sealed bid during the Reveal window using the saved passkey.</li>
+              <li>Either settles the winning balance or claims a 100% deposit refund.</li>
+            </ol>
+          </div>
+
+          <div className="py-8 md:pl-8 space-y-4">
+            <div className="text-xs font-mono text-[#C5A46D]">03. Smart Contract & Oracle</div>
+            <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
+              Enforces Rules Without Favouritism
+            </h3>
+            <ol className="space-y-2.5 text-sm text-[#8E95A5] leading-relaxed list-decimal list-inside">
+              <li>Anchors the vehicle’s SHA-256 specification hash and live ETH/INR rate.</li>
+              <li>Holds all bidder security deposits in non-custodial escrow.</li>
+              <li>Verifies that revealed offers match their original sealed hashes.</li>
+              <li>Determines the highest valid bidder and unlocks instant refunds.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          SECTION 4: EDGE-CASE & SCENARIO RESOLUTION TABLE
+         ===================================================================== */}
+      <section className="space-y-6">
+        <div className="max-w-2xl space-y-2">
+          <div className="text-xs font-mono text-[#C5A46D]">
+            Protocol Safeguards
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
+            How the System Handles Every Scenario
+          </h2>
+          <p className="text-sm text-[#8E95A5]">
+            Because rules are enforced by deterministic smart contracts, every outcome is predictable and transparent before you place a bid.
           </p>
         </div>
-        <button
-          onClick={openAuthModal}
-          className="px-6 py-3 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] font-semibold text-xs uppercase tracking-[0.12em] flex items-center gap-2 shrink-0 transition-colors cursor-pointer"
-        >
-          <Wallet className="w-4 h-4" />
-          <span>Connect Wallet</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
+
+        <div className="bg-[#12141A] border border-[#232730] rounded-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-[#0B0C10] border-b border-[#232730] text-xs font-mono text-[#8E95A5]">
+                  <th className="py-4 px-6 font-medium w-2/5">Scenario</th>
+                  <th className="py-4 px-6 font-medium w-1/5">Contract Outcome</th>
+                  <th className="py-4 px-6 font-medium w-2/5">How Funds Are Handled</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#232730]">
+                {settlementRules.map((rule) => (
+                  <tr key={rule.scenario} className="hover:bg-[#171A22]/50 transition-colors">
+                    <td className="py-5 px-6 text-[#F4F5F7] font-medium align-top">
+                      {rule.scenario}
+                    </td>
+                    <td className="py-5 px-6 font-mono text-xs text-[#C5A46D] align-top">
+                      {rule.resolution}
+                    </td>
+                    <td className="py-5 px-6 text-[#8E95A5] text-xs sm:text-sm leading-relaxed align-top">
+                      {rule.detail}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
