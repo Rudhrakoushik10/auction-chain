@@ -86,6 +86,8 @@ These rules are critical to ensure no hallucinations or architectural drift:
 - [x] **Chainlink Price Feed Oracle Panel**:
   - Live round KPI cards: ETH/INR rate, Round ID, 8 decimals, heartbeat status.
   - Interactive simulator to broadcast new rounds (presets: ₹2.40L, ₹2.50L, ₹2.60L, ₹2.75L, ₹2.90L, or custom input).
+  - **Live Real-World Market Ingestion**: Integrated CoinGecko Spot API & Binance fallback with 1-click **"Fetch Live Spot Market Price"** button and 60-second periodic auto-sync.
+  - **Autonomous Feeder Daemon (`blockchain/scripts/priceFeedDaemon.js`)**: Standalone Node.js service using Hardhat Account 4 to continuously query CoinGecko spot rates and broadcast `PriceOracle.updateEthInrPrice` on-chain every 30s.
   - Full technical specifications and architecture callout.
 - [x] **Updated Role Directory & Topology**:
   - Hardhat Account 4 updated to "Price Oracle Feeder".

@@ -16,6 +16,7 @@ import {
   RefreshCw,
   CheckCircle2,
   Coins,
+  Globe,
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
@@ -51,6 +52,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     liveEthInrRate,
     oracleRoundId,
     updateLivePriceFeed,
+    isFetchingMarketRate,
+    marketRateSource,
+    lastMarketFetchTime,
+    isAutoMarketSync,
+    fetchRealMarketEthRate,
+    toggleAutoMarketSync,
   } = useWallet();
 
   const [activeTab, setActiveTab] = useState<AdminNavTab>('dashboard');
@@ -75,6 +82,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setFeedFeedback('Failed to update price feed');
     } finally {
       setIsUpdatingFeed(false);
+    }
+  };
+
+  const handleFetchMarketPrice = async () => {
+    setFeedFeedback(null);
+    const newPrice = await fetchRealMarketEthRate();
+    if (newPrice) {
+      setRateInput(newPrice.toString());
+      setFeedFeedback(`Live spot market price fetched: 1 ETH = ₹${newPrice.toLocaleString('en-IN')} via ${marketRateSource || 'CoinGecko'}`);
+      setTimeout(() => setFeedFeedback(null), 5000);
+    } else {
+      setFeedFeedback('Could not fetch market price. Using previous oracle round.');
     }
   };
 
@@ -288,6 +307,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="text-[10px] text-slate-500 mt-0.5 font-sans">Auto-broadcasting</div>
               </div>
             </div>
+
+            {/* Real-Time Spot Market Ingestion Box */}
+            <section className="bg-gradient-to-r from-[#0F172A] to-[#131E3A] rounded-xl border border-blue-500/30 p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">
+                      Live Real-World Market Ingestion (CoinGecko / Binance)
+                    </h3>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      Public Crypto API
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Fetch real-time Ethereum spot price in Indian Rupees (INR) from decentralized / public aggregators and broadcast to the on-chain oracle.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleFetchMarketPrice}
+                    disabled={isFetchingMarketRate}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shadow-lg shadow-emerald-950/40 whitespace-nowrap"
+                  >
+                    {isFetchingMarketRate ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Querying CoinGecko...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-3.5 h-3.5" />
+                        <span>Fetch Live Spot Market Price</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-[#1E293B] flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+                <div className="flex items-center gap-4">
+                  <span>
+                    Current Source: <strong className="text-slate-200">{marketRateSource || 'Initial Baseline'}</strong>
+                  </span>
+                  {lastMarketFetchTime && (
+                    <span>
+                      Last Synced: <strong className="text-emerald-400">{new Date(lastMarketFetchTime).toLocaleTimeString()}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isAutoMarketSync}
+                    onChange={(e) => toggleAutoMarketSync(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-[#2563EB] cursor-pointer"
+                  />
+                  <span className="text-slate-300 text-xs">Auto-Sync with Spot Market (every 60s)</span>
+                </label>
+              </div>
+            </section>
 
             {/* Live Feed Simulator Form */}
             <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-5 space-y-4">

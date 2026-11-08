@@ -49,6 +49,12 @@ interface WalletContextValue {
   auctionContractAddress: string;
   liveEthInrRate: number;
   oracleRoundId: number;
+  isFetchingMarketRate: boolean;
+  marketRateSource: string | null;
+  lastMarketFetchTime: number | null;
+  isAutoMarketSync: boolean;
+  fetchRealMarketEthRate: () => Promise<number | null>;
+  toggleAutoMarketSync: (enabled: boolean) => void;
   updateLivePriceFeed: (newRateInr: number) => Promise<boolean>;
   openAuthModal: () => void;
   closeAuthModal: () => void;
@@ -103,6 +109,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? Number(saved) : 250000;
   });
   const [oracleRoundId, setOracleRoundId] = useState<number>(1);
+  const [isFetchingMarketRate, setIsFetchingMarketRate] = useState<boolean>(false);
+  const [marketRateSource, setMarketRateSource] = useState<string | null>(() => {
+    return localStorage.getItem('auctionchain_oracle_market_source') || 'Initial Baseline';
+  });
+  const [lastMarketFetchTime, setLastMarketFetchTime] = useState<number | null>(() => {
+    const s = localStorage.getItem('auctionchain_oracle_last_fetch');
+    return s ? Number(s) : null;
+  });
+  const [isAutoMarketSync, setIsAutoMarketSync] = useState<boolean>(() => {
+    return localStorage.getItem('auctionchain_oracle_auto_sync') === 'true';
+  });
 
   const humanWallets = wallets.filter((w) => w.isHumanFacing);
 
@@ -427,6 +444,72 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     []
   );
 
+  const fetchRealMarketEthRate = useCallback(async (): Promise<number | null> => {
+    setIsFetchingMarketRate(true);
+    try {
+      // 1. Query CoinGecko free public API for live ETH/INR spot price
+      const cgRes = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=inr',
+        { headers: { Accept: 'application/json' } }
+      );
+      if (cgRes.ok) {
+        const data = await cgRes.json();
+        const price = data?.ethereum?.inr;
+        if (typeof price === 'number' && price > 0) {
+          const rounded = Math.round(price);
+          await updateLivePriceFeed(rounded);
+          setMarketRateSource('CoinGecko Spot API');
+          setLastMarketFetchTime(Date.now());
+          localStorage.setItem('auctionchain_oracle_market_source', 'CoinGecko Spot API');
+          localStorage.setItem('auctionchain_oracle_last_fetch', String(Date.now()));
+          setIsFetchingMarketRate(false);
+          return rounded;
+        }
+      }
+    } catch {
+      // CoinGecko fallback
+    }
+
+    try {
+      // 2. Fallback to Binance ETHUSDT * USD/INR (~87.5)
+      const bRes = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT');
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        const ethUsd = parseFloat(bData?.price);
+        if (!isNaN(ethUsd) && ethUsd > 0) {
+          const estimatedInr = Math.round(ethUsd * 87.5);
+          await updateLivePriceFeed(estimatedInr);
+          setMarketRateSource('Binance Spot API (Converted to INR)');
+          setLastMarketFetchTime(Date.now());
+          localStorage.setItem('auctionchain_oracle_market_source', 'Binance Spot API (Converted to INR)');
+          localStorage.setItem('auctionchain_oracle_last_fetch', String(Date.now()));
+          setIsFetchingMarketRate(false);
+          return estimatedInr;
+        }
+      }
+    } catch {
+      // Both failed
+    } finally {
+      setIsFetchingMarketRate(false);
+    }
+    return null;
+  }, [updateLivePriceFeed]);
+
+  const toggleAutoMarketSync = useCallback((enabled: boolean) => {
+    setIsAutoMarketSync(enabled);
+    localStorage.setItem('auctionchain_oracle_auto_sync', enabled ? 'true' : 'false');
+  }, []);
+
+  // Periodic auto-sync if user enabled it
+  useEffect(() => {
+    if (!isAutoMarketSync) return;
+    fetchRealMarketEthRate();
+    const interval = setInterval(() => {
+      fetchRealMarketEthRate();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [isAutoMarketSync, fetchRealMarketEthRate]);
+
   return (
     <WalletContext.Provider
       value={{
@@ -449,6 +532,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         auctionContractAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
         liveEthInrRate,
         oracleRoundId,
+        isFetchingMarketRate,
+        marketRateSource,
+        lastMarketFetchTime,
+        isAutoMarketSync,
+        fetchRealMarketEthRate,
+        toggleAutoMarketSync,
         updateLivePriceFeed,
         openAuthModal,
         closeAuthModal,
