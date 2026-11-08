@@ -89,7 +89,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
         <div className="hidden md:flex items-center gap-3 text-xs text-slate-400 font-mono tabular-nums">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-[11px]">Chainlink ETH/INR:</span>
+            <span className="font-semibold text-[11px]">Oracle (ETH/INR):</span>
             <span className="text-white font-bold text-[11px]">₹{liveEthInrRate.toLocaleString('en-IN')}</span>
           </div>
           <span aria-hidden="true">·</span>

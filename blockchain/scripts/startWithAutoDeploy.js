@@ -1,3 +1,6 @@
+process.env.HARDHAT_DISABLE_TELEMETRY = "true";
+process.env.CI = "true";
+
 const { spawn } = require("child_process");
 const http = require("http");
 const path = require("path");

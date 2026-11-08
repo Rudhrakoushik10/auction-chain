@@ -17,7 +17,7 @@ AuctionChain is a decentralized, fair sealed-bid commit-reveal vehicle auction d
      - **Account 1** (`0x70997970C51812dc3A010C7d01b50e0d17dc79C8`): Primary Seller (Dev Bypass Default).
      - **Account 2** (`0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`): Bidder 1 (Alice).
      - **Account 3** (`0x90F79bf6EB2c0d804191F73244F400557027DD70`): Bidder 2 (Bob).
-     - **Account 4** (`0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65`): Price Oracle Feeder (Pushes live ETH/INR exchange rates).
+     - **Account 4** (`0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65`): Price Oracle (Pushes live ETH/INR exchange rates on PriceOracle.sol).
 2. **AI Valuation Inference Microservice**:
    - Located in `/backend/src/api/main.py` at `http://localhost:8000`.
    - LightGBM `v1.0.0` model (`R² = 0.7615`, `MAE = ₹9,484.57`, trained on 4,009 vehicle records).

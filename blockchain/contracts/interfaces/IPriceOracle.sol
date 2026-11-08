@@ -21,6 +21,10 @@ interface IPriceOracle {
 
     function getPrediction(uint256 _predictionId) external view returns (PredictionRecord memory);
 
+    function predictionExists(uint256 _predictionId) external view returns (bool);
+
+    function updateEthInrPrice(int256 _newPrice) external returns (uint80 roundId);
+
     function latestRoundData()
         external
         view

@@ -102,7 +102,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const sidebarItems: { id: AdminNavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Platform Overview', icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
-    { id: 'oracle', label: 'Chainlink Price Feed', icon: <Cpu className="w-4 h-4 shrink-0" /> },
+    { id: 'oracle', label: 'Price Oracle', icon: <Cpu className="w-4 h-4 shrink-0" /> },
     { id: 'auctions', label: 'Auction Registry', icon: <Gavel className="w-4 h-4 shrink-0" /> },
     { id: 'roles', label: 'Role Accounts', icon: <Users className="w-4 h-4 shrink-0" /> },
     { id: 'blockchain', label: 'Event Audit Log', icon: <Database className="w-4 h-4 shrink-0" /> },
@@ -272,7 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </span>
               </div>
               <h2 className="text-lg font-bold text-white mt-1">
-                Chainlink ETH / INR Price Feed
+                Price Oracle (ETH / INR)
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 On-chain price oracle providing verified Ethereum to Indian Rupee (INR) conversion rates for bids, deposits, and reserve prices across AuctionChain.
@@ -378,7 +378,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div>
                   <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-emerald-400" />
-                    Simulate Chainlink Price Feed Update
+                    Simulate Price Oracle Update
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Broadcast a new ETH/INR rate on-chain to test dynamic fiat recalculations across bids, reserves, and escrow settlement.
@@ -585,9 +585,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ))}
                   <tr>
                     <td className="py-3.5 px-4 font-semibold text-slate-300">
-                      Account 4 — Price Oracle Feeder
+                      Account 4 — Price Oracle
                     </td>
-                    <td className="py-3.5 px-4 text-emerald-400">Autonomous Feeder</td>
+                    <td className="py-3.5 px-4 text-emerald-400">Autonomous Oracle</td>
                     <td className="py-3.5 px-4 font-mono text-slate-400">
                       0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
                     </td>
@@ -595,7 +595,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       10000.0 ETH
                     </td>
                     <td className="py-3.5 px-4 text-slate-400">
-                      Authorized feed updater broadcasting ETH/INR rounds to PriceOracle.sol
+                      Authorized Price Oracle broadcasting on-chain ETH/INR rounds to PriceOracle.sol
                     </td>
                   </tr>
                 </tbody>

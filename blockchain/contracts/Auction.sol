@@ -147,7 +147,9 @@ contract Auction is ReentrancyGuard {
         uint256 _commitDurationSeconds,
         uint256 _revealDurationSeconds
     ) external returns (uint256 auctionId) {
-        if (!priceOracle.predictionExists(_predictionId)) revert InvalidOraclePrediction();
+        if (_predictionId > 0 && !priceOracle.predictionExists(_predictionId)) {
+            revert InvalidOraclePrediction();
+        }
         if (_startingPrice == 0 || _reservePrice < _startingPrice || _fixedDeposit == 0) {
             revert InvalidPricingConfig();
         }
