@@ -119,6 +119,72 @@ contract PriceOracle {
         return predictions[_predictionId].exists;
     }
 
+    // --- Chainlink-Compatible AggregatorV3 Live ETH/INR Price Feed ---
+    int256 private ethInrPrice; // Stored in 8 decimals: 25000000000000 = ₹250,000.00
+    uint80 private currentRoundId;
+    uint256 private lastUpdatedAt;
+
+    event PriceUpdated(
+        uint80 indexed roundId,
+        int256 price,
+        uint256 updatedAt,
+        address indexed updater
+    );
+
+    error InvalidPrice();
+
+    /**
+     * @notice Updates the live ETH/INR exchange rate (8 decimals). Authorized Oracle or Owner only.
+     * @param _newPrice Price with 8 decimals (e.g. 25000000000000 for 250000.00000000)
+     */
+    function updateEthInrPrice(int256 _newPrice) external returns (uint80 roundId) {
+        if (msg.sender != owner && msg.sender != authorizedOracle) revert OnlyAuthorizedOracle();
+        if (_newPrice <= 0) revert InvalidPrice();
+
+        currentRoundId++;
+        ethInrPrice = _newPrice;
+        lastUpdatedAt = block.timestamp;
+
+        emit PriceUpdated(currentRoundId, _newPrice, block.timestamp, msg.sender);
+        return currentRoundId;
+    }
+
+    /**
+     * @notice Chainlink AggregatorV3Interface standard method
+     */
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        int256 effectivePrice = ethInrPrice > 0 ? ethInrPrice : int256(250000 * 1e8);
+        uint256 effectiveTime = lastUpdatedAt > 0 ? lastUpdatedAt : block.timestamp;
+        uint80 effectiveRound = currentRoundId > 0 ? currentRoundId : 1;
+        return (effectiveRound, effectivePrice, effectiveTime, effectiveTime, effectiveRound);
+    }
+
+    /**
+     * @notice Convenience helper: returns live ETH to INR exchange rate as integer rupees
+     */
+    function getLatestEthInrRate() external view returns (uint256) {
+        int256 effectivePrice = ethInrPrice > 0 ? ethInrPrice : int256(250000 * 1e8);
+        return uint256(effectivePrice / 1e8);
+    }
+
+    function description() external pure returns (string memory) {
+        return "ETH / INR Price Feed";
+    }
+
+    function version() external pure returns (uint256) {
+        return 3;
+    }
+
     function supportsInterface(bytes4) external pure returns (bool) {
         return false;
     }
@@ -128,11 +194,11 @@ contract PriceOracle {
     }
 
     function symbol() external pure returns (string memory) {
-        return "ORACLE";
+        return "ETH/INR";
     }
 
     function decimals() external pure returns (uint8) {
-        return 18;
+        return 8;
     }
 
     function balanceOf(address) external pure returns (uint256) {

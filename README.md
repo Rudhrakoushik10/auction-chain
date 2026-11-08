@@ -2,7 +2,9 @@
 
 **Predict · Bid · Verify**
 
-AuctionChain is a decentralized vehicle auction platform combining LightGBM machine-learning resale valuation (`v1.0.0`), two-phase Keccak-256 commit-reveal bidding (`Auction.sol`), and on-chain Oracle attestation (`PriceOracle.sol`) on the Ethereum Hardhat local network (Chain ID: `31337`).
+AuctionChain is a decentralized vehicle auction platform combining LightGBM machine-learning resale valuation (`v1.0.0`), two-phase Keccak-256 commit-reveal bidding (`Auction.sol`), and a live Chainlink-compatible ETH/INR Price Feed Oracle (`PriceOracle.sol`) on the Ethereum Hardhat local network (Chain ID: `31337`).
+
+> 📋 **Active Project Tracker**: See [PROJECT_TRACKER.md](./PROJECT_TRACKER.md) for live work logs, completed components, strict architectural invariants, and the pending development backlog.
 
 ---
 

@@ -8,7 +8,7 @@ echo   (Root Gateway, Hardhat Blockchain, AI Backend, Oracle, and Frontend)
 echo ============================================================================
 echo.
 
-echo [1/5] Installing Root Gateway dependencies...
+echo [1/4] Installing Root Gateway dependencies...
 call npm install
 if errorlevel 1 (
     echo [WARNING] Root npm install reported an issue. Retrying with --legacy-peer-deps...
@@ -16,7 +16,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [2/5] Installing Hardhat Blockchain dependencies...
+echo [2/4] Installing Hardhat Blockchain dependencies...
 pushd blockchain
 call npm install
 if errorlevel 1 (
@@ -26,19 +26,13 @@ if errorlevel 1 (
 popd
 echo.
 
-echo [3/5] Installing Python AI Backend dependencies (LightGBM v1.0.0)...
+echo [3/4] Installing Python AI Backend dependencies (LightGBM v1.0.0)...
 pushd backend
 pip install -r requirements.txt
 popd
 echo.
 
-echo [4/5] Installing Python Oracle Worker dependencies...
-pushd oracle
-pip install -r requirements.txt
-popd
-echo.
-
-echo [5/5] Installing Frontend dependencies...
+echo [4/4] Installing Frontend dependencies...
 pushd frontend
 call npm install
 if errorlevel 1 (

@@ -12,6 +12,10 @@ import {
   PanelLeftOpen,
   LogOut,
   ShieldCheck,
+  TrendingUp,
+  RefreshCw,
+  CheckCircle2,
+  Coins,
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
@@ -44,19 +48,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     authorizedOracleAddress,
     oracleContractAddress,
     auctionContractAddress,
+    liveEthInrRate,
+    oracleRoundId,
+    updateLivePriceFeed,
   } = useWallet();
 
   const [activeTab, setActiveTab] = useState<AdminNavTab>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [rateInput, setRateInput] = useState<string>(liveEthInrRate.toString());
+  const [isUpdatingFeed, setIsUpdatingFeed] = useState<boolean>(false);
+  const [feedFeedback, setFeedFeedback] = useState<string | null>(null);
 
   if (!wallet) return null;
+
+  const handleUpdatePriceFeed = async (newVal?: number) => {
+    const val = newVal ?? Number(rateInput);
+    if (!val || isNaN(val) || val <= 0) return;
+    setIsUpdatingFeed(true);
+    setFeedFeedback(null);
+    try {
+      await updateLivePriceFeed(val);
+      setRateInput(val.toString());
+      setFeedFeedback(`Successfully broadcast Round #${oracleRoundId + 1}: 1 ETH = ₹${val.toLocaleString('en-IN')}`);
+      setTimeout(() => setFeedFeedback(null), 4000);
+    } catch {
+      setFeedFeedback('Failed to update price feed');
+    } finally {
+      setIsUpdatingFeed(false);
+    }
+  };
 
   const activeAuctions = auctions.filter((a) => a.phase === 'Commit' || a.phase === 'Reveal');
   const allEvents = auctions.flatMap((a) => a.events);
 
   const sidebarItems: { id: AdminNavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Platform Overview', icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
-    { id: 'oracle', label: 'Oracle Configuration', icon: <Cpu className="w-4 h-4 shrink-0" /> },
+    { id: 'oracle', label: 'Chainlink Price Feed', icon: <Cpu className="w-4 h-4 shrink-0" /> },
     { id: 'auctions', label: 'Auction Registry', icon: <Gavel className="w-4 h-4 shrink-0" /> },
     { id: 'roles', label: 'Role Accounts', icon: <Users className="w-4 h-4 shrink-0" /> },
     { id: 'blockchain', label: 'Event Audit Log', icon: <Database className="w-4 h-4 shrink-0" /> },
@@ -212,40 +239,170 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* 2. Oracle Configuration (Read-Only Authorized Signer Verification) */}
+        {/* 2. Chainlink Price Feed Oracle Panel */}
         {activeTab === 'oracle' && (
-          <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-6">
+          <div className="space-y-6">
             <div className="border-b border-[#1E293B] pb-4">
-              <h2 className="text-base font-semibold text-white">
-                PriceOracle.sol Signer Configuration
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  AggregatorV3Interface
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Oracle Synced
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-white mt-1">
+                Chainlink ETH / INR Price Feed
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Read-only verification of the authorized ECDSA Oracle signer address permitted to call <code className="text-slate-200">registerPrediction()</code>.
+                On-chain price oracle providing verified Ethereum to Indian Rupee (INR) conversion rates for bids, deposits, and reserve prices across AuctionChain.
               </p>
             </div>
 
-            <dl className="divide-y divide-[#1E293B] text-xs">
-              <div className="py-3 flex justify-between gap-4">
-                <dt className="text-slate-400">PriceOracle.sol Contract Address</dt>
-                <dd className="font-mono text-white">{oracleContractAddress}</dd>
+            {/* Oracle Feed Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#1E293B] bg-[#0F172A] rounded-xl border border-[#1E293B] font-mono tabular-nums">
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">ETH / INR Rate</div>
+                <div className="text-2xl font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                  <span>₹{liveEthInrRate.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5 font-sans">per 1.00 ETH</div>
               </div>
-              <div className="py-3 flex justify-between gap-4">
-                <dt className="text-slate-400">Authorized Oracle Signer (Locked)</dt>
-                <dd className="font-mono text-emerald-400 font-semibold">{authorizedOracleAddress}</dd>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Round ID</div>
+                <div className="text-2xl font-bold text-white mt-1">#{oracleRoundId}</div>
+                <div className="text-[10px] text-slate-500 mt-0.5 font-sans">Chainlink Round</div>
               </div>
-              <div className="py-3 flex justify-between gap-4">
-                <dt className="text-slate-400">Hardhat Account 4 (Oracle Worker Service)</dt>
-                <dd className="font-mono text-slate-300">0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</dd>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Feed Decimals</div>
+                <div className="text-2xl font-bold text-[#3B82F6] mt-1">8</div>
+                <div className="text-[10px] text-slate-500 mt-0.5 font-sans">1e8 fixed-point</div>
               </div>
-            </dl>
-
-            <div className="p-4 rounded-lg border border-emerald-500/20 bg-emerald-950/20 text-xs text-emerald-200 flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>
-                The Oracle signer address is locked to <strong>Account #4 (0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65)</strong> at contract deployment time to guarantee uninterrupted ML valuation registration from Terminal 3.
-              </span>
+              <div className="p-4">
+                <div className="text-xs font-sans text-slate-400">Heartbeat Status</div>
+                <div className="text-2xl font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <span>Healthy</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5 font-sans">Auto-broadcasting</div>
+              </div>
             </div>
-          </section>
+
+            {/* Live Feed Simulator Form */}
+            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    Simulate Chainlink Price Feed Update
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Broadcast a new ETH/INR rate on-chain to test dynamic fiat recalculations across bids, reserves, and escrow settlement.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400">Quick Rates:</span>
+                {[240000, 250000, 260000, 275000, 290000].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => handleUpdatePriceFeed(rate)}
+                    disabled={isUpdatingFeed}
+                    className="px-2.5 py-1 rounded bg-[#131E3A] hover:bg-[#1E293B] border border-[#1E293B] text-slate-200 hover:text-white text-xs font-mono transition-colors cursor-pointer"
+                  >
+                    ₹{(rate / 100000).toFixed(2)}L
+                  </button>
+                ))}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleUpdatePriceFeed();
+                }}
+                className="flex flex-col sm:flex-row gap-3 pt-1"
+              >
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-mono text-sm">
+                    ₹
+                  </div>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="500"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    placeholder="Enter ETH rate in INR (e.g. 260000)"
+                    className="w-full pl-8 pr-4 py-2 bg-[#090D1A] border border-[#1E293B] focus:border-[#2563EB] rounded-lg text-white font-mono text-sm outline-none transition-colors"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isUpdatingFeed || !rateInput}
+                  className="px-5 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  {isUpdatingFeed ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Broadcasting Round...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="w-3.5 h-3.5" />
+                      <span>Push Oracle Round</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {feedFeedback && (
+                <div className="p-3 rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{feedFeedback}</span>
+                </div>
+              )}
+            </section>
+
+            {/* Smart Contract Specifications */}
+            <section className="bg-[#0F172A] rounded-xl border border-[#1E293B] p-6 space-y-4">
+              <h3 className="text-sm font-semibold text-white">
+                PriceOracle.sol Chainlink Feed Technical Specifications
+              </h3>
+
+              <dl className="divide-y divide-[#1E293B] text-xs">
+                <div className="py-2.5 flex justify-between gap-4">
+                  <dt className="text-slate-400">Contract Address</dt>
+                  <dd className="font-mono text-white">{oracleContractAddress}</dd>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
+                  <dt className="text-slate-400">Description String</dt>
+                  <dd className="font-mono text-slate-300">"ETH / INR Price Feed"</dd>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
+                  <dt className="text-slate-400">Standard Interface</dt>
+                  <dd className="font-mono text-emerald-400 font-medium">AggregatorV3Interface (decimals=8, version=3)</dd>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
+                  <dt className="text-slate-400">Authorized Oracle Feeder / Signer</dt>
+                  <dd className="font-mono text-emerald-400 font-semibold">{authorizedOracleAddress}</dd>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
+                  <dt className="text-slate-400">Convenience On-Chain Helper</dt>
+                  <dd className="font-mono text-slate-300">getLatestEthInrRate() returns (uint256 rupees)</dd>
+                </div>
+              </dl>
+
+              <div className="p-4 rounded-lg border border-blue-500/20 bg-blue-950/20 text-xs text-blue-200 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Why an ETH/INR Price Feed Oracle?</strong> Vehicle auction participants and sellers value their assets in Indian Rupees (INR), whereas bids and escrow settlements are executed on-chain in Test ETH. Using a Chainlink AggregatorV3Interface ensures verifiable, tamper-resistant exchange rates across the dApp without requiring artificial off-chain bottlenecks for car valuation.
+                </span>
+              </div>
+            </section>
+          </div>
         )}
 
         {/* 3. Auction Registry Table */}
@@ -345,9 +502,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ))}
                   <tr>
                     <td className="py-3.5 px-4 font-semibold text-slate-300">
-                      Account 4 — Oracle
+                      Account 4 — Price Oracle Feeder
                     </td>
-                    <td className="py-3.5 px-4 text-emerald-400">Background Daemon</td>
+                    <td className="py-3.5 px-4 text-emerald-400">Autonomous Feeder</td>
                     <td className="py-3.5 px-4 font-mono text-slate-400">
                       0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
                     </td>
@@ -355,7 +512,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       10000.0 ETH
                     </td>
                     <td className="py-3.5 px-4 text-slate-400">
-                      Relays verified AI predictions to PriceOracle.sol
+                      Authorized feed updater broadcasting ETH/INR rounds to PriceOracle.sol
                     </td>
                   </tr>
                 </tbody>
@@ -480,9 +637,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Ready</td>
                   </tr>
                   <tr>
-                    <td className="py-3.5 px-4 font-semibold text-white">4. Oracle Relayer</td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400">oracle/oracle/main.py</td>
-                    <td className="py-3.5 px-4 text-slate-300">Signs predictions with Account 4</td>
+                    <td className="py-3.5 px-4 font-semibold text-white">4. Chainlink Price Oracle</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400">blockchain/contracts/PriceOracle.sol</td>
+                    <td className="py-3.5 px-4 text-slate-300">Live ETH/INR AggregatorV3 price feed</td>
                     <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">Active</td>
                   </tr>
                   <tr>

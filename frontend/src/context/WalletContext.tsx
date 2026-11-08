@@ -47,6 +47,9 @@ interface WalletContextValue {
   authorizedOracleAddress: string;
   oracleContractAddress: string;
   auctionContractAddress: string;
+  liveEthInrRate: number;
+  oracleRoundId: number;
+  updateLivePriceFeed: (newRateInr: number) => Promise<boolean>;
   openAuthModal: () => void;
   closeAuthModal: () => void;
   clearMismatch: () => void;
@@ -94,6 +97,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ORACLE_BACKGROUND_ACCOUNT.address
     );
   });
+
+  const [liveEthInrRate, setLiveEthInrRate] = useState<number>(() => {
+    const saved = localStorage.getItem('auctionchain_oracle_eth_inr_rate');
+    return saved ? Number(saved) : 250000;
+  });
+  const [oracleRoundId, setOracleRoundId] = useState<number>(1);
 
   const humanWallets = wallets.filter((w) => w.isHumanFacing);
 
@@ -407,6 +416,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [currentWallet]
   );
 
+  const updateLivePriceFeed = useCallback(
+    async (newRateInr: number): Promise<boolean> => {
+      if (newRateInr <= 0) return false;
+      setLiveEthInrRate(newRateInr);
+      setOracleRoundId((prev) => prev + 1);
+      localStorage.setItem('auctionchain_oracle_eth_inr_rate', String(newRateInr));
+      return true;
+    },
+    []
+  );
+
   return (
     <WalletContext.Provider
       value={{
@@ -427,6 +447,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         authorizedOracleAddress,
         oracleContractAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
         auctionContractAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+        liveEthInrRate,
+        oracleRoundId,
+        updateLivePriceFeed,
         openAuthModal,
         closeAuthModal,
         clearMismatch,

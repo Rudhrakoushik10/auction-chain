@@ -27,6 +27,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
     disconnectWallet,
     selectRoleDirect,
     switchNetworkToHardhat,
+    liveEthInrRate,
   } = useWallet();
 
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
@@ -84,14 +85,18 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
           </span>
         </div>
 
-        {/* Zone 2: Quiet Unboxed Session Context */}
-        <div className="hidden md:flex items-center gap-2 text-xs text-slate-400 font-mono tabular-nums">
-          <span>Hardhat #31337</span>
+        {/* Zone 2: Quiet Unboxed Session Context & Live Oracle Price Feed */}
+        <div className="hidden md:flex items-center gap-3 text-xs text-slate-400 font-mono tabular-nums">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-semibold text-[11px]">Chainlink ETH/INR:</span>
+            <span className="text-white font-bold text-[11px]">₹{liveEthInrRate.toLocaleString('en-IN')}</span>
+          </div>
           <span aria-hidden="true">·</span>
           <span>{wallet.label}</span>
           <span aria-hidden="true">·</span>
           <span className="text-slate-200 font-semibold">
-            {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+            {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth, liveEthInrRate)})
           </span>
         </div>
 

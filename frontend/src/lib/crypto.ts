@@ -147,18 +147,19 @@ export function formatInr(amount: number): string {
 
 /**
  * Converts a Test ETH amount (number or string) to Indian Rupees (INR).
+ * Defaults to the on-chain PriceOracle feed rate (₹2,50,000).
  */
-export function convertEthToInr(ethAmount: string | number): number {
+export function convertEthToInr(ethAmount: string | number, customRate = ETH_TO_INR_RATE): number {
   const num = Number(ethAmount);
   if (Number.isNaN(num) || num <= 0) return 0;
-  return Math.round(num * ETH_TO_INR_RATE);
+  return Math.round(num * customRate);
 }
 
 /**
  * Formats a Test ETH amount directly as Indian Rupees (₹) using the en-IN locale.
  */
-export function formatEthToInr(ethAmount: string | number): string {
-  const inrValue = convertEthToInr(ethAmount);
+export function formatEthToInr(ethAmount: string | number, customRate = ETH_TO_INR_RATE): string {
+  const inrValue = convertEthToInr(ethAmount, customRate);
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
@@ -169,9 +170,13 @@ export function formatEthToInr(ethAmount: string | number): string {
 /**
  * Formats an ETH amount together with its Indian Rupee (₹) equivalent, e.g. "12.50 ETH (₹31,25,000)"
  */
-export function formatEthWithInr(ethAmount: string | number, decimals = 2): string {
+export function formatEthWithInr(
+  ethAmount: string | number,
+  decimals = 2,
+  customRate = ETH_TO_INR_RATE
+): string {
   const num = Number(ethAmount) || 0;
-  return `${num.toFixed(decimals)} ETH (${formatEthToInr(num)})`;
+  return `${num.toFixed(decimals)} ETH (${formatEthToInr(num, customRate)})`;
 }
 
 /**

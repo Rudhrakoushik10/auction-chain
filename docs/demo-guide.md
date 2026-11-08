@@ -1,48 +1,170 @@
-# AuctionChain — 4-Server Execution Guide (With Automated Smart Contract Deployment)
+# AuctionChain — Complete Local Setup & Demonstration Guide
 
-## Role Account Structure (Hardhat Local Node — Chain ID 31337)
-The platform uses five deterministic Hardhat accounts:
-
-| Account | Role | Responsibility | Deterministic Hardhat Address | Default Private Key |
-|---|---|---|---|---|
-| **Account 0** | **Admin** | Deploy contracts, configure PriceOracle, platform monitoring | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` |
-| **Account 1** | **Seller** | Create vehicle sealed-bid auctions & set reserve price | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` |
-| **Account 2** | **Bidder 1** | Submit commit hash, deposit collateral, reveal bid | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a` |
-| **Account 3** | **Bidder 2** | Competing bidder: submit commit hash, deposit collateral, reveal bid | `0x90F79bf6EB2c4f870365E785982E1f101E93b906` | `0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6` |
-| **Account 4** | **Oracle** | Submit AI valuation predictions on-chain (Background service only) | `0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65` | `0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a` |
+> **Stack**: Hardhat Local Node (EVM Port 8545) + FastAPI LightGBM AI Service (Port 8000) + React 19 Web3 Frontend (Port 3000)
 
 ---
 
-## 4-Server Architecture Execution
+## 1. Prerequisites
 
-### Server 1: Blockchain Node + Automated Contract Deployment (`blockchain/`)
-```bash
-scripts/start-blockchain.bat
-# Equivalent to:
-cd blockchain && npm start
+Ensure you have the following installed on your machine:
+- **Node.js**: v18+ or v20+ (`node -v`)
+- **npm**: v9+ (`npm -v`)
+- **Python**: 3.9+ or 3.10+ (`python --version`)
+- **Git** (optional, for cloning)
+- **MetaMask Browser Extension** (optional — not required if using the built-in **1-Click Dev Bypass**)
+
+---
+
+## 2. Local Environment Installation (One-Time Setup)
+
+### Quick Setup (Windows)
+Run the automated setup script from the project root:
+```cmd
+scripts\setup.bat
 ```
-*Boots Hardhat local network on `http://127.0.0.1:8545` (Chain ID 31337) and automatically deploys `PriceOracle.sol` (with Account 4 authorized) and `Auction.sol`, writing addresses to `frontend/src/contracts/contractAddresses.json`.*
 
-### Server 2: Backend API & LightGBM v1.0.0 Valuation Engine (`backend/`)
+### Manual Setup (Cross-Platform: Windows / macOS / Linux)
+
+#### Step 1: Install Blockchain & Hardhat Dependencies
 ```bash
-scripts/start-backend.bat
-# Equivalent to:
-cd backend && uvicorn src.api.main:app --reload --port 8000
+cd blockchain
+npm install
+cd ..
 ```
-*Serves FastAPI endpoints (`GET /health` and `POST /predict`) powered by the `LightGBM v1.0.0` (`regression_l1`, 934 trees) vehicle price prediction pipeline.*
 
-### Server 3: Autonomous Oracle Server (`oracle/`)
+#### Step 2: Install Python AI Backend Dependencies
 ```bash
-scripts/start-oracle.bat
-# Equivalent to:
-cd oracle && python -m oracle.main
+cd backend
+pip install -r requirements.txt
+cd ..
 ```
-*Listens for vehicle auction events, queries the `backend` valuation service, and signs predictions onto `PriceOracle.sol` using Account 4 (`0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65`).*
 
-### Server 4: Frontend Web Application (`frontend/`)
+#### Step 3: Install Frontend Dependencies
 ```bash
-scripts/start-frontend.bat
-# Equivalent to:
+cd frontend
+npm install
+cd ..
+```
+
+---
+
+## 3. Starting the Services
+
+You need 3 processes running simultaneously.
+
+### Option A: 1-Click Launch (Windows)
+Double-click or run:
+```cmd
+scripts\start-all.bat
+```
+*This opens 3 dedicated command prompt windows and starts each service in sequence.*
+
+---
+
+### Option B: Manual Launch (3 Separate Terminals)
+
+#### Terminal 1: Hardhat EVM Blockchain Node (Port 8545)
+```bash
+cd blockchain
+npm start
+```
+*Output*: Starts local EVM node at `http://127.0.0.1:8545` (Chain ID `31337`), deploys `PriceOracle.sol` and `Auction.sol`, and writes deployed addresses to `frontend/src/contracts/contractAddresses.json`.
+
+#### Terminal 2: FastAPI AI Valuation Microservice (Port 8000)
+```bash
+cd backend
+uvicorn src.api.main:app --port 8000 --reload
+```
+*Output*: LightGBM model loaded into memory, serving valuation API at `http://127.0.0.1:8000/docs`.
+
+#### Terminal 3: React Web3 Application (Port 3000)
+```bash
+# In the project root or frontend directory:
 npm run dev
 ```
-*Runs the React + TypeScript + Vite Web3 interface on `http://localhost:3000`.*
+*Output*: Vite dev server listening at `http://localhost:3000`.
+
+---
+
+## 4. End-to-End Demo Script (5-Minute Walkthrough)
+
+Open your browser and navigate to: **`http://localhost:3000`**
+
+### Step 1: 1-Click Dev Bypass Login
+1. Click **Connect Wallet** in the top-right corner.
+2. In the modal, click the blue button:
+   👉 **⚡ Quick Dev Bypass (Seller Account #1)**
+3. You are instantly logged in as **Seller (0x7099...79C8)** with 10,000 ETH — **no MetaMask popups required!**
+4. Notice the header displays:
+   - Green pulsing badge: **`Chainlink ETH/INR: ₹2,50,000`**
+   - Active account badge with balance and role.
+
+---
+
+### Step 2: Create a Sealed-Bid Auction with AI Valuation
+1. Click **Create Auction** in the top navigation.
+2. **Step 1 — Vehicle Specs**:
+   - Select or customize details (e.g., 2021 BMW 3 Series, 35,000 km, Good condition, Petrol).
+   - Click **Next: Run AI Valuation**.
+3. **Step 2 — AI Prediction (INR)**:
+   - The dApp calls the FastAPI LightGBM microservice.
+   - Observe the predicted market value displayed in Indian Rupees (e.g., `₹28,50,000 INR`) along with confidence intervals.
+   - Click **Next: Set Auction Terms**.
+4. **Step 3 — Auction Parameters**:
+   - Set Starting Price (e.g., `10.00 ETH` — automatically shows `₹25,00,000 INR`).
+   - Set Reserve Price (e.g., `11.50 ETH` — automatically shows `₹28,75,000 INR`).
+   - Deposit amount defaults to `0.10 ETH` (`₹25,000 INR`).
+   - Phase durations: Commit Phase (e.g. 10 mins), Reveal Phase (e.g. 10 mins).
+   - Click **Next: Review & Deploy**.
+5. **Step 4 — Review & Deploy**:
+   - Click **Deploy Auction to Blockchain**.
+   - The contract creates the auction on `SealedAuction.sol`.
+
+---
+
+### Step 3: Switch to a Bidder Account & Submit a Sealed Bid
+1. Click on your wallet badge in the header -> Click **Switch Role**.
+2. Select **Bidder 1 — Alice (Account #2)**.
+3. Click on the auction lot you just created.
+4. Click **Submit Sealed Commitment**:
+   - Enter your secret bid (e.g., `12.50 ETH` / `₹31,25,000 INR`).
+   - The dApp automatically generates a cryptographic secret salt.
+   - Computes Keccak-256 hash: `keccak256(abi.encode(auctionId, aliceAddress, bidAmount, salt))`.
+   - Sends the 0.1 ETH fixed collateral deposit.
+   - alice's commitment is securely recorded on-chain while keeping the bid amount private.
+
+---
+
+### Step 4: Competing Bidder (Bidder 2 — Bob)
+1. Switch role to **Bidder 2 — Bob (Account #3)**.
+2. Submit a competing sealed bid (e.g., `13.00 ETH` / `₹32,50,000 INR`).
+3. Deposit 0.1 ETH collateral. Bob's hash is registered on-chain.
+
+---
+
+### Step 5: Reveal Phase & Settlement
+1. When the Commit Phase timer expires, the auction enters the **Reveal Phase**.
+2. Bidders reveal their bids by supplying their secret salt.
+3. The smart contract validates `keccak256(...) == storedHash`:
+   - Bob's 13.00 ETH bid beats Alice's 12.50 ETH bid.
+   - Alice receives her 0.1 ETH deposit back immediately.
+   - Bob wins the vehicle lot!
+   - Seller receives the winning settlement funds.
+
+---
+
+### Step 6: Inspect Chainlink Price Feed Oracle in Admin Console
+1. Switch role to **Administrator (Account #0)**.
+2. In the header, click **Admin Console**.
+3. Click the **Chainlink Price Feed** tab:
+   - View live round metadata: **Round #1**, Decimals: **8**, Description: `"ETH / INR Price Feed"`.
+   - **Simulate Price Fluctuation**: Click a quick preset like **`₹2.75L`** (or type a custom rate) and click **Push Oracle Round**.
+   - Notice the live round updates to Round #2 and all ETH values across the platform instantly recalculate with the new live rate!
+
+---
+
+## 5. Troubleshooting & Tips
+
+- **Resetting Blockchain State**: If you restart the Hardhat node, simply run `npm start` in `blockchain/` to re-deploy contracts and sync addresses.
+- **Nonce Mismatch**: If you use MetaMask and reset the Hardhat node, click the in-app **Clear Stale Nonce** button or reset your account in MetaMask (*Settings -> Advanced -> Clear activity tab data*).
+- **FastAPI Documentation**: View interactive Swagger docs at `http://127.0.0.1:8000/docs`.
