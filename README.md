@@ -33,7 +33,7 @@ AuctionChain/
 │   │   └── PriceOracle.sol      # Live ETH/INR Feed & AI Valuation Hash Registry
 │   ├── scripts/
 │   │   ├── deploy.js            # Deploys contracts & exports addresses
-│   │   └── priceFeeder.js       # Autonomous ETH/INR oracle feeder (Account 4)
+│   │   └── priceFeeder.js       # Autonomous ETH/INR oracle feeder (Account 3)
 │   └── test/                    # Smart contract unit & integration tests
 ├── frontend/                    # React 19 + TypeScript + Tailwind CSS Web3 UI
 │   ├── public/                  # Static assets & favicon
@@ -60,34 +60,57 @@ AuctionChain/
 - **Browser**: Google Chrome, Brave, or Microsoft Edge with the **MetaMask Extension** installed
 - **Git**: For cloning the repository
 
-### 3.2 Step 1 — Install Dependencies
+### 3.2 Step 1 — Environment Variables Setup (`.env`)
+Before starting the servers, create a `.env` file in the root directory by copying `.env.example`:
+
+- **Windows (Command Prompt / PowerShell)**:
+  ```cmd
+  copy .env.example .env
+  ```
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  cp .env.example .env
+  ```
+
+*(Note: Running `scripts\setup.bat` on Windows will automatically create `.env` from `.env.example` if it does not already exist.)*
+
+#### Environment Variables Reference (`.env`)
+```ini
+# 1. Server Port (Default: 3000 for Web3 Frontend & Gateway)
+PORT=3000
+
+# 2. AI Vehicle Valuation API Key (Optional)
+# Leave as default or provide a key. If omitted or offline, AuctionChain automatically
+# uses its built-in deterministic Indian Vehicle Market Valuation Engine (₹ INR).
+GEMINI_API_KEY=your_api_key_here
+```
+*(Note: Hardhat RPC `http://127.0.0.1:8545` and Chain ID `31337` are deterministic system constants and are hardcoded directly into the application configuration.)*
+
+### 3.3 Step 2 — Install Dependencies
 Open a terminal in the project root directory and run:
 
 ```bash
-# 1. Copy the environment configuration template
-cp .env.example .env
-
-# 2. Install root (Frontend + AI Server) dependencies
+# 1. Install root (Frontend + AI Server) dependencies
 npm install
 
-# 3. Install Hardhat blockchain dependencies
+# 2. Install Hardhat blockchain dependencies
 cd blockchain
 npm install
 cd ..
 ```
-*(On Windows, you can simply double-click `scripts\setup.bat` to automate this step.)*
+*(On Windows, you can simply double-click `scripts\setup.bat` to automate both `.env` creation and dependency installation.)*
 
-### 3.3 Step 2 — Launch the Platform
+### 3.4 Step 3 — Launch the Platform
 
 #### Option A: Windows 1-Click 4-Terminal Launcher (Recommended for Demo)
 Double-click `scripts\start-all.bat` (or run `npm run start:all:win`). This opens **4 dedicated terminal windows**:
 1. **Terminal 1 — Hardhat Blockchain Node (`Port 8545`)**: Starts the local Ethereum node and auto-deploys `PriceOracle.sol` and `SealedAuction.sol`.
 2. **Terminal 2 — AI Vehicle Valuation Engine (`Port 8000`)**: Runs the Indian Vehicle Valuation Engine and prints live AI, Oracle, and Blockchain proof banners.
-3. **Terminal 3 — Autonomous ETH/INR Price Oracle (`Account 4`)**: Fetches live ETH/INR market rates and pushes on-chain updates to `PriceOracle.sol`.
+3. **Terminal 3 — Autonomous ETH/INR Price Oracle (`Account 3`)**: Fetches live ETH/INR market rates and pushes on-chain updates to `PriceOracle.sol`.
 4. **Terminal 4 — Web3 Frontend Application (`Port 3000`)**: Serves the React Web3 interface at `http://localhost:3000`.
 
 #### Option B: Unified Single-Command Start (macOS / Linux / Windows)
-To run the full application stack from a single terminal on `http://localhost:3000`:
+To run the full application stack from two terminals on `http://localhost:3000`:
 ```bash
 # Terminal A: Start Hardhat node & deploy contracts
 npm run blockchain:node
@@ -99,9 +122,7 @@ npm run dev
 
 ---
 
-## 4. MetaMask Configuration for Local Demonstration
-
-To get real MetaMask transaction confirmation popups during your demo, configure the **Hardhat Localhost** network and import the test accounts into MetaMask:
+## 4. MetaMask Configuration & Nonce Recovery Guide
 
 ### 4.1 Add Hardhat Localhost Network in MetaMask
 - **Network Name**: `Hardhat Localhost`
@@ -121,7 +142,18 @@ In MetaMask, click **Account Menu → Add account or hardware wallet → Import 
 
 *(Note: Hardhat Account #3 `0x90F79bf6EB2c4f870365E785982E1f101E93b906` acts autonomously in the background as the authorized `PriceOracle.sol` signer.)*
 
-> **Tip if you restart the Hardhat Node**: In MetaMask, go to **Settings → Advanced → Clear activity tab data** so MetaMask resets your local account nonces to `0`.
+### 4.3 Handling MetaMask Nonce Errors After Restarting the Hardhat Node
+When you stop and restart the local Hardhat Blockchain Node (`Terminal 1`), the blockchain resets every account's transaction counter (**nonce**) back to `0`. However, MetaMask caches the previous session's higher nonce (e.g., `Nonce 4`), which normally causes a `"Nonce too high. Expected nonce to be 0 but got 4"` error.
+
+AuctionChain handles this automatically at three levels:
+1. **Automatic Background & Pre-Transaction Nonce Sync (`hardhat_setNonce`)**:
+   - Whenever the app detects that the Hardhat node was restarted (`hardhatNonce < cachedMetaMaskNonce`), it automatically calls `hardhat_setNonce` on `http://127.0.0.1:8545` to fast-forward the Hardhat account nonce to match MetaMask before you send a transaction.
+2. **Automatic Reactive Nonce Self-Healing**:
+   - Even if MetaMask throws a nonce mismatch error on submission, `walletService.ts` intercepts the exact nonce expected by MetaMask, synchronizes Hardhat's RPC nonce immediately, and completes your transaction without failing.
+3. **Manual Reset in MetaMask (Optional)**:
+   - If you ever want to manually reset MetaMask's cached activity and nonce data back to `0`:
+     - Open MetaMask → **Settings → Advanced → Clear activity tab data** *(or in newer MetaMask versions: **Settings → Developer Tools → Delete activity and nonce data**)*.
+     - Or click the **Auto-Sync Nonce** button if the yellow Nonce Desynchronization banner appears at the top of the dashboard.
 
 ---
 
@@ -129,12 +161,12 @@ In MetaMask, click **Account Menu → Add account or hardware wallet → Import 
 
 Follow this sequence to demonstrate every capability of **AuctionChain**—including **AI Valuation**, **On-Chain Oracle Anchoring**, **MetaMask Transaction Confirmations**, **Sealed Bidding**, **1-Click Reveal**, **Escrow Settlement**, and **Admin Data Management**.
 
-### Step 1: Public Overview & Terminologies Tour
+### Step 1: Public Overview, Terminologies & Visual Flowchart
 1. Open `http://localhost:3000`.
 2. Show the **Overview** page highlighting how sealed-bid vehicle auctions prevent front-running and sniping.
 3. Click **How It Works** in the top navigation bar:
-   - Walk through the **4-Step Lifecycle** (AI Valuation & Listing → Commit Phase → Reveal Phase → Escrow Settlement).
-   - Scroll to **Key Auction Terminologies & Phases Explained** to explain *Collateral Deposit*, *Seller Reserve Price*, *Keccak-256 Commitment Hash*, *Secret Salt (Passkey)*, and *Pull-Based Escrow*.
+   - Review **Key Auction Terminologies & Phases Explained** (*Starting Bid*, *Seller Reserve Price*, *Collateral Deposit*, *Secret Salt & Commitment Hash*, and *Commit / Reveal / Sold / No Sale* phases).
+   - Scroll to the bottom of the **How It Works** page to show the **Visual End-to-End Auction Flowchart**, which illustrates the entire process from Vehicle Listing to the Smart Contract Reserve Price Checkpoint (`YES → Vehicle Sold` vs. `NO → No Sale · 100% Refund`).
 
 ### Step 2: Seller Creates a Vehicle Auction with AI Valuation & Oracle Proof
 1. Click **Connect Wallet** in the top-right corner and select **Seller (`seller.eth` - Account #0)** (also select Account #0 in MetaMask).

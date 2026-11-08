@@ -146,18 +146,21 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         );
       }
 
-      // Check if any human role account or active account has a stale MetaMask nonce after Hardhat restart
-      const activeMismatch = detectAccountNonceMismatch(activeAddress, status.nonces);
-      if (activeMismatch) {
-        setNonceMismatch(activeMismatch);
-      } else {
-        for (const w of HUMAN_ROLE_WALLETS) {
-          const m = detectAccountNonceMismatch(w.address, status.nonces);
-          if (m) {
-            setNonceMismatch(m);
-            break;
+      // Automatically synchronize Hardhat nonces (`hardhat_setNonce`) if Hardhat node was closed and reopened
+      let unresolvedMismatch: NonceMismatchInfo | null = null;
+      for (const w of HUMAN_ROLE_WALLETS) {
+        const m = detectAccountNonceMismatch(w.address, status.nonces);
+        if (m) {
+          const synced = await syncHardhatNonceWithMetaMask(w.address, m.cachedMetaMaskNonce);
+          if (!synced && !unresolvedMismatch) {
+            unresolvedMismatch = m;
           }
         }
+      }
+      if (unresolvedMismatch) {
+        setNonceMismatch(unresolvedMismatch);
+      } else {
+        setNonceMismatch(null);
       }
     }
     return status.isNodeOnline;

@@ -1,8 +1,8 @@
 import { WalletAccount } from '../types/auction';
 import contractAddresses from '../contracts/contractAddresses.json';
 
-export const HARDHAT_CHAIN_ID = contractAddresses.chainId || 31337;
-export const HARDHAT_NETWORK_NAME = contractAddresses.network || 'Hardhat Localhost (Chain ID 31337)';
+export const HARDHAT_CHAIN_ID = 31337;
+export const HARDHAT_NETWORK_NAME = 'Hardhat Localhost (Chain ID 31337)';
 export const HARDHAT_RPC_URL = 'http://127.0.0.1:8545';
 export const PRICE_ORACLE_CONTRACT_ADDRESS = contractAddresses.PriceOracle;
 export const SEALED_AUCTION_CONTRACT_ADDRESS = contractAddresses.Auction;

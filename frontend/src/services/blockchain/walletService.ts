@@ -568,14 +568,11 @@ export async function executeMetaMaskTransaction(params: {
         );
         const signerAddr = ethers.getAddress(matchedInMetaMask || accounts[0]);
 
-        // Check proactive nonce mismatch for the signing account
+        // 1a. Proactive Auto-Sync: If Hardhat node was restarted (hardhatNonce < cachedMetaMaskNonce),
+        // automatically advance Hardhat's account nonce via `hardhat_setNonce` BEFORE opening MetaMask.
         const preMismatch = detectAccountNonceMismatch(signerAddr, status.nonces);
         if (preMismatch) {
-          return {
-            success: false,
-            nonceMismatch: preMismatch,
-            error: `MetaMask Nonce Mismatch Detected: ${preMismatch.reason} ${preMismatch.howToFixManual}`,
-          };
+          await syncHardhatNonceWithMetaMask(signerAddr, preMismatch.cachedMetaMaskNonce);
         }
 
         // Determine safe destination address (if the running contract was deployed prior to receive() payable, route escrow deposit to Hardhat Escrow Account #0)
@@ -606,8 +603,19 @@ export async function executeMetaMaskTransaction(params: {
           if (isUserRejection(innerErr)) {
             throw innerErr;
           }
+          // If innerErr is a nonce mismatch on signerAddr, rethrow to outer catch for automatic nonce healing
+          if (parseNonceMismatchFromError(innerErr, signerAddr)) {
+            throw innerErr;
+          }
           const primaryMetaMaskAddr = ethers.getAddress(accounts[0]);
           actualSignerAddr = primaryMetaMaskAddr;
+          const primaryPreMismatch = detectAccountNonceMismatch(primaryMetaMaskAddr, status.nonces);
+          if (primaryPreMismatch) {
+            await syncHardhatNonceWithMetaMask(
+              primaryMetaMaskAddr,
+              primaryPreMismatch.cachedMetaMaskNonce
+            );
+          }
           const fallbackSigner = await browserProvider.getSigner(primaryMetaMaskAddr);
           txResponse = await fallbackSigner.sendTransaction({
             to: targetTo,
@@ -621,7 +629,7 @@ export async function executeMetaMaskTransaction(params: {
           return { success: false, error: 'Transaction was not mined.' };
         }
 
-        // Track the new nonce in localStorage so if Hardhat is restarted later, we detect the mismatch!
+        // Track the new nonce in localStorage so if Hardhat is restarted later, we auto-sync seamlessly
         setCachedMetaMaskNonce(actualSignerAddr, txResponse.nonce + 1);
 
         const txResult: OnChainTxResult = {
@@ -662,14 +670,78 @@ export async function executeMetaMaskTransaction(params: {
         };
       }
 
+      // 1b. Reactive Auto-Heal: If MetaMask threw "Nonce too high / low. Expected nonce to be X but got Y"
+      // after the user clicked Confirm in MetaMask, automatically align Hardhat's nonce via `hardhat_setNonce`
+      // and complete the transaction on Hardhat so the user never gets stuck.
       const mismatch = parseNonceMismatchFromError(err, params.senderAddress);
       if (mismatch) {
-        setCachedMetaMaskNonce(params.senderAddress, mismatch.cachedMetaMaskNonce);
-        return {
-          success: false,
-          nonceMismatch: mismatch,
-          error: `MetaMask Nonce Mismatch: ${mismatch.reason} ${mismatch.howToFixManual}`,
-        };
+        try {
+          let targetTo = ethers.getAddress(params.toAddress);
+          try {
+            await rpcProvider.estimateGas({
+              from: ethers.getAddress(params.senderAddress),
+              to: targetTo,
+              value: valueWei,
+              data: params.dataHex || '0x',
+            });
+          } catch {
+            targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+          }
+
+          // Mine the user-approved transaction on Hardhat RPC
+          const rpcSigner = await rpcProvider.getSigner(ethers.getAddress(params.senderAddress));
+          const healedTx = await rpcSigner.sendTransaction({
+            to: targetTo,
+            value: valueWei,
+            data: params.dataHex || '0x',
+          });
+          const healedReceipt = await healedTx.wait();
+
+          // Now align Hardhat's account nonce with MetaMask's cached nonce (`gotMetaMaskNonce`)
+          // so the next MetaMask transaction is 100% synchronized
+          await syncHardhatNonceWithMetaMask(params.senderAddress, mismatch.cachedMetaMaskNonce);
+
+          if (healedReceipt) {
+            const txResult: OnChainTxResult = {
+              txHash: healedReceipt.hash,
+              blockNumber: healedReceipt.blockNumber,
+              blockHash: healedReceipt.blockHash,
+              gasUsed: Number(healedReceipt.gasUsed),
+              nonce: mismatch.cachedMetaMaskNonce,
+              from: ethers.getAddress(healedReceipt.from),
+              to: ethers.getAddress(healedReceipt.to || targetTo),
+              timestamp: Math.floor(Date.now() / 1000),
+            };
+
+            await reportTerminalAuditLog({
+              category: 'METAMASK_CONFIRMED_TX',
+              action: `${actionLabel} [Auto-Synced Nonce ${mismatch.hardhatNonce} → ${mismatch.cachedMetaMaskNonce}]`,
+              actorAddress: params.senderAddress,
+              actorLabel,
+              contractAddress: params.toAddress,
+              valueEth: valueEthNum,
+              txHash: txResult.txHash,
+              blockNumber: txResult.blockNumber,
+              details:
+                params.summary ||
+                `Approved in MetaMask & Auto-Synced Hardhat Nonce (${mismatch.hardhatNonce} -> ${mismatch.cachedMetaMaskNonce})`,
+              executionMode: `MetaMask Popup + Hardhat Nonce Auto-Heal (Chain ID 31337, Gas: ${txResult.gasUsed})`,
+            });
+
+            return {
+              success: true,
+              receipt: txResult,
+            };
+          }
+        } catch {
+          // If RPC auto-heal fails, surface the NonceMismatchBanner so the user can 1-click sync or clear in MetaMask
+          setCachedMetaMaskNonce(params.senderAddress, mismatch.cachedMetaMaskNonce);
+          return {
+            success: false,
+            nonceMismatch: mismatch,
+            error: `MetaMask Nonce Mismatch: ${mismatch.reason} ${mismatch.howToFixManual}`,
+          };
+        }
       }
       // If MetaMask wasn't unlocked or failed for a non-rejection reason, fall through to Hardhat RPC signer below
     }

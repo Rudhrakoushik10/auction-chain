@@ -441,6 +441,256 @@ export const HowItWorksPage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* =====================================================================
+          SECTION 5: VISUAL END-TO-END AUCTION FLOWCHART
+         ===================================================================== */}
+      <section className="space-y-10 pt-4">
+        <div className="max-w-3xl space-y-2">
+          <div className="text-xs font-mono text-[#C5A46D]">
+            Complete Visual Walkthrough
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
+            Auction Flowchart: From Car Listing to Final Payout
+          </h2>
+          <p className="text-sm text-[#8E95A5] leading-relaxed">
+            Follow the diagram below to see how a vehicle moves from initial AI price estimation to sealed bidding, simultaneous opening, and automatic money settlement.
+          </p>
+        </div>
+
+        <div className="bg-[#12141A] border border-[#232730] rounded-md p-6 sm:p-10">
+          <div className="max-w-4xl mx-auto flex flex-col items-center">
+            {/* NODE 1: SELLER LISTS CAR & AI VALUATION */}
+            <div className="w-full max-w-2xl bg-[#0B0C10] border border-[#232730] rounded-md p-5 sm:p-6 relative">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-[#232730]">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D]">
+                  STEP 1 · LISTING &amp; AI VALUATION
+                </span>
+                <span className="text-[11px] font-mono text-[#8E95A5]">
+                  Done by: Vehicle Seller
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-display font-semibold text-[#F4F5F7]">
+                Seller Enters Car Details &amp; Gets AI Fair Market Price (₹ INR)
+              </h3>
+              <p className="text-xs sm:text-sm text-[#8E95A5] mt-2 leading-relaxed">
+                Seller enters the car’s make, model, year, and kilometers driven. The AI estimates its fair resale value in Rupees (₹) and records a tamper-proof fingerprint on the blockchain. The seller then sets the <strong className="text-[#F4F5F7]">Starting Bid</strong>, the <strong className="text-[#F4F5F7]">Seller Reserve Price</strong> (minimum acceptable sale price), and a uniform <strong className="text-[#F4F5F7]">Collateral Deposit</strong>.
+              </p>
+            </div>
+
+            {/* CONNECTOR ARROW 1 -> 2 */}
+            <div className="flex flex-col items-center py-2" aria-hidden="true">
+              <div className="w-px h-7 bg-[#C5A46D]/60" />
+              <div className="text-[11px] font-mono text-[#C5A46D] px-3 py-1 bg-[#0B0C10] border border-[#232730] rounded">
+                Auction Opens for Bidding
+              </div>
+              <div className="w-px h-5 bg-[#C5A46D]/60" />
+              <svg className="w-3.5 h-3.5 text-[#C5A46D] -mt-1" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 12L2 6h12L8 12z" />
+              </svg>
+            </div>
+
+            {/* NODE 2: COMMIT WINDOW (SEALED BIDDING) */}
+            <div className="w-full max-w-2xl bg-[#0B0C10] border border-[#232730] rounded-md p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-[#232730]">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D]">
+                  STEP 2 · COMMIT PHASE (SEALED BIDDING WINDOW)
+                </span>
+                <span className="text-[11px] font-mono text-[#8E95A5]">
+                  Done by: Competing Bidders
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-display font-semibold text-[#F4F5F7]">
+                Buyers Lock Their Secret Bid Inside a Digital Envelope
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 pt-1 text-xs text-[#8E95A5]">
+                <div className="bg-[#12141A] border border-[#232730] rounded p-3.5 space-y-1">
+                  <div className="font-mono text-[#F4F5F7] font-medium">
+                    1. Secret Offer + Passkey (Hidden)
+                  </div>
+                  <p className="leading-relaxed">
+                    Your actual bid price is scrambled with a secret passkey (Salt) in your browser. Nobody—not even the seller or other buyers—can see how much you bid.
+                  </p>
+                </div>
+                <div className="bg-[#12141A] border border-[#232730] rounded p-3.5 space-y-1">
+                  <div className="font-mono text-[#F4F5F7] font-medium">
+                    2. Equal Collateral Deposit (Locked)
+                  </div>
+                  <p className="leading-relaxed">
+                    Every bidder locks the exact same refundable deposit (e.g. 0.25 ETH) in MetaMask so nobody can guess your bid from the wallet transfer amount.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CONNECTOR ARROW 2 -> 3 */}
+            <div className="flex flex-col items-center py-2" aria-hidden="true">
+              <div className="w-px h-7 bg-[#C5A46D]/60" />
+              <div className="text-[11px] font-mono text-[#C5A46D] px-3 py-1 bg-[#0B0C10] border border-[#232730] rounded">
+                Commit Timer Ends · New Bids Blocked
+              </div>
+              <div className="w-px h-5 bg-[#C5A46D]/60" />
+              <svg className="w-3.5 h-3.5 text-[#C5A46D] -mt-1" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 12L2 6h12L8 12z" />
+              </svg>
+            </div>
+
+            {/* NODE 3: REVEAL WINDOW (UNSEALING) */}
+            <div className="w-full max-w-2xl bg-[#0B0C10] border border-[#232730] rounded-md p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-[#232730]">
+                <span className="text-xs font-mono font-semibold text-[#C5A46D]">
+                  STEP 3 · REVEAL PHASE (OPENING THE ENVELOPES)
+                </span>
+                <span className="text-[11px] font-mono text-[#8E95A5]">
+                  Done by: Bidders + Smart Contract
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-display font-semibold text-[#F4F5F7]">
+                1-Click Bid Reveal &amp; Automatic Fingerprint Check
+              </h3>
+              <p className="text-xs sm:text-sm text-[#8E95A5] mt-2 leading-relaxed">
+                Each bidder clicks <strong className="text-[#F4F5F7]">Reveal My Bid Now</strong>. Their saved passkey unlocks the sealed envelope, and the smart contract verifies that the opened price matches the original sealed fingerprint from Step 2. Any attempt to change the bid price is automatically rejected.
+              </p>
+            </div>
+
+            {/* CONNECTOR ARROW 3 -> 4 (DECISION POINT) */}
+            <div className="flex flex-col items-center py-2" aria-hidden="true">
+              <div className="w-px h-7 bg-[#C5A46D]/60" />
+              <div className="text-[11px] font-mono text-[#C5A46D] px-3 py-1 bg-[#0B0C10] border border-[#232730] rounded">
+                Reveal Timer Ends · Finalize Auction
+              </div>
+              <div className="w-px h-5 bg-[#C5A46D]/60" />
+              <svg className="w-3.5 h-3.5 text-[#C5A46D] -mt-1" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 12L2 6h12L8 12z" />
+              </svg>
+            </div>
+
+            {/* NODE 4: DECISION CHECKPOINT */}
+            <div className="w-full max-w-xl bg-[#0B0C10] border-2 border-[#C5A46D]/70 rounded-md p-5 text-center space-y-2">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-[#C5A46D]">
+                STEP 4 · SMART CONTRACT DECISION CHECKPOINT
+              </div>
+              <h3 className="text-base sm:text-lg font-display font-semibold text-[#F4F5F7]">
+                Is the Highest Revealed Bid ≥ Seller Reserve Price?
+              </h3>
+              <p className="text-xs text-[#8E95A5]">
+                The smart contract compares the highest verified offer against the seller’s minimum acceptable price.
+              </p>
+            </div>
+
+            {/* SPLIT BRANCH CONNECTORS (YES vs NO) */}
+            <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              {/* LEFT BRANCH: YES -> VEHICLE SOLD */}
+              <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center pb-3" aria-hidden="true">
+                  <div className="w-px h-5 bg-emerald-500/60" />
+                  <span className="px-3 py-1 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs font-semibold">
+                    YES · Reserve Price Met
+                  </span>
+                  <div className="w-px h-4 bg-emerald-500/60" />
+                  <svg className="w-3.5 h-3.5 text-emerald-400 -mt-1" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 12L2 6h12L8 12z" />
+                  </svg>
+                </div>
+
+                <div className="w-full flex-1 bg-[#0B0C10] border border-emerald-500/40 rounded-md p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#232730] pb-3">
+                    <span className="text-xs font-mono font-semibold text-emerald-400">
+                      OUTCOME A · VEHICLE SOLD
+                    </span>
+                    <span className="text-[11px] font-mono text-[#8E95A5]">
+                      Highest Bidder Wins
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        1. Winning Buyer Pays Remaining Balance
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        Their locked deposit is counted toward the purchase. They pay only <strong className="text-[#F4F5F7]">Winning Bid − Collateral Deposit</strong>.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        2. Other Buyers Get 100% Deposit Refund
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        Every non-winning buyer who revealed on time clicks <strong className="text-[#F4F5F7]">Claim Refund</strong> to get their full deposit back.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        3. Seller Withdraws Full Sale Price
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        Once the winner completes payment, the seller clicks <strong className="text-[#F4F5F7]">Withdraw Proceeds</strong> to receive the full winning amount.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT BRANCH: NO -> NO SALE */}
+              <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center pb-3" aria-hidden="true">
+                  <div className="w-px h-5 bg-amber-500/60" />
+                  <span className="px-3 py-1 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-mono text-xs font-semibold">
+                    NO · Below Seller Reserve
+                  </span>
+                  <div className="w-px h-4 bg-amber-500/60" />
+                  <svg className="w-3.5 h-3.5 text-amber-400 -mt-1" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 12L2 6h12L8 12z" />
+                  </svg>
+                </div>
+
+                <div className="w-full flex-1 bg-[#0B0C10] border border-amber-500/40 rounded-md p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#232730] pb-3">
+                    <span className="text-xs font-mono font-semibold text-amber-400">
+                      OUTCOME B · NO SALE
+                    </span>
+                    <span className="text-[11px] font-mono text-[#8E95A5]">
+                      Reserve Not Met
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        1. Seller Retains the Vehicle
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        The seller is protected from selling below their minimum acceptable price and keeps full ownership of the car.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        2. All Revealed Buyers Get 100% Refund
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        Every buyer who revealed their sealed bid on time clicks <strong className="text-[#F4F5F7]">Claim Refund</strong> and receives 100% of their collateral deposit back.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#12141A] border border-[#232730] space-y-1">
+                      <div className="font-mono text-[#F4F5F7] font-semibold">
+                        3. Ready for Re-Listing or Reset
+                      </div>
+                      <p className="text-[#8E95A5] leading-relaxed">
+                        The seller can list the vehicle again with updated terms, or the Admin can clean up completed auction records.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
