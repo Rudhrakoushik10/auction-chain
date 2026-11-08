@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "ai:server": "tsx server.ts --ai-only --port 8000",
+    "chain": "npm --prefix blockchain start",
+    "deploy": "npm --prefix blockchain run deploy:local",
+    "oracle": "npm --prefix blockchain run oracle",
+    "setup:all": "npm install && npm --prefix blockchain install",
     "build": "vite build",
     "start": "node server.ts",
     "preview": "vite preview",

@@ -6,6 +6,24 @@ import { performance } from 'perf_hooks';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
+// Automatically load .env file in local environments if present
+const envPath = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+  for (const line of envContent.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim().replace(/^['"]|['"]$/g, '');
+      if (key && !process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  }
+}
+
 const ai = new GoogleGenAI();
 
 const app = express();
@@ -483,6 +501,17 @@ async function startServer() {
   }
 
   const isProduction = args.includes('--prod');
+  const isAiOnly = args.includes('--ai-only');
+
+  if (isAiOnly) {
+    app.listen(PORT, HOST, () => {
+      console.log(
+        `[AuctionChain AI Backend] Gemini 3.8 Flash Indian Vehicle Valuation Engine listening at http://127.0.0.1:${PORT}`
+      );
+    });
+    return;
+  }
+
   if (!isProduction) {
     const vite = await createViteServer({
       configFile: path.resolve(process.cwd(), 'vite.config.ts'),

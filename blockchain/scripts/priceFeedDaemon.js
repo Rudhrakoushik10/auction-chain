@@ -84,21 +84,38 @@ async function main() {
   console.log("  AuctionChain - Autonomous Price Oracle Daemon (Account 4)");
   console.log("============================================================================");
 
-  // 1. Verify blockchain node is reachable
-  const isOnline = await checkNodeReady();
+  // 1. Wait up to 60s for local Hardhat node to become reachable
+  let isOnline = false;
+  for (let i = 0; i < 40; i++) {
+    isOnline = await checkNodeReady();
+    if (isOnline) break;
+    if (i === 0) {
+      console.log("[Oracle] Waiting for Hardhat node on http://127.0.0.1:8545...");
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
   if (!isOnline) {
     console.error("\n[ERROR] Cannot connect to local Hardhat node at http://127.0.0.1:8545.");
     console.error("Please start the blockchain node first in Terminal 1:");
-    console.error("  -> Run: scripts\\start-blockchain.bat (or 'npm start' in blockchain/)");
+    console.error("  -> Run: npm run chain (or scripts\\start-blockchain.bat)");
     console.error("============================================================================\n");
     process.exit(1);
   }
 
-  // 2. Verify deployed addresses file
+  // 2. Wait up to 30s for deployed contractAddresses.json file
   const addressesPath = path.join(__dirname, "../../frontend/src/contracts/contractAddresses.json");
+  for (let i = 0; i < 20; i++) {
+    if (fs.existsSync(addressesPath)) break;
+    if (i === 0) {
+      console.log("[Oracle] Waiting for smart contract deployment to finish...");
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
   if (!fs.existsSync(addressesPath)) {
     console.error("\n[ERROR] Contract addresses file not found.");
-    console.error("Please deploy contracts first: run 'npm start' in blockchain/");
+    console.error("Please deploy contracts first: run 'npm run chain'");
     console.error("============================================================================\n");
     process.exit(1);
   }
