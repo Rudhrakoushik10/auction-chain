@@ -11,236 +11,152 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
   const problemStatements = [
     {
       index: '01',
-      title: 'Bid Sniping & Shill Bidding in Open Auctions',
+      title: 'Last-Second Bid Sniping & Fake Price Driving',
       problem:
-        'In conventional open-outcry and online English vehicle auctions, every participant sees the current highest bid in real time. Buyers hold back their true valuation until the final seconds (sniping), while unscrupulous sellers or insiders place artificial shill bids to force genuine buyers higher.',
-      consequence: 'Distorted market discovery and unfair price inflation for genuine buyers.',
+        'In regular online car auctions, everyone can see the current highest bid. Buyers wait until the last few seconds to jump in (sniping), while dishonest sellers or insiders place fake bids just to push genuine buyers into paying more.',
+      consequence: 'Unfair bidding wars and inflated car prices for real buyers.',
     },
     {
       index: '02',
-      title: 'Public Mempool Front-Running on Standard Blockchains',
+      title: 'Visible Bids on Standard Public Platforms',
       problem:
-        'Even when auctions move to standard smart contracts, submitting a plaintext bid broadcasts the exact bid amount and ETH transfer value in the public mempool. Automated bots and competing bidders can inspect pending transactions and outbid by a fraction before the block is mined.',
-      consequence: 'Complete loss of bid privacy on transparent ledgers.',
+        'Even on basic blockchain auction sites, the amount you bid and the money you transfer are visible to the public right away. Competitors and automated bots can see your offer while it is still processing and outbid you by a tiny margin.',
+      consequence: 'Zero privacy—competitors can copy or beat your offer instantly.',
     },
     {
       index: '03',
-      title: 'Opaque & Uncalibrated Indian Pre-Owned Vehicle Pricing',
+      title: 'Guesswork in Indian Used-Car Pricing',
       problem:
-        'Used-car valuation in India depends heavily on regional brand liquidity, kilometer odometer wear, powertrain demand, transmission type, and accident history. Without an objective, transparent benchmark in Indian Rupees (₹), sellers misprice reserves and buyers bid blind.',
-      consequence: 'Information asymmetry between vehicle consignors and bidders.',
+        'A used car’s true value in India depends on its brand demand, kilometers driven, fuel type, transmission, and accident history. Without an independent price estimate in Indian Rupees (₹), sellers set unrealistic prices and buyers overpay.',
+      consequence: 'Buyers and sellers don’t have a trusted reference price.',
     },
     {
       index: '04',
-      title: 'Counterparty Default & Custodial Escrow Friction',
+      title: 'Non-Serious Bidders & Slow Deposit Refunds',
       problem:
-        'Traditional auction portals either allow non-serious bidders to place unbacked bids and walk away after winning, or lock buyer funds inside centralized bank accounts that take days or weeks to refund losing participants.',
-      consequence: 'Delayed capital return and settlement defaults.',
+        'Many traditional portals either let casual bidders win and walk away without paying, or hold buyer security deposits in company bank accounts that take days or weeks to refund if you don’t win.',
+      consequence: 'Wasted time for sellers and locked-up money for honest buyers.',
     },
   ];
 
   const solutions = [
     {
       step: '01',
-      title: 'Keccak-256 Sealed-Bid Commit-Reveal Protocol',
-      subtitle: 'Zero Bid Visibility During Active Bidding',
+      title: 'Digital Sealed-Envelope Bidding',
+      subtitle: 'Your Offer Stays Secret Until Bidding Closes',
       description:
-        'Instead of sending a visible price, the bidder’s browser combines their bid amount and a secret 32-byte random salt into a one-way cryptographic hash. Only this sealed fingerprint is stored on SealedAuction.sol during the Commit phase, guaranteeing mathematical privacy until the bidding clock expires.',
+        'Instead of showing your bid to the public, your browser locks your price inside a private digital envelope before sending it. Nobody—not the seller, other buyers, or the platform—can see how much you offered while the auction is open.',
     },
     {
       step: '02',
-      title: 'Uniform Collateral Deposit (Zero Value Signalling)',
-      subtitle: 'Identical Escrow Transfer for Every Participant',
+      title: 'Same Security Deposit for Every Bidder',
+      subtitle: 'Wallet Transfers Never Give Away Your Bid Size',
       description:
-        'If bidders sent their full bid amount in ETH during commitment, observers could deduce the bid from the wallet transfer value. AuctionChain requires every bidder to lock the exact same fixed refundable deposit during the Commit phase, masking whether a bid is conservative or aggressive while deterring spam.',
+        'If buyers had to send their full bid amount up front, anyone watching wallet transfers could guess how much they bid. On AuctionChain, every bidder puts down the exact same refundable security deposit, keeping your actual offer completely hidden.',
     },
     {
       step: '03',
-      title: 'Gemini AI Valuation Engine for the Indian Market',
-      subtitle: 'Explainable ₹ INR Benchmark Anchored on PriceOracle.sol',
+      title: 'AI Fair-Price Guide in Indian Rupees (₹)',
+      subtitle: 'Objective Valuation Before You Bid',
       description:
-        'Before a vehicle auction opens, structured vehicle specifications are evaluated by the AI valuation engine calibrated for the Indian pre-owned market. The resulting fair-market estimate in Indian Rupees (₹) and the canonical SHA-256 specification hash are anchored on-chain for every bidder to verify.',
+        'Before any vehicle goes live, our AI valuation engine checks its make, model, year, mileage, and condition against the Indian pre-owned car market. Every listing displays a clear fair-value range in Rupees (₹) so you can bid with confidence.',
     },
     {
       step: '04',
-      title: 'Deterministic Smart Contract Settlement & Instant Refunds',
-      subtitle: 'Reentrancy-Protected Pull-Over-Push Escrow',
+      title: 'Automatic Winner Selection & Instant Refunds',
+      subtitle: 'No Middlemen Holding Your Money',
       description:
-        'During the Reveal phase, SealedAuction.sol recomputes each bidder’s hash on-chain to verify no bid was altered. Once finalized, the highest verified bidder above the seller’s reserve wins, losing bidders immediately reclaim 100% of their deposit via claimRefund(), and the seller withdraws proceeds.',
+        'Once the bidding timer ends, all sealed envelopes are opened and verified automatically. The highest genuine bidder above the seller’s minimum price wins the car, and everyone else can withdraw 100% of their security deposit in one click.',
     },
   ];
 
   const comparisonRows = [
     {
-      dimension: 'Bid Privacy During Active Window',
-      traditional: 'Publicly visible to all bidders & insiders',
-      naiveBlockchain: 'Exposed in public mempool & msg.value',
-      auctionChain: 'Cryptographically sealed via salted Keccak-256 hash',
+      dimension: 'Who Can See Your Bid?',
+      traditional: 'Visible to all buyers, sellers, and insiders right away',
+      naiveBlockchain: 'Publicly visible in transaction records',
+      auctionChain: 'Kept 100% private inside a sealed digital envelope until bidding ends',
     },
     {
-      dimension: 'Protection Against Last-Second Sniping',
-      traditional: 'Vulnerable to final-second bid increments',
-      naiveBlockchain: 'Vulnerable to gas-priority front-running',
-      auctionChain: 'Immune — all sealed bids are blind and independent',
+      dimension: 'Last-Second Sniping Protection',
+      traditional: 'Anyone can outbid you in the final second',
+      naiveBlockchain: 'Automated bots can jump ahead of your transaction',
+      auctionChain: 'Protected — everyone submits their best offer privately',
     },
     {
-      dimension: 'Vehicle Fair-Value Benchmarking',
-      traditional: 'Subjective dealer estimate or opaque book range',
-      naiveBlockchain: 'None — purely speculative bidding',
-      auctionChain: 'AI Indian Market Valuation (₹ INR) + SHA-256 Oracle Hash',
+      dimension: 'Car Price Guidance',
+      traditional: 'Rough dealer estimate or guesswork',
+      naiveBlockchain: 'No price guidance at all',
+      auctionChain: 'AI Indian market valuation in Rupees (₹) locked to the car’s details',
     },
     {
-      dimension: 'Security Deposit & Refund Handling',
-      traditional: 'Centralized custodian (3–10 business day refund)',
-      naiveBlockchain: 'Push-transfer loops vulnerable to gas DoS',
-      auctionChain: 'Uniform collateral with instant pull-based claimRefund()',
+      dimension: 'Security Deposit Refunds',
+      traditional: 'Held by a company bank account (3–10 business days)',
+      naiveBlockchain: 'Can get stuck or delayed by network errors',
+      auctionChain: 'Instant 1-click refund directly back to your wallet if you don’t win',
     },
     {
-      dimension: 'Auditability of Winner Selection',
-      traditional: 'Closed auctioneer database',
-      naiveBlockchain: 'On-chain but lacks pre-bid privacy',
-      auctionChain: '100% verifiable on-chain hash match & reserve enforcement',
+      dimension: 'How the Winner Is Chosen',
+      traditional: 'Managed privately behind closed doors',
+      naiveBlockchain: 'Automatic, but bids are exposed beforehand',
+      auctionChain: '100% transparent, tamper-proof rules verified automatically',
     },
   ];
 
   return (
-    <div className="space-y-24 pb-24">
+    <div className="space-y-20 pb-24">
       {/* ===================================================================
           SECTION 1: HERO STAGE — ABOUT THE PLATFORM (SCOPED 3D SCENE)
          =================================================================== */}
-      <section className="relative border-b border-[#232730] pb-12 pt-4 overflow-hidden">
+      <section className="relative border-b border-[#232730] pt-4 pb-14 lg:pt-8 lg:pb-20 overflow-hidden">
         {/* Scoped 3D SUV Background Animation (Top Hero Section Only) */}
         <InteractiveSuvScene />
 
         {/* Subtle Scoped Contrast Scrim */}
         <div
-          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#0B0C10]/40 via-transparent to-[#0B0C10] z-[1]"
+          className="absolute inset-0 pointer-events-none bg-gradient-to-r from-[#0B0C10]/90 via-[#0B0C10]/55 to-transparent z-[1]"
           aria-hidden="true"
         />
 
-        <div className="relative z-10 space-y-14">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-            {/* Left Column: About AuctionChain (7 cols) */}
-            <div className="lg:col-span-7 flex flex-col justify-center space-y-6 pt-2">
-              <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-[#8E95A5]">
-                <span className="text-[#C5A46D]">About AuctionChain</span>
-                <span aria-hidden="true">·</span>
-                <span>AI-Anchored Sealed-Bid Vehicle Exchange</span>
-              </div>
-
-              <div className="space-y-4">
-                <h1
-                  className="text-3xl sm:text-5xl font-display font-semibold tracking-tight text-[#F4F5F7] leading-[1.1]"
-                  style={{ textWrap: 'balance' }}
-                >
-                  Fair Price Discovery for the Indian Automotive Market through{' '}
-                  <span className="text-[#C5A46D]">Cryptographic Sealed Bids.</span>
-                </h1>
-
-                <p className="text-base text-[#8E95A5] max-w-2xl leading-relaxed">
-                  AuctionChain is a decentralized vehicle remarketing platform engineered to eliminate bid sniping, price manipulation, and valuation opacity. By combining an <strong className="text-[#F4F5F7] font-medium">AI-powered Indian market valuation engine</strong> with a <strong className="text-[#F4F5F7] font-medium">two-phase Commit-Reveal smart contract protocol</strong>, every vehicle is priced transparently and every bid remains mathematically confidential until the auction closes.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-6 pt-2">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('how-it-works')}
-                  className="px-5 py-3 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] font-semibold text-xs uppercase tracking-[0.12em] inline-flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <span>Explore How It Works</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onNavigate('architecture')}
-                  className="text-xs font-mono uppercase tracking-[0.12em] text-[#8E95A5] hover:text-[#C5A46D] transition-colors cursor-pointer"
-                >
-                  System Architecture →
-                </button>
-              </div>
+        <div className="relative z-10 w-full">
+          <div className="max-w-2xl space-y-6">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-[#8E95A5]">
+              <span className="text-[#C5A46D]">About AuctionChain</span>
+              <span aria-hidden="true">·</span>
+              <span>Private Sealed-Bid Car Auctions</span>
             </div>
 
-            {/* Right Column: How AuctionChain Blinds Every Bid (Clean Single-Level Ledger) */}
-            <div className="lg:col-span-5">
-              <div className="bg-[#12141A]/90 border border-[#232730] rounded-md p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-[#232730] pb-3.5">
-                  <span className="text-xs font-mono text-[#C5A46D]">
-                    How AuctionChain Blinds Every Bid
-                  </span>
-                  <span className="text-xs font-mono text-[#8E95A5]">
-                    Client-Side Sealing
-                  </span>
-                </div>
+            <div className="space-y-4">
+              <h1
+                className="text-3xl sm:text-5xl lg:text-[3.15rem] font-display font-semibold tracking-tight text-[#F4F5F7] leading-[1.1]"
+                style={{ textWrap: 'balance' }}
+              >
+                Fair, Private Car Auctions for the Indian Market with{' '}
+                <span className="text-[#C5A46D]">Sealed-Envelope Bidding.</span>
+              </h1>
 
-                <dl className="divide-y divide-[#232730] text-xs">
-                  <div className="py-3 space-y-1">
-                    <dt className="font-mono text-[#646C7E]">01. Private Input (Hidden)</dt>
-                    <dd className="font-semibold text-[#F4F5F7] text-sm">
-                      True Bid Amount + 256-Bit Secret Salt
-                    </dd>
-                    <dd className="text-[#8E95A5]">
-                      Computed in your browser; never transmitted in plain text during the Commit phase.
-                    </dd>
-                  </div>
-
-                  <div className="py-3 space-y-1">
-                    <dt className="font-mono text-[#646C7E]">02. Uniform Deposit (Public)</dt>
-                    <dd className="font-semibold text-[#C5A46D] text-sm">
-                      Identical Fixed Collateral Deposit
-                    </dd>
-                    <dd className="text-[#8E95A5]">
-                      Every participant locks the exact same refundable deposit so wallet transfers never leak bid size.
-                    </dd>
-                  </div>
-
-                  <div className="pt-3 space-y-1">
-                    <dt className="font-mono text-[#646C7E]">03. On-Chain Commitment</dt>
-                    <dd className="font-mono text-[#F4F5F7]">
-                      keccak256(abi.encode(auctionId, bidder, bidWei, salt))
-                    </dd>
-                    <dd className="text-[#8E95A5]">
-                      Stored on SealedAuction.sol — impossible to reverse-engineer or alter after submission.
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-          </div>
-
-          {/* Clean 4-Column Hairline Architectural Strip (No Floating Pill Cards) */}
-          <div className="border-t border-[#232730] pt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="space-y-1">
-              <div className="text-xs font-mono text-[#646C7E]">Auction Mechanism</div>
-              <div className="text-base font-display font-semibold text-[#F4F5F7]">
-                Commit-Reveal
-              </div>
-              <div className="text-xs text-[#8E95A5]">Two-Phase Sealed Bidding</div>
+              <p className="text-base sm:text-lg text-[#8E95A5] max-w-xl leading-relaxed">
+                AuctionChain makes buying and selling pre-owned vehicles fair and simple. Every car gets an <strong className="text-[#F4F5F7] font-medium">AI-estimated fair market price in Indian Rupees (₹)</strong>, and every buyer submits their offer in a <strong className="text-[#F4F5F7] font-medium">private digital envelope</strong>—so nobody can see your bid, copy your price, or outbid you at the last second.
+              </p>
             </div>
 
-            <div className="space-y-1">
-              <div className="text-xs font-mono text-[#646C7E]">Cryptographic Seal</div>
-              <div className="text-base font-display font-semibold text-[#F4F5F7]">
-                Keccak-256 + Salt
-              </div>
-              <div className="text-xs text-[#8E95A5]">Tamper-Proof Commitment</div>
-            </div>
+            <div className="flex flex-wrap items-center gap-6 pt-1">
+              <button
+                type="button"
+                onClick={() => onNavigate('how-it-works')}
+                className="px-6 py-3.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] font-semibold text-xs uppercase tracking-[0.12em] inline-flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <span>See How It Works</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
 
-            <div className="space-y-1">
-              <div className="text-xs font-mono text-[#646C7E]">Valuation Engine</div>
-              <div className="text-base font-display font-semibold text-[#C5A46D]">
-                Gemini AI (₹ INR)
-              </div>
-              <div className="text-xs text-[#8E95A5]">Indian Automotive Market</div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs font-mono text-[#646C7E]">Escrow Security</div>
-              <div className="text-base font-display font-semibold text-[#F4F5F7]">
-                Pull-Over-Push
-              </div>
-              <div className="text-xs text-[#8E95A5]">Solidity 0.8.20 Smart Contracts</div>
+              <button
+                type="button"
+                onClick={() => onNavigate('architecture')}
+                className="text-xs font-mono uppercase tracking-[0.12em] text-[#8E95A5] hover:text-[#C5A46D] transition-colors cursor-pointer"
+              >
+                System Architecture →
+              </button>
             </div>
           </div>
         </div>
@@ -255,10 +171,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
             01. The Problem Statement
           </div>
           <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-            Why Traditional &amp; First-Generation Blockchain Vehicle Auctions Fail
+            Why Regular Online Car Auctions Are Unfair to Buyers &amp; Sellers
           </h2>
           <p className="text-sm text-[#8E95A5] leading-relaxed">
-            High-value vehicle remarketing suffers from structural information asymmetry. When bids are visible in real time—or when vehicle valuations rely on guesswork—neither the seller nor the buyer achieves fair market execution.
+            When everyone can see the current bid—or when nobody knows what a used car is genuinely worth—honest buyers end up overpaying and sellers struggle to get a fair deal.
           </p>
         </div>
 
@@ -266,7 +182,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
           {problemStatements.map((item) => (
             <article
               key={item.index}
-              className="py-9 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+              className="py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
               <div className="lg:col-span-4 space-y-1.5">
                 <div className="text-2xl font-mono font-semibold text-[#C5A46D] tabular-nums">
@@ -279,7 +195,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
 
               <div className="lg:col-span-5 space-y-1.5">
                 <div className="text-xs font-mono text-[#646C7E]">
-                  Structural Flaw
+                  What Goes Wrong
                 </div>
                 <p className="text-sm text-[#8E95A5] leading-relaxed">
                   {item.problem}
@@ -288,7 +204,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
 
               <div className="lg:col-span-3 space-y-1.5">
                 <div className="text-xs font-mono text-[#646C7E]">
-                  Market Impact
+                  Why It Matters
                 </div>
                 <p className="text-sm text-[#F4F5F7] leading-relaxed">
                   {item.consequence}
@@ -309,10 +225,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
               02. How AuctionChain Solves It
             </div>
             <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-              Four-Pillar Cryptographic &amp; AI Architecture
+              Four Simple Protections Built Into Every Auction
             </h2>
             <p className="text-sm text-[#8E95A5] leading-relaxed">
-              Every vulnerability identified in conventional vehicle auctions is resolved at the protocol layer through verifiable smart contracts and calibrated AI valuation.
+              We combine private sealed-envelope bidding with AI price guidance so every buyer and seller gets a fair, transparent result.
             </p>
           </div>
 
@@ -321,7 +237,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('how-it-works')}
             className="text-xs font-mono uppercase tracking-[0.12em] text-[#C5A46D] hover:text-[#D4B57E] inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
-            <span>See Step-by-Step Workflow</span>
+            <span>See Step-by-Step Guide</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -329,7 +245,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
         <div className="border-t border-b border-[#232730] grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#232730]">
           <div className="divide-y divide-[#232730]">
             {[solutions[0], solutions[2]].map((sol) => (
-              <div key={sol.step} className="py-9 md:pr-10 space-y-3">
+              <div key={sol.step} className="py-8 md:pr-10 space-y-3">
                 <div className="flex items-center gap-2.5 text-xs font-mono">
                   <span className="text-[#C5A46D] font-semibold">{sol.step}</span>
                   <span className="text-[#646C7E]" aria-hidden="true">·</span>
@@ -347,7 +263,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
 
           <div className="divide-y divide-[#232730]">
             {[solutions[1], solutions[3]].map((sol) => (
-              <div key={sol.step} className="py-9 md:pl-10 space-y-3">
+              <div key={sol.step} className="py-8 md:pl-10 space-y-3">
                 <div className="flex items-center gap-2.5 text-xs font-mono">
                   <span className="text-[#C5A46D] font-semibold">{sol.step}</span>
                   <span className="text-[#646C7E]" aria-hidden="true">·</span>
@@ -371,10 +287,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
       <section className="space-y-6">
         <div className="max-w-2xl space-y-2">
           <div className="text-xs font-mono text-[#C5A46D]">
-            03. Protocol Comparison Matrix
+            03. Platform Comparison
           </div>
           <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-            Traditional Auctions vs. Standard Smart Contracts vs. AuctionChain
+            How AuctionChain Compares to Other Auction Platforms
           </h2>
         </div>
 
@@ -383,11 +299,11 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-[#0B0C10] border-b border-[#232730] text-xs font-mono text-[#8E95A5]">
-                  <th className="py-4 px-6 font-medium w-1/4">Evaluation Dimension</th>
-                  <th className="py-4 px-6 font-medium w-1/4">Traditional Open Auction</th>
-                  <th className="py-4 px-6 font-medium w-1/4">Standard Blockchain Auction</th>
+                  <th className="py-4 px-6 font-medium w-1/4">Feature</th>
+                  <th className="py-4 px-6 font-medium w-1/4">Regular Online Auctions</th>
+                  <th className="py-4 px-6 font-medium w-1/4">Basic Crypto Auctions</th>
                   <th className="py-4 px-6 font-medium w-1/4 text-[#C5A46D]">
-                    AuctionChain Protocol
+                    AuctionChain
                   </th>
                 </tr>
               </thead>

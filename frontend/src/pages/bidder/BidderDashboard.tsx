@@ -52,6 +52,12 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
   const isDeskExpanded = !isSidebarCollapsed || isSidebarHovered;
   const [txNotice, setTxNotice] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab]);
+
   if (!wallet) return null;
 
   const myBids = auctions.filter((a) =>

@@ -68,6 +68,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isUpdatingFeed, setIsUpdatingFeed] = useState<boolean>(false);
   const [feedFeedback, setFeedFeedback] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab]);
+
   if (!wallet) return null;
 
   const handleUpdatePriceFeed = async (newVal?: number) => {

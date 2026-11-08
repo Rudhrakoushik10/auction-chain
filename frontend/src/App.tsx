@@ -74,6 +74,12 @@ function AuctionChainAppContent() {
     }
   }, [savedSecrets]);
 
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [publicTab, selectedAuctionId, isConnected, wallet?.address]);
+
   const selectedAuction = auctions.find((a) => a.id === selectedAuctionId) || null;
 
   const handleSelectAuction = (auction: AuctionItem) => {
@@ -641,7 +647,7 @@ function AuctionChainAppContent() {
       )}
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-6">
         {nonceMismatch && (
           <div className="mb-6">
             <NonceMismatchBanner
