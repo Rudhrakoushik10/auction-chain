@@ -36,14 +36,14 @@ export interface ModelEvaluationMetrics {
 export interface AIPredictionRecord {
   prediction_id: number;
   category: ProductCategory;
-  predicted_price: number; // Valuation price in INR from Gemini AI
+  predicted_price: number; // Valuation price in INR from AI Valuation Engine
   predicted_price_inr: number; // Valuation in INR (₹)
   predicted_price_paise: number; // Integer paise (Math.round(predicted_price * 100)) for PriceOracle.sol
   confidence_min_inr?: number;
   confidence_max_inr?: number;
   valuation_summary?: string;
   currency: 'INR' | 'USD';
-  model_version: string; // e.g. "Gemini 3.8 Flash"
+  model_version: string; // e.g. "AuctionChain AI v2.4 (India Market)"
   in_training_distribution?: boolean;
   warnings?: string[];
   inference_ms?: number;

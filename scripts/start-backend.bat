@@ -1,9 +1,9 @@
 @echo off
-title AuctionChain - [Terminal 2] Gemini AI Indian Car Valuation Engine (Port 8000)
+title AuctionChain - [Terminal 2] AI Indian Vehicle Valuation Engine (Port 8000)
 cd /d "%~dp0.."
 
 echo ============================================================================
-echo   [Terminal 2] Starting Gemini AI Indian Vehicle Valuation Engine
+echo   [Terminal 2] Starting AI Indian Vehicle Valuation Engine
 echo   API URL: http://127.0.0.1:8000
 echo ============================================================================
 echo.

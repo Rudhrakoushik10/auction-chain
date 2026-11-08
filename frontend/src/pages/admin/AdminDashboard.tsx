@@ -11,6 +11,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Globe,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { AuctionItem } from '../../types/auction';
 import { useWallet } from '../../context/WalletContext';
@@ -26,11 +28,15 @@ export type AdminNavTab =
 interface AdminDashboardProps {
   auctions: AuctionItem[];
   onSelectAuction: (auction: AuctionItem) => void;
+  onDeleteAuction?: (auctionId: string) => void;
+  onResetAllData?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   auctions,
   onSelectAuction,
+  onDeleteAuction,
+  onResetAllData,
 }) => {
   const {
     wallet,
@@ -56,12 +62,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [rateInput, setRateInput] = useState<string>(liveEthInrRate.toString());
   const [isUpdatingFeed, setIsUpdatingFeed] = useState<boolean>(false);
   const [feedFeedback, setFeedFeedback] = useState<string | null>(null);
+  const [confirmingResetAll, setConfirmingResetAll] = useState<boolean>(false);
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setActiveTab('dashboard');
+    setConfirmingResetAll(false);
+  }, [wallet?.address]);
 
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-  }, [activeTab]);
+  }, [activeTab, wallet?.address]);
 
   if (!wallet) return null;
 
@@ -192,6 +205,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 space-y-8">
+        {adminNotice && (
+          <div className="p-3.5 rounded-md bg-emerald-950/30 border border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{adminNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAdminNotice(null)}
+              className="text-[11px] text-[#8E95A5] hover:text-[#F4F5F7] cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Inline Confirmation Bar for Data Reset */}
+        {confirmingResetAll && (
+          <div className="p-4 rounded-md bg-rose-950/30 border border-rose-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <div className="text-xs font-semibold text-rose-200">
+                Confirm Platform Data Reset
+              </div>
+              <p className="text-xs text-rose-300/80">
+                This will delete all registered and completed vehicle auctions ({auctions.length}), clear saved bid secrets, and reset account balances for a clean demo.
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmingResetAll(false)}
+                className="px-3 py-1.5 rounded border border-[#232730] bg-[#12141A] text-xs text-[#8E95A5] hover:text-[#F4F5F7] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onResetAllData?.();
+                  setConfirmingResetAll(false);
+                  setAdminNotice('Platform data reset complete: All registered and completed auctions have been cleared.');
+                  setTimeout(() => setAdminNotice(null), 5000);
+                }}
+                className="px-3.5 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer"
+              >
+                Yes, Reset All Data
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 1. Platform Overview */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
@@ -201,16 +265,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Platform Overview
                 </h1>
                 <p className="text-xs text-[#8E95A5] mt-1">
-                  Monitor active vehicle auctions, live Indian Rupee (₹) exchange rates, and platform services.
+                  Monitor active vehicle auctions, live Indian Rupee (₹) exchange rates, and platform data.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab('oracle')}
-                className="px-4 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
-              >
-                Manage Rupee Rate (ETH / ₹)
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingResetAll(true)}
+                  className="px-3.5 py-2.5 rounded-md bg-[#12141A] hover:bg-rose-950/40 border border-[#232730] hover:border-rose-500/40 text-rose-400 text-xs font-medium inline-flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset All Data</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('oracle')}
+                  className="px-4 py-2.5 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  Manage Rupee Rate (ETH / ₹)
+                </button>
+              </div>
             </div>
 
             {/* Clean Hairline KPI Strip */}
@@ -455,18 +529,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* 3. All Vehicle Auctions */}
         {activeTab === 'auctions' && (
           <section className="space-y-4">
-            <div className="border-b border-[#232730] pb-4">
-              <h2 className="text-xl font-display font-semibold text-[#F4F5F7]">
-                All Vehicle Auctions
-              </h2>
-              <p className="text-xs text-[#8E95A5] mt-1">
-                Complete list of vehicles created by sellers across the platform.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#232730] pb-4">
+              <div>
+                <h2 className="text-xl font-display font-semibold text-[#F4F5F7]">
+                  All Vehicle Auctions
+                </h2>
+                <p className="text-xs text-[#8E95A5] mt-1">
+                  Manage, inspect, or delete registered and completed vehicle auctions across the platform.
+                </p>
+              </div>
+              {auctions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingResetAll(true)}
+                  className="px-3.5 py-2 rounded-md bg-[#12141A] hover:bg-rose-950/40 border border-[#232730] hover:border-rose-500/40 text-rose-400 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Delete All &amp; Reset Platform</span>
+                </button>
+              )}
             </div>
 
             {auctions.length === 0 ? (
               <div className="py-12 text-center text-xs text-[#8E95A5] border-b border-[#232730]">
-                No vehicle auctions have been created yet. Switch to the Seller account to list a vehicle.
+                No vehicle auctions are currently registered. Switch to the Seller account to list a vehicle.
               </div>
             ) : (
               <div className="overflow-x-auto border-b border-[#232730]">
@@ -479,7 +565,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <th className="py-3.5 px-4 font-medium text-right">AI Fair Value (₹)</th>
                       <th className="py-3.5 px-4 font-medium text-right">Minimum Price</th>
                       <th className="py-3.5 px-4 font-medium text-right">Sealed Bids</th>
-                      <th className="py-3.5 px-4 font-medium text-right">Action</th>
+                      <th className="py-3.5 px-4 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#232730] font-mono tabular-nums">
@@ -505,13 +591,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {auc.commitments.length}
                         </td>
                         <td className="py-4 px-4 text-right font-sans">
-                          <button
-                            type="button"
-                            onClick={() => onSelectAuction(auc)}
-                            className="px-2.5 py-1.5 rounded border border-[#232730] hover:border-[#C5A46D]/50 text-[#F4F5F7] hover:text-[#C5A46D] cursor-pointer"
-                          >
-                            View Details
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onSelectAuction(auc)}
+                              className="px-2.5 py-1.5 rounded border border-[#232730] hover:border-[#C5A46D]/50 text-[#F4F5F7] hover:text-[#C5A46D] cursor-pointer"
+                            >
+                              View Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteAuction?.(auc.id);
+                                setAdminNotice(`Deleted Lot #${auc.numericId} (${auc.title}) from platform registry.`);
+                                setTimeout(() => setAdminNotice(null), 4000);
+                              }}
+                              title="Delete this auction"
+                              className="px-2.5 py-1.5 rounded border border-[#232730] hover:border-rose-500/50 text-rose-400 hover:bg-rose-950/30 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

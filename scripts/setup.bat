@@ -4,7 +4,7 @@ cd /d "%~dp0.."
 
 echo ============================================================================
 echo   AuctionChain - Local Environment Setup
-echo   (Web3 Frontend, Gemini AI Valuation Engine, Hardhat Node ^& Price Oracle)
+echo   (Web3 Frontend, AI Vehicle Valuation Engine, Hardhat Node ^& Price Oracle)
 echo ============================================================================
 echo.
 
@@ -12,12 +12,12 @@ if not exist ".env" (
     if exist ".env.example" (
         echo [Setup] Creating .env from .env.example...
         copy /Y ".env.example" ".env" >nul
-        echo [Setup] Created .env file. Add your GEMINI_API_KEY inside .env if desired.
+        echo [Setup] Created .env file.
         echo.
     )
 )
 
-echo [1/2] Installing Root Application ^& Gemini AI dependencies...
+echo [1/2] Installing Root Application ^& AI Valuation dependencies...
 call npm install
 if errorlevel 1 (
     echo [WARNING] Root npm install reported an issue. Retrying with --legacy-peer-deps...

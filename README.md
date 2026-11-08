@@ -1,85 +1,210 @@
-# AuctionChain — Decentralized Vehicle Sealed-Bid Auction Platform
+# AuctionChain — Decentralized Sealed-Bid Vehicle Auction Platform
 
-**Predict · Bid · Verify**
+**Cryptographic Commit-Reveal Vehicle Auctions · Advisory AI Market Valuation (`₹` INR) · On-Chain Price Oracle & Escrow (`Chain ID: 31337`)**
 
-AuctionChain is a decentralized vehicle auction platform combining LightGBM machine-learning resale valuation (`v1.0.0`), two-phase Keccak-256 commit-reveal bidding (`Auction.sol`), and a live Chainlink-compatible ETH/INR Price Feed Oracle (`PriceOracle.sol`) on the Ethereum Hardhat local network (Chain ID: `31337`).
-
-> 📋 **Active Project Tracker**: See [PROJECT_TRACKER.md](./PROJECT_TRACKER.md) for live work logs, completed components, strict architectural invariants, and the pending development backlog.
+AuctionChain is a decentralized web application designed for the Indian pre-owned passenger vehicle market. It eliminates bid sniping, front-running, and price manipulation in online vehicle auctions by combining **Keccak-256 cryptographic commit-reveal bidding**, **advisory AI vehicle valuation in Indian Rupees (`₹`)**, and **trustless smart contract escrow** on Ethereum (Hardhat Localhost).
 
 ---
 
-## System Architecture
+## 1. Platform Overview & Key Capabilities
 
-The platform is organized into three core modules:
+1. **AI-Assisted Pre-Owned Vehicle Valuation (`₹` INR)**
+   - Inspects structured vehicle specifications (Brand, Model, Year, Odometer in km, Fuel Type, Engine, Transmission, Accident History) and computes an advisory fair market value in **Indian Rupees (`₹`)** and integer **paise**, complete with factor-by-factor price impact weights and a canonical **SHA-256 specification hash**.
+2. **On-Chain Price Oracle (`PriceOracle.sol`)**
+   - Maintains a live **ETH/INR exchange rate** on-chain so vehicles valued in `₹` (INR) can be seamlessly auctioned and settled in **Test ETH**.
+   - Anchors the AI valuation record and SHA-256 vehicle specification hash on-chain before bidding begins.
+3. **Cryptographic Commit-Reveal Sealed Bidding (`SealedAuction.sol`)**
+   - **Commit Phase**: Bidders submit a blinded commitment hash `keccak256(abi.encodePacked(bidAmountWei, salt, bidderAddress))` while locking an identical fixed collateral deposit (`fixedDepositEth`). Nobody—not even the seller or competing bidders—can see the bid amount.
+   - **Reveal Phase**: Bidders unlock their sealed bid with a **1-click reveal** using their browser-stored passkey (or backup JSON file). The smart contract verifies the hash mathematically.
+4. **Pull-Over-Push Escrow Settlement**
+   - Once finalized, the highest verified bidder above the seller's reserve price wins. Their collateral deposit is automatically credited toward the final bid (`highestBid - fixedDeposit`), losing bidders claim a 100% deposit refund, and the seller withdraws the winning proceeds.
+5. **Live Backend Terminal Proofs & Real MetaMask Confirmations**
+   - Every smart contract interaction triggers a real **MetaMask transaction confirmation popup** (`eth_sendTransaction`) and prints a structured cryptographic execution proof in the backend terminal (`AI Valuation Proof`, `PriceOracle.sol Anchor Proof`, and `On-Chain Transaction Execution Proof`).
+
+---
+
+## 2. Repository Structure
 
 ```text
 AuctionChain/
-│
-├── blockchain/         # Server 1: Hardhat Node + Automated Contract Deployment (Port 8545)
-├── backend/            # Server 2: LightGBM v1.0.0 Vehicle Price Prediction Service (Port 8000)
-└── frontend/           # Server 3: React 19 + TypeScript + Vite Web3 Client (Port 3000)
+├── blockchain/                  # Hardhat Smart Contract Suite (Solidity 0.8.28)
+│   ├── contracts/
+│   │   ├── Auction.sol          # SealedAuction: Commit-Reveal & Pull-Payment Escrow
+│   │   └── PriceOracle.sol      # Live ETH/INR Feed & AI Valuation Hash Registry
+│   ├── scripts/
+│   │   ├── deploy.js            # Deploys contracts & exports addresses
+│   │   └── priceFeeder.js       # Autonomous ETH/INR oracle feeder (Account 4)
+│   └── test/                    # Smart contract unit & integration tests
+├── frontend/                    # React 19 + TypeScript + Tailwind CSS Web3 UI
+│   ├── public/                  # Static assets & favicon
+│   └── src/
+│       ├── components/          # Layout, Navbar, Modals, CountdownTimer
+│       ├── context/             # WalletContext (Hardhat accounts & MetaMask sync)
+│       ├── data/                # Seeded Indian vehicle auctions
+│       ├── lib/                 # Keccak-256 hashing, INR/ETH formatters, ABIs
+│       ├── pages/               # Public pages, AuctionDetails, CreateAuction, Dashboards
+│       ├── services/            # AI Valuation client & MetaMask Web3 service
+│       └── types/               # TypeScript domain models
+├── scripts/                     # Windows (.bat) 1-click setup & 4-terminal launchers
+├── docs/                        # Comprehensive architecture & design documentation
+├── server.ts                    # Express Gateway + AI Valuation Engine + Terminal Logger
+└── package.json                 # Unified scripts and dependencies
 ```
 
 ---
 
-## Service Overview
+## 3. Prerequisites & Local System Setup
 
-| Terminal | Service | Directory | Port | Start Command | Description |
-|:---|:---|:---|:---|:---|:---|
-| **Terminal 1** | **Blockchain & Auto-Deploy** | `blockchain/` | `8545` (Chain ID 31337) | `npm start` | Boots Hardhat node and automatically deploys `Auction.sol` and syncs contract addresses. |
-| **Terminal 2** | **Vehicle Valuation Engine** | `backend/` | `8000` | `uvicorn src.api.main:app --port 8000 --reload` | FastAPI service serving the trained LightGBM `v1.0.0` (`regression_l1`, 934 trees) US-market vehicle price prediction model (`GET /health`, `POST /predict`). |
-| **Terminal 3** | **Web3 Frontend & API Gateway** | `./` or `frontend/` | `3000` | `npm run dev` | Web3 client with role-based workspaces (Admin, Seller, Bidder 1, Bidder 2) and integrated API proxy. |
+### 3.1 Required Software
+- **Node.js**: `v18.x` or `v20.x+` (with `npm`)
+- **Browser**: Google Chrome, Brave, or Microsoft Edge with the **MetaMask Extension** installed
+- **Git**: For cloning the repository
 
----
+### 3.2 Step 1 — Install Dependencies
+Open a terminal in the project root directory and run:
 
-## Step-by-Step Local Startup
-
-### 1. Terminal 1 (Blockchain + Auto-Deploy)
 ```bash
+# 1. Copy the environment configuration template
+cp .env.example .env
+
+# 2. Install root (Frontend + AI Server) dependencies
+npm install
+
+# 3. Install Hardhat blockchain dependencies
 cd blockchain
 npm install
-npm start
+cd ..
 ```
+*(On Windows, you can simply double-click `scripts\setup.bat` to automate this step.)*
 
-### 2. Terminal 2 (Backend LightGBM Valuation Service)
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --reload
-```
+### 3.3 Step 2 — Launch the Platform
 
-### 3. Terminal 3 (Web Application)
+#### Option A: Windows 1-Click 4-Terminal Launcher (Recommended for Demo)
+Double-click `scripts\start-all.bat` (or run `npm run start:all:win`). This opens **4 dedicated terminal windows**:
+1. **Terminal 1 — Hardhat Blockchain Node (`Port 8545`)**: Starts the local Ethereum node and auto-deploys `PriceOracle.sol` and `SealedAuction.sol`.
+2. **Terminal 2 — AI Vehicle Valuation Engine (`Port 8000`)**: Runs the Indian Vehicle Valuation Engine and prints live AI, Oracle, and Blockchain proof banners.
+3. **Terminal 3 — Autonomous ETH/INR Price Oracle (`Account 4`)**: Fetches live ETH/INR market rates and pushes on-chain updates to `PriceOracle.sol`.
+4. **Terminal 4 — Web3 Frontend Application (`Port 3000`)**: Serves the React Web3 interface at `http://localhost:3000`.
+
+#### Option B: Unified Single-Command Start (macOS / Linux / Windows)
+To run the full application stack from a single terminal on `http://localhost:3000`:
 ```bash
-npm install
+# Terminal A: Start Hardhat node & deploy contracts
+npm run blockchain:node
+# (In another tab, deploy contracts once node is up: npm run blockchain:deploy)
+
+# Terminal B: Start Full-Stack Web3 App + AI Valuation Engine on Port 3000
 npm run dev
 ```
-Open `http://localhost:3000` in your browser (or run `scripts\start-all.bat` on Windows to launch all servers automatically).
 
 ---
 
-## Currency & Valuation Display Convention (Indian Rupees — ₹ / INR)
+## 4. MetaMask Configuration for Local Demonstration
 
-- **AI Model Raw Output vs. Frontend Display**:
-  - The underlying `LightGBM v1.0.0` vehicle valuation model (`backend/models/vehicle_price_model.txt`) was trained on 4,009 used-car listings and computes raw predictions in US Dollars (`USD`).
-  - **Throughout the entire frontend application, all fiat monetary valuations are converted and displayed exclusively in Indian Rupees (`₹` / `INR`, `en-IN` locale)** using a deterministic conversion rate (`1 USD = ₹84 INR`, with integer subunits displayed in `paise = INR × 100`).
-- **On-Chain Bidding & Live ETH-to-INR Display**:
-  - All auction bids, reserve prices, and uniform sealed-bid collateral deposits on `SealedAuction.sol` are denominated and settled in **Test ETH** on the local Hardhat Ethereum network (Chain ID `31337`).
-  - **Everywhere Test ETH is entered or displayed across the website** (including live input fields for Starting Bid, Seller Reserve, Fixed Collateral Deposit, Confidential Commit Bid, and Reveal Bid, as well as auction cards, dashboards, and wallet balances), its equivalent value in **Indian Rupees (`₹` / `INR`, at `1 ETH = ₹2,50,000 INR`)** is calculated and shown in real time alongside the ETH amount.
+To get real MetaMask transaction confirmation popups during your demo, configure the **Hardhat Localhost** network and import the test accounts into MetaMask:
 
-## Dev Bypass Login & Architecture Simplification
+### 4.1 Add Hardhat Localhost Network in MetaMask
+- **Network Name**: `Hardhat Localhost`
+- **New RPC URL**: `http://127.0.0.1:8545`
+- **Chain ID**: `31337`
+- **Currency Symbol**: `ETH`
 
-- **⚡ Quick Dev Bypass (Development & Debugging)**:
-  - For rapid testing and demo purposes without waiting for MetaMask extension approval popups, click **"⚡ Bypass Login (Seller)"** inside the Connect Wallet modal.
-  - This activates **Account #1 (Seller)** with 10,000 ETH test balance in 1 click, allowing immediate access to creating auctions, committing bids, and managing settlements.
-  - Role switching in the header remains instant and prompt-free across all preconfigured Hardhat accounts.
-- **Direct Auction Architecture (No Intermediary Oracle Required)**:
-  - The AI model computes the vehicle resale valuation as an advisory benchmark displayed in Indian Rupees (`₹` / `INR`).
-  - Sellers directly configure starting bid, reserve price, and fixed collateral deposit in Test ETH and deploy straight to `SealedAuction.sol` without requiring an intermediary Oracle smart contract transaction. All auction bidding, reveal verification, reserve checks, and escrow settlements are executed deterministically on `SealedAuction.sol`.
+### 4.2 Import the 4 Interactive Role Accounts (10,000 Test ETH each)
+In MetaMask, click **Account Menu → Add account or hardware wallet → Import account** and paste the private keys below:
+
+| Platform Role | ENS Label | Ethereum Address | Private Key (Import into MetaMask) |
+| :--- | :--- | :--- | :--- |
+| **Seller** | `seller.eth` | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` |
+| **Bidder 1** | `bidder1.eth` | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` |
+| **Bidder 2** | `bidder2.eth` | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a` |
+| **Admin** | `admin.eth` | `0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65` | `0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a` |
+
+*(Note: Hardhat Account #3 `0x90F79bf6EB2c4f870365E785982E1f101E93b906` acts autonomously in the background as the authorized `PriceOracle.sol` signer.)*
+
+> **Tip if you restart the Hardhat Node**: In MetaMask, go to **Settings → Advanced → Clear activity tab data** so MetaMask resets your local account nonces to `0`.
 
 ---
 
-## MetaMask Connection & Nonce Reset Note
+## 5. Step-by-Step Live Demonstration Guide
 
-- **Single Initial Authorization**: MetaMask prompts for connection authorization only once when clicking **Connect Wallet** at startup. Switching between **Admin (Account #0)**, **Seller (Account #1)**, **Bidder 1 (Account #2)**, and **Bidder 2 (Account #3)** in the top-right account switcher happens instantaneously without requiring repeated MetaMask authorization popups.
-- **When Restarting Terminal 1 (Hardhat Node)**: If Terminal 1 is closed and reopened, Hardhat resets its block height and account nonces back to `0`. Either click **"Auto-Sync Hardhat Nonce Now"** in the frontend diagnostic banner, or in MetaMask go to **Settings → Developer Tools → Click on "Delete activity and nonce data"**.
+Follow this sequence to demonstrate every capability of **AuctionChain**—including **AI Valuation**, **On-Chain Oracle Anchoring**, **MetaMask Transaction Confirmations**, **Sealed Bidding**, **1-Click Reveal**, **Escrow Settlement**, and **Admin Data Management**.
 
+### Step 1: Public Overview & Terminologies Tour
+1. Open `http://localhost:3000`.
+2. Show the **Overview** page highlighting how sealed-bid vehicle auctions prevent front-running and sniping.
+3. Click **How It Works** in the top navigation bar:
+   - Walk through the **4-Step Lifecycle** (AI Valuation & Listing → Commit Phase → Reveal Phase → Escrow Settlement).
+   - Scroll to **Key Auction Terminologies & Phases Explained** to explain *Collateral Deposit*, *Seller Reserve Price*, *Keccak-256 Commitment Hash*, *Secret Salt (Passkey)*, and *Pull-Based Escrow*.
+
+### Step 2: Seller Creates a Vehicle Auction with AI Valuation & Oracle Proof
+1. Click **Connect Wallet** in the top-right corner and select **Seller (`seller.eth` - Account #0)** (also select Account #0 in MetaMask).
+2. Notice you are taken to the **Seller Dashboard** on the first sidebar tab. Click **Create New Auction** in the left sidebar.
+3. **01. Vehicle Specifications**:
+   - Choose a vehicle preset (e.g., *2021 Hyundai Creta SX 1.5L CRDi Diesel* or *2022 Tata Nexon EV Max XZ+ Lux*) or customize the mileage, year, and condition.
+   - Click **Compute AI Valuation (INR)**.
+4. **02. Advisory Vehicle Market Valuation (INR)**:
+   - Show the **Estimated Fair Market Value in `₹` (INR)**, integer paise, **SHA-256 Specification Hash**, and **Valuation Factor Breakdown**.
+   - **Switch to the Backend Terminal (`Terminal 2 / 4`)**: Point out the `[AI VALUATION ENGINE · PROOF OF INFERENCE]` box and the `[PRICE ORACLE CONTRACT · PriceOracle.sol ANCHOR PROOF]` box showing the exact `prediction_id`, `product_data_hash`, and on-chain block number.
+5. **03. Configure Auction Terms**:
+   - Configure the **Starting Bid (ETH)**, **Hidden Reserve Price (ETH)**, and **Fixed Collateral Deposit (ETH)** (with live `₹` INR equivalents shown underneath).
+   - Click **Review & Deploy**.
+6. **04. Deploy to `SealedAuction.sol`**:
+   - Click **Confirm & Deploy to SealedAuction.sol**.
+   - **Approve the transaction in the MetaMask popup**.
+   - Show the `[METAMASK_CONFIRMED_TX · ON-CHAIN EXECUTION PROOF]` log printed in the backend terminal.
+
+### Step 3: Bidder 1 & Bidder 2 Submit Sealed Bids (Commit Phase)
+1. Switch wallet role to **Bidder 1 (`bidder1.eth` - Account #1)** (and switch MetaMask to Account #1).
+   - Notice the dashboard automatically resets to the first sidebar option (**Overview & Active Bids**).
+2. Open the newly created vehicle auction in the **Marketplace**.
+   - Point out that the **Submit Sealed Bid** panel is visible **only** to Bidder accounts (Seller and Admin accounts cannot bid).
+3. **Bidder 1 Commits a Sealed Bid**:
+   - Enter a secret bid amount (e.g., `2.10 ETH`).
+   - Show the live **Keccak-256 Commitment Hash** generated in the browser.
+   - Check the confirmation box acknowledging the secret passkey backup and click **Lock Collateral & Commit Bid**.
+   - **Confirm the transaction in the MetaMask popup** (locking the fixed collateral deposit, e.g., `0.25 ETH`).
+   - Show the green confirmation box for Bidder 1 and the on-chain execution proof in the backend terminal.
+4. **Bidder 2 Commits a Competing Sealed Bid**:
+   - Switch wallet role to **Bidder 2 (`bidder2.eth` - Account #2)** (and switch MetaMask to Account #2).
+   - Open the same auction. Point out that Bidder 1's green confirmation banner is **not** shown to Bidder 2, and Bidder 1's bid amount remains completely hidden on-chain (`LOCKED` behind the Keccak-256 hash while locking the exact same `0.25 ETH` deposit).
+   - Enter a higher secret bid (e.g., `2.45 ETH`), check the box, click **Lock Collateral & Commit Bid**, and **confirm in MetaMask**.
+
+### Step 4: 1-Click Bid Reveal (Reveal Phase)
+1. Use the **Demo Phase Controls** bar at the top of the Auction Details page (available to Seller/Admin) to click **Advance to Reveal Phase**.
+2. **Seller View During Reveal**:
+   - While on Seller (`seller.eth`), point out the **Seller Reveal & Finalization Desk**, which shows live reveal progress (`0 / 2 Revealed`) without confusing the seller with a bidder reveal input form.
+3. **Bidder 1 & Bidder 2 Reveal with 1 Click**:
+   - Switch to **Bidder 1 (`bidder1.eth`)**. Notice the **Reveal Sealed Bid** panel automatically loads Bidder 1's saved browser passkey (`Ready to Reveal — Your Sealed Bid Passkey was Found Automatically`).
+   - Click **Reveal My Bid Now (2.10 ETH)** and **confirm in MetaMask**.
+   - Switch to **Bidder 2 (`bidder2.eth`)**, click **Reveal My Bid Now (2.45 ETH)**, and **confirm in MetaMask**.
+   - Show the `[ON-CHAIN EXECUTION PROOF]` in the backend terminal verifying that `keccak256(bidAmountWei, salt, bidder)` matched the commitment stored in `SealedAuction.sol`.
+
+### Step 5: Finalization & Trustless Escrow Settlement
+1. Advance the phase to **Finalizable** (or switch to **Seller `seller.eth`**) and click **Execute finalizeAuction()**. Confirm in MetaMask.
+   - The smart contract verifies that Bidder 2's `2.45 ETH` bid exceeds the Seller's reserve price and declares **Bidder 2 (`bidder2.eth`)** the winner.
+2. **Winner Settles Net Balance**:
+   - Switch to **Bidder 2 (`bidder2.eth`)** and click **Pay Remaining Balance (`2.20 ETH`)** (`2.45 ETH` winning bid minus `0.25 ETH` locked deposit). Confirm in MetaMask.
+3. **Losing Bidder Claims 100% Refund**:
+   - Switch to **Bidder 1 (`bidder1.eth`)** and click **Claim `0.25 ETH` Refund**. Confirm in MetaMask.
+4. **Seller Withdraws Auction Proceeds**:
+   - Switch to **Seller (`seller.eth`)** and click **Withdraw `2.45 ETH` Proceeds**. Confirm in MetaMask.
+
+### Step 6: Admin Governance, Auction Deletion & Platform Data Reset
+1. Switch wallet role to **Admin (`admin.eth` - Account #4)**.
+2. Open the **Admin Console**:
+   - Inspect the **Authorized Oracle Node**, live **ETH/INR Oracle Feed**, and **On-Chain Event Ledger**.
+   - In the **Platform Auction State Matrix**, demonstrate deleting any individual registered or completed auction using the **Delete** button in the Action column.
+   - Demonstrate the **Reset All Platform Data** button in the top-right header to restore all auctions, balances, and browser passkeys to a clean initial state at any time.
+
+---
+
+## 6. Further Documentation
+
+Detailed architectural and module-level documentation is available in `/docs`:
+- [`docs/project-overview.md`](docs/project-overview.md) — Problem statement, domain context, and core innovations
+- [`docs/system-architecture.md`](docs/system-architecture.md) — 4-service topology, data flow, and sequence diagrams
+- [`docs/ai-model-documentation.md`](docs/ai-model-documentation.md) — Indian Vehicle Valuation Engine, feature weights, and SHA-256 canonical hashing
+- [`docs/smart-contract-design.md`](docs/smart-contract-design.md) — `SealedAuction.sol` and `PriceOracle.sol` specifications and state machines
+- [`docs/database-design.md`](docs/database-design.md) — On-chain vs. off-chain state schema and local passkey storage
+- [`docs/security.md`](docs/security.md) — Threat model, front-running mitigation, and pull-payment escrow guards
+- [`docs/demo-guide.md`](docs/demo-guide.md) — Quick-reference checklist for live evaluation and viva demonstrations

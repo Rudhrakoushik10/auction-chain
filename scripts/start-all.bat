@@ -12,7 +12,7 @@ start "AuctionChain - [Terminal 1] Hardhat Blockchain" cmd /c "%~dp0start-blockc
 
 timeout /t 4 /nobreak >nul
 
-echo [2/4] Opening Terminal 2: Gemini AI Vehicle Valuation Engine (Port 8000)...
+echo [2/4] Opening Terminal 2: AI Vehicle Valuation Engine (Port 8000)...
 start "AuctionChain - [Terminal 2] AI Valuation Backend" cmd /c "%~dp0start-backend.bat"
 
 timeout /t 2 /nobreak >nul

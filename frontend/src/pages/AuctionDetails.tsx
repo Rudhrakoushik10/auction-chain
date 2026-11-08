@@ -100,10 +100,12 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   const {
     isConnected,
     wallet,
+    humanWallets,
     isCorrectNetwork,
     liveEthInrRate,
     openAuthModal,
     switchNetworkToHardhat,
+    selectRoleDirect,
     inspectTransaction,
   } = useWallet();
 
@@ -130,6 +132,16 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   // Reveal Phase State
   const [revealBidInput, setRevealBidInput] = useState<string>('');
   const [revealSaltInput, setRevealSaltInput] = useState<string>('');
+  const [showManualRevealInputs, setShowManualRevealInputs] = useState<boolean>(false);
+
+  // Clear green/red feedback banners, transaction state, and regenerate salt whenever user switches accounts!
+  useEffect(() => {
+    setActionFeedback(null);
+    setTxState('idle');
+    setBackupSavedAck(false);
+    setSalt(generateRandomSalt());
+    setShowManualRevealInputs(false);
+  }, [wallet?.address, auction.id]);
 
   useEffect(() => {
     let active = true;
@@ -143,7 +155,11 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   }, [auction.numericId, wallet?.address, bidAmountEth, salt]);
 
   useEffect(() => {
-    if (!wallet) return;
+    if (!wallet) {
+      setRevealBidInput('');
+      setRevealSaltInput('');
+      return;
+    }
     const match = savedSecrets.find(
       (s) =>
         s.auctionId === auction.id &&
@@ -152,18 +168,33 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
     if (match) {
       setRevealBidInput(match.bidAmountEth);
       setRevealSaltInput(match.salt);
+    } else {
+      setRevealBidInput('');
+      setRevealSaltInput('');
     }
   }, [auction.id, wallet, savedSecrets]);
 
   const isSeller =
     isConnected &&
     wallet &&
-    wallet.address.toLowerCase() === auction.sellerAddress.toLowerCase();
+    (wallet.role === 'seller' ||
+      wallet.address.toLowerCase() === auction.sellerAddress.toLowerCase());
+
+  const isBidderAccount = isConnected && wallet?.role === 'bidder';
 
   const myCommitment =
     isConnected && wallet
       ? auction.commitments.find(
           (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+        )
+      : undefined;
+
+  const mySavedSecret =
+    isConnected && wallet
+      ? savedSecrets.find(
+          (s) =>
+            s.auctionId === auction.id &&
+            s.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
         )
       : undefined;
 
@@ -622,36 +653,30 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             </section>
           )}
 
-          {/* CASE 2: COMMIT PHASE PANEL */}
-          {isConnected && auction.phase === 'Commit' && (
+          {/* CASE 2A: COMMIT PHASE — BIDDER ONLY */}
+          {isConnected && auction.phase === 'Commit' && isBidderAccount && (
             <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-[#232730] pb-4">
                 <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
                   <Lock className="w-4 h-4 text-[#C5A46D]" />
-                  <span>Submit Sealed Commitment</span>
+                  <span>Submit Sealed Bid ({wallet?.bidderIdentifier || wallet?.label})</span>
                 </h3>
                 <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
                   Deposit: {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                 </span>
               </div>
 
-              {isSeller && (
-                <div className="p-3.5 rounded-md bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
-                  <strong>Seller Restriction:</strong> You are connected as the seller of this vehicle. Switch to <strong>Bidder 1</strong> or <strong>Bidder 2</strong> in the top header to place a sealed bid.
-                </div>
-              )}
-
               {myCommitment ? (
                 <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 space-y-2 text-xs">
                   <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Sealed Commitment Recorded On-Chain</span>
+                    <span>Your Sealed Bid Is Locked On-Chain ({wallet?.bidderIdentifier || wallet?.label})</span>
                   </div>
                   <div className="font-mono text-[11px] text-[#8E95A5] break-all">
-                    Hash: {myCommitment.commitmentHash}
+                    Commitment Hash: {myCommitment.commitmentHash}
                   </div>
                   <div className="text-[#8E95A5] font-mono tabular-nums">
-                    Locked Deposit: <strong className="text-[#F4F5F7]">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Bid value remains concealed until Reveal phase.
+                    Locked Collateral Deposit: <strong className="text-[#F4F5F7]">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Your bid amount remains hidden until the Reveal Phase.
                   </div>
                 </div>
               ) : (
@@ -683,7 +708,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
-                        32-Byte Secret Salt
+                        32-Byte Secret Salt (Auto-Saved for Reveal)
                       </label>
                       <button
                         type="button"
@@ -726,7 +751,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-[#F4F5F7]">
-                        Reveal Key Backup (.json)
+                        Reveal Passkey Backup (.json)
                       </span>
                       <button
                         type="button"
@@ -746,7 +771,7 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                         className="mt-0.5 rounded border-[#232730] bg-[#0B0C10]"
                       />
                       <span className="leading-relaxed">
-                        I have saved my bid amount and secret salt. Unrevealed commitments forfeit the{' '}
+                        I understand my bid and secret passkey are saved for the Reveal window. Unrevealed commitments forfeit the{' '}
                         <strong className="text-[#F4F5F7] font-mono">{auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})</strong> deposit.
                       </span>
                     </label>
@@ -763,10 +788,10 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                   ) : (
                     <button
                       type="submit"
-                      disabled={!backupSavedAck || Boolean(isSeller) || txState === 'waiting_approval' || txState === 'pending'}
+                      disabled={!backupSavedAck || txState === 'waiting_approval' || txState === 'pending'}
                       className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      Commit Sealed Hash & Lock {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
+                      Commit Sealed Bid &amp; Lock {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
                     </button>
                   )}
                 </form>
@@ -774,100 +799,306 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             </section>
           )}
 
-          {/* CASE 3: REVEAL PHASE PANEL */}
-          {isConnected && auction.phase === 'Reveal' && (
+          {/* CASE 2B: COMMIT PHASE — SELLER / ADMIN CONTROL PANEL (No Bid Submission Form Shown) */}
+          {isConnected && auction.phase === 'Commit' && !isBidderAccount && (
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
+              <div className="border-b border-[#232730] pb-4">
+                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+                  {wallet?.role === 'admin' ? 'Platform Admin View' : 'Seller Consignment Control'}
+                </div>
+                <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
+                  Sealed Bidding Window Open ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
+                </h3>
+              </div>
+
+              <p className="text-xs text-[#8E95A5] leading-relaxed">
+                You are viewing this vehicle as <strong className="text-[#F4F5F7]">{wallet?.label} ({wallet?.roleTitle})</strong>. Only competing <strong className="text-[#F4F5F7]">Bidder</strong> accounts can submit sealed bids. Once bidders have locked their sealed commitments, advance the auction to the <strong className="text-[#F4F5F7]">Reveal Phase</strong> to open envelopes.
+              </p>
+
+              <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2.5">
+                <div className="text-[11px] font-mono uppercase tracking-wider text-[#8E95A5]">
+                  Quick Role Switch (To Place a Test Bid)
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {humanWallets
+                    .filter((w) => w.role === 'bidder')
+                    .map((bidderWallet) => {
+                      const alreadyCommitted = auction.commitments.some(
+                        (c) => c.bidderAddress.toLowerCase() === bidderWallet.address.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={bidderWallet.address}
+                          type="button"
+                          onClick={() => selectRoleDirect(bidderWallet)}
+                          className="px-3 py-2 rounded border border-[#232730] hover:border-[#C5A46D]/50 bg-[#12141A] text-left transition-colors cursor-pointer"
+                        >
+                          <div className="text-xs font-semibold text-[#F4F5F7]">
+                            Switch to {bidderWallet.bidderIdentifier || bidderWallet.label}
+                          </div>
+                          <div className="text-[11px] font-mono text-[#8E95A5] mt-0.5">
+                            {alreadyCommitted ? '✓ Bid Committed' : 'Ready to Bid'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onAdvancePhaseDemo(auction.id)}
+                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Close Bidding &amp; Advance to Reveal Phase ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
+              </button>
+            </section>
+          )}
+
+          {/* CASE 3A: REVEAL PHASE — BIDDER PANEL (1-CLICK USER-FRIENDLY REVEAL) */}
+          {isConnected && auction.phase === 'Reveal' && isBidderAccount && (
             <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-[#232730] pb-4">
                 <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
                   <Eye className="w-4 h-4 text-[#C5A46D]" />
-                  <span>Reveal Sealed Bid</span>
+                  <span>Open &amp; Reveal Sealed Bid ({wallet?.bidderIdentifier || wallet?.label})</span>
                 </h3>
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0B0C10] border border-[#232730] text-[#F4F5F7] text-xs font-medium cursor-pointer hover:border-[#C5A46D]/40 transition-colors">
-                  <Upload className="w-3.5 h-3.5 text-[#C5A46D]" />
-                  <span>Import Backup JSON</span>
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    onChange={handleImportRevealJson}
-                    className="hidden"
-                  />
-                </label>
+                {myCommitment && !myCommitment.revealed && (
+                  <button
+                    type="button"
+                    onClick={() => setShowManualRevealInputs((prev) => !prev)}
+                    className="text-xs font-mono text-[#C5A46D] hover:underline cursor-pointer"
+                  >
+                    {showManualRevealInputs ? 'Use 1-Click Auto-Fill' : 'Edit / Import JSON'}
+                  </button>
+                )}
               </div>
 
-              {myCommitment?.revealed ? (
+              {!myCommitment ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] text-xs text-[#8E95A5] leading-relaxed">
+                    <strong className="text-[#F4F5F7]">{wallet?.bidderIdentifier || wallet?.label} ({shortenAddress(wallet?.address || '')})</strong> did not submit a sealed bid on this vehicle during the Commit window.
+                  </div>
+
+                  {auction.commitments.some((c) => !c.revealed) && (
+                    <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2.5">
+                      <div className="text-[11px] font-mono uppercase tracking-wider text-[#C5A46D]">
+                        Bidders With Unopened Envelopes on This Vehicle
+                      </div>
+                      <div className="space-y-2">
+                        {auction.commitments
+                          .filter((c) => !c.revealed)
+                          .map((c) => {
+                            const matchingWallet = humanWallets.find(
+                              (w) => w.address.toLowerCase() === c.bidderAddress.toLowerCase()
+                            );
+                            return (
+                              <div
+                                key={c.id}
+                                className="flex items-center justify-between gap-2 pt-1"
+                              >
+                                <span className="text-xs text-[#F4F5F7] font-mono">
+                                  {c.bidderEns} ({shortenAddress(c.bidderAddress)})
+                                </span>
+                                {matchingWallet && (
+                                  <button
+                                    type="button"
+                                    onClick={() => selectRoleDirect(matchingWallet)}
+                                    className="px-3 py-1.5 rounded bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold cursor-pointer"
+                                  >
+                                    Switch to {matchingWallet.bidderIdentifier || matchingWallet.label} to Reveal
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : myCommitment.revealed ? (
                 <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-1.5">
                   <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Bid Verified & Revealed On-Chain</span>
+                    <span>Your Sealed Bid Is Verified &amp; Revealed On-Chain</span>
                   </div>
                   <div className="font-mono text-emerald-300 tabular-nums">
-                    Revealed Bid: <strong>{myCommitment.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(myCommitment.revealedAmountEth || 0)})</strong>
+                    Verified Offer: <strong>{myCommitment.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(myCommitment.revealedAmountEth || 0)})</strong>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleRevealSubmit} className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
-                        Original Committed Bid Amount (Test ETH)
-                      </label>
-                      <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
-                        ≈ {formatEthToInr(revealBidInput)}
-                      </span>
+                  {/* Streamlined 1-Click Auto-Loaded Reveal Summary */}
+                  {mySavedSecret && !showManualRevealInputs ? (
+                    <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400">
+                          ✓ Saved Passkey Auto-Loaded from Browser
+                        </span>
+                        <span className="text-xs font-mono text-[#8E95A5]">
+                          {shortenAddress(wallet?.address || '')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-1 border-t border-[#232730] font-mono tabular-nums">
+                        <div>
+                          <div className="text-[11px] font-sans text-[#8E95A5]">Your Sealed Bid</div>
+                          <div className="text-base font-semibold text-[#F4F5F7] mt-0.5">
+                            {Number(revealBidInput).toFixed(2)} ETH
+                          </div>
+                          <div className="text-[11px] text-[#C5A46D]">
+                            {formatEthToInr(revealBidInput)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-sans text-[#8E95A5]">Secret Key (Salt)</div>
+                          <div className="text-xs text-[#F4F5F7] mt-1 truncate">
+                            {revealSaltInput.slice(0, 14)}...{revealSaltInput.slice(-6)}
+                          </div>
+                          <div className="text-[11px] text-emerald-400 mt-0.5">Matches On-Chain Hash</div>
+                        </div>
+                      </div>
                     </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={revealBidInput}
-                      onChange={(e) => setRevealBidInput(e.target.value)}
-                      placeholder="e.g., 15.00"
-                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
-                    />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-[#8E95A5] tabular-nums">
-                      <span>
-                        Indian Rupee Equivalent: <strong className="text-[#F4F5F7]">{formatEthToInr(revealBidInput)}</strong>
-                      </span>
-                      <span>1 ETH = ₹{liveEthInrRate.toLocaleString('en-IN')}</span>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#8E95A5]">
+                          Enter your original bid and salt or import your backup JSON file:
+                        </span>
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0B0C10] border border-[#232730] text-[#F4F5F7] text-xs font-medium cursor-pointer hover:border-[#C5A46D]/40 transition-colors">
+                          <Upload className="w-3.5 h-3.5 text-[#C5A46D]" />
+                          <span>Import JSON</span>
+                          <input
+                            type="file"
+                            accept=".json,application/json"
+                            onChange={handleImportRevealJson}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
+                            Original Committed Bid Amount (ETH)
+                          </label>
+                          <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
+                            ≈ {formatEthToInr(revealBidInput)}
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={revealBidInput}
+                          onChange={(e) => setRevealBidInput(e.target.value)}
+                          placeholder="e.g., 2.00"
+                          className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
+                          Original 32-Byte Secret Salt (0x...)
+                        </label>
+                        <input
+                          type="text"
+                          value={revealSaltInput}
+                          onChange={(e) => setRevealSaltInput(e.target.value)}
+                          placeholder="0x..."
+                          className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-xs text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
-                      Original 32-Byte Secret Salt (0x...)
-                    </label>
-                    <input
-                      type="text"
-                      value={revealSaltInput}
-                      onChange={(e) => setRevealSaltInput(e.target.value)}
-                      placeholder="0x..."
-                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-xs text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
-                    />
-                  </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
+                    disabled={txState === 'waiting_approval' || txState === 'pending'}
+                    className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
                   >
-                    Verify Hash & Reveal Bid
+                    1-Click Verify Hash &amp; Reveal My Bid ({Number(revealBidInput || 0).toFixed(2)} ETH)
                   </button>
                 </form>
               )}
+            </section>
+          )}
 
-              <div className="pt-4 border-t border-[#232730]">
-                <button
-                  type="button"
-                  onClick={() =>
-                    runSimulatedTxLifecycle(async () => {
-                      const res = await onFinalizeAuction(auction.id);
-                      return {
-                        ok: res.success,
-                        msg: res.message,
-                      };
-                    })
-                  }
-                  className="w-full py-2.5 px-4 rounded-md bg-[#0B0C10] border border-[#232730] hover:border-[#C5A46D]/40 text-[#F4F5F7] text-xs font-medium transition-colors cursor-pointer"
-                >
-                  Execute finalizeAuction() & Resolve Reserve Check
-                </button>
+          {/* CASE 3B: REVEAL PHASE — SELLER / ADMIN CONTROL PANEL (No Confusing Bidder Reveal Inputs) */}
+          {isConnected && auction.phase === 'Reveal' && !isBidderAccount && (
+            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
+              <div className="border-b border-[#232730] pb-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
+                    {wallet?.role === 'admin' ? 'Platform Admin Control' : 'Seller Reveal & Finalization Desk'}
+                  </div>
+                  <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
+                    Envelope Opening Status ({auction.commitments.filter((c) => c.revealed).length} of {auction.commitments.length} Revealed)
+                  </h3>
+                </div>
               </div>
+
+              <p className="text-xs text-[#8E95A5] leading-relaxed">
+                Each participating buyer opens their own sealed commitment from their Bidder account. You can switch to any bidder below with 1 click to reveal their test bid, or finalize the auction once envelopes are opened.
+              </p>
+
+              {auction.commitments.length > 0 && (
+                <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-[#8E95A5]">
+                    Bidder Envelope Status
+                  </div>
+                  <div className="divide-y divide-[#232730]">
+                    {auction.commitments.map((c) => {
+                      const matchingBidder = humanWallets.find(
+                        (w) => w.address.toLowerCase() === c.bidderAddress.toLowerCase()
+                      );
+                      return (
+                        <div
+                          key={c.id}
+                          className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div>
+                            <div className="font-semibold text-[#F4F5F7]">
+                              {matchingBidder?.bidderIdentifier || c.bidderEns}{' '}
+                              <span className="font-mono text-[#8E95A5]">({shortenAddress(c.bidderAddress)})</span>
+                            </div>
+                            <div className="font-mono text-[11px] text-[#8E95A5] mt-0.5">
+                              {c.revealed
+                                ? `Revealed: ${c.revealedAmountEth?.toFixed(2)} ETH (${formatEthToInr(c.revealedAmountEth || 0)})`
+                                : 'Sealed · Waiting for Bidder to Reveal'}
+                            </div>
+                          </div>
+                          {!c.revealed && matchingBidder ? (
+                            <button
+                              type="button"
+                              onClick={() => selectRoleDirect(matchingBidder)}
+                              className="px-3 py-1.5 rounded bg-[#171A22] hover:bg-[#C5A46D] text-[#C5A46D] hover:text-[#0B0C10] border border-[#C5A46D]/40 text-xs font-semibold transition-colors cursor-pointer shrink-0"
+                            >
+                              Switch to {matchingBidder.bidderIdentifier || matchingBidder.label}
+                            </button>
+                          ) : (
+                            <span className="text-xs font-mono text-emerald-400 font-semibold">
+                              ✓ Verified
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  runSimulatedTxLifecycle(async () => {
+                    const res = await onFinalizeAuction(auction.id);
+                    return {
+                      ok: res.success,
+                      msg: res.message,
+                    };
+                  })
+                }
+                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Finalize Auction &amp; Resolve Winner (finalizeAuction)
+              </button>
             </section>
           )}
 

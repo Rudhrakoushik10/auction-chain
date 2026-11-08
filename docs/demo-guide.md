@@ -1,174 +1,45 @@
-# AuctionChain — Complete Local Setup & Demonstration Guide
+# AuctionChain — Quick Demonstration Checklist
 
-> **Stack**: Hardhat Local Node (EVM Port 8545) + FastAPI LightGBM AI Service (Port 8000) + React 19 Web3 Frontend (Port 3000)
-
----
-
-## 1. Prerequisites
-
-Ensure you have the following installed on your machine:
-- **Node.js**: v18+ or v20+ (`node -v`)
-- **npm**: v9+ (`npm -v`)
-- **Python**: 3.9+ or 3.10+ (`python --version`)
-- **Git** (optional, for cloning)
-- **MetaMask Browser Extension** (optional — not required if using the built-in **1-Click Dev Bypass**)
+Use this quick checklist during project evaluations and live demonstrations.
 
 ---
 
-## 2. Local Environment Installation (One-Time Setup)
+## 1. Pre-Demo Startup Checklist
 
-### Quick Setup (Windows)
-Run the automated setup script from the project root:
-```cmd
-scripts\setup.bat
-```
-
-### Manual Setup (Cross-Platform: Windows / macOS / Linux)
-
-#### Step 1: Install Blockchain & Hardhat Dependencies
-```bash
-cd blockchain
-npm install
-cd ..
-```
-
-#### Step 2: Install Python AI Backend Dependencies
-```bash
-cd backend
-pip install -r requirements.txt
-cd ..
-```
-
-#### Step 3: Install Frontend Dependencies
-```bash
-cd frontend
-npm install
-cd ..
-```
+1. **Start All 4 Servers**:
+   - Windows: Run `scripts\start-all.bat`
+   - Or run `npm run blockchain:node` (Terminal 1) and `npm run dev` (Terminal 2)
+2. **Verify MetaMask**:
+   - Network set to **Hardhat Localhost** (`http://127.0.0.1:8545`, Chain ID `31337`).
+   - Accounts #0 (`Seller`), #1 (`Bidder 1`), #2 (`Bidder 2`), and #4 (`Admin`) imported.
+   - If you restarted the Hardhat node, click **Settings → Advanced → Clear activity tab data** in MetaMask.
+3. **Keep the Backend Terminal Visible**:
+   - Arrange your screen so the browser (`http://localhost:3000`) and the **Backend Terminal (`Port 8000 / 3000`)** can be shown side-by-side when demonstrating AI, Oracle, and Blockchain proofs.
 
 ---
 
-## 3. Starting the Services
+## 2. 6-Minute Live Demo Script
 
-### Option A: 1-Click Launch (Windows)
-Double-click or run:
-```cmd
-scripts\start-all.bat
-```
-*This opens 4 dedicated command prompt windows in sequence:*
-1. **Terminal 1**: Hardhat EVM Blockchain Node (Port 8545)
-2. **Terminal 2**: FastAPI LightGBM AI Valuation Service (Port 8000)
-3. **Terminal 3**: Autonomous Price Oracle Daemon (Account 4)
-4. **Terminal 4**: React Web3 Frontend (Port 3000)
-
----
-
-### Option B: Manual Launch (Separate Terminals)
-
-#### Terminal 1: Hardhat EVM Blockchain Node (Port 8545)
-```bash
-cd blockchain
-npm start
-```
-
-#### Terminal 2: FastAPI AI Valuation Microservice (Port 8000)
-```bash
-cd backend
-uvicorn src.api.main:app --port 8000 --reload
-```
-
-#### Terminal 3: Autonomous Price Oracle Daemon (Account 4)
-```bash
-cd blockchain
-npx hardhat run scripts/priceFeedDaemon.js --network localhost
-```
-
-#### Terminal 4: React Web3 Application (Port 3000)
-```bash
-npm run dev
-```
-
----
-
-## 4. End-to-End Demo Script (5-Minute Walkthrough)
-
-Open your browser and navigate to: **`http://localhost:3000`**
-
-### Step 1: 1-Click Dev Bypass Login
-1. Click **Connect Wallet** in the top-right corner.
-2. In the modal, click the blue button:
-   👉 **⚡ Quick Dev Bypass (Seller Account #1)**
-3. You are instantly logged in as **Seller (0x7099...79C8)** with 10,000 ETH — **no MetaMask popups required!**
-4. Notice the header displays:
-   - Green pulsing badge: **`Chainlink ETH/INR: ₹2,50,000`**
-   - Active account badge with balance and role.
-
----
-
-### Step 2: Create a Sealed-Bid Auction with AI Valuation
-1. Click **Create Auction** in the top navigation.
-2. **Step 1 — Vehicle Specs**:
-   - Select or customize details (e.g., 2021 BMW 3 Series, 35,000 km, Good condition, Petrol).
-   - Click **Next: Run AI Valuation**.
-3. **Step 2 — AI Prediction (INR)**:
-   - The dApp calls the FastAPI LightGBM microservice.
-   - Observe the predicted market value displayed in Indian Rupees (e.g., `₹28,50,000 INR`) along with confidence intervals.
-   - Click **Next: Set Auction Terms**.
-4. **Step 3 — Auction Parameters**:
-   - Set Starting Price (e.g., `10.00 ETH` — automatically shows `₹25,00,000 INR`).
-   - Set Reserve Price (e.g., `11.50 ETH` — automatically shows `₹28,75,000 INR`).
-   - Deposit amount defaults to `0.10 ETH` (`₹25,000 INR`).
-   - Phase durations: Commit Phase (e.g. 10 mins), Reveal Phase (e.g. 10 mins).
-   - Click **Next: Review & Deploy**.
-5. **Step 4 — Review & Deploy**:
-   - Click **Deploy Auction to Blockchain**.
-   - The contract creates the auction on `SealedAuction.sol`.
-
----
-
-### Step 3: Switch to a Bidder Account & Submit a Sealed Bid
-1. Click on your wallet badge in the header -> Click **Switch Role**.
-2. Select **Bidder 1 — Alice (Account #2)**.
-3. Click on the auction lot you just created.
-4. Click **Submit Sealed Commitment**:
-   - Enter your secret bid (e.g., `12.50 ETH` / `₹31,25,000 INR`).
-   - The dApp automatically generates a cryptographic secret salt.
-   - Computes Keccak-256 hash: `keccak256(abi.encode(auctionId, aliceAddress, bidAmount, salt))`.
-   - Sends the 0.1 ETH fixed collateral deposit.
-   - alice's commitment is securely recorded on-chain while keeping the bid amount private.
-
----
-
-### Step 4: Competing Bidder (Bidder 2 — Bob)
-1. Switch role to **Bidder 2 — Bob (Account #3)**.
-2. Submit a competing sealed bid (e.g., `13.00 ETH` / `₹32,50,000 INR`).
-3. Deposit 0.1 ETH collateral. Bob's hash is registered on-chain.
-
----
-
-### Step 5: Reveal Phase & Settlement
-1. When the Commit Phase timer expires, the auction enters the **Reveal Phase**.
-2. Bidders reveal their bids by supplying their secret salt.
-3. The smart contract validates `keccak256(...) == storedHash`:
-   - Bob's 13.00 ETH bid beats Alice's 12.50 ETH bid.
-   - Alice receives her 0.1 ETH deposit back immediately.
-   - Bob wins the vehicle lot!
-   - Seller receives the winning settlement funds.
-
----
-
-### Step 6: Inspect Chainlink Price Feed Oracle in Admin Console
-1. Switch role to **Administrator (Account #0)**.
-2. In the header, click **Admin Console**.
-3. Click the **Chainlink Price Feed** tab:
-   - View live round metadata: **Round #1**, Decimals: **8**, Description: `"ETH / INR Price Feed"`.
-   - **Simulate Price Fluctuation**: Click a quick preset like **`₹2.75L`** (or type a custom rate) and click **Push Oracle Round**.
-   - Notice the live round updates to Round #2 and all ETH values across the platform instantly recalculate with the new live rate!
-
----
-
-## 5. Troubleshooting & Tips
-
-- **Resetting Blockchain State**: If you restart the Hardhat node, simply run `npm start` in `blockchain/` to re-deploy contracts and sync addresses.
-- **Nonce Mismatch**: If you use MetaMask and reset the Hardhat node, click the in-app **Clear Stale Nonce** button or reset your account in MetaMask (*Settings -> Advanced -> Clear activity tab data*).
-- **FastAPI Documentation**: View interactive Swagger docs at `http://127.0.0.1:8000/docs`.
+1. **Overview & How It Works (1 min)**
+   - Show the **Overview** page and **How It Works → Key Auction Terminologies & Phases Explained** (*Collateral Deposit*, *Seller Reserve Price*, *Keccak-256 Hash*, *Secret Salt*, *Pull-Based Escrow*).
+2. **Seller AI Valuation & Auction Deployment (1.5 min)**
+   - Connect as **Seller (`seller.eth` - Account #0)**.
+   - Go to **Create New Auction** → select a vehicle preset → click **Compute AI Valuation (INR)**.
+   - Show the **Backend Terminal** displaying `[AI VALUATION ENGINE · PROOF OF INFERENCE]` and `[PRICE ORACLE CONTRACT · PriceOracle.sol ANCHOR PROOF]`.
+   - Configure auction terms → click **Confirm & Deploy to SealedAuction.sol** → approve the **MetaMask popup**.
+3. **Sealed Bidding by Bidder 1 & Bidder 2 (1.5 min)**
+   - Switch to **Bidder 1 (`bidder1.eth` - Account #1)**. Notice the sidebar resets to the first menu item and the **Submit Sealed Bid** form is unlocked.
+   - Enter `2.10 ETH`, check the passkey confirmation box, click **Lock Collateral & Commit Bid**, and confirm in **MetaMask**.
+   - Switch to **Bidder 2 (`bidder2.eth` - Account #2)**. Point out that Bidder 1's green confirmation banner is not visible and Bidder 1's bid amount is completely hidden.
+   - Enter `2.45 ETH`, commit the bid, and confirm in **MetaMask**.
+4. **1-Click Bid Reveal (1 min)**
+   - Advance auction phase to **Reveal Phase**.
+   - Show that **Seller (`seller.eth`)** sees the **Seller Reveal & Finalization Desk** (`0 / 2 Revealed`), not a bidder reveal form.
+   - Switch to **Bidder 1**, click the 1-click **Reveal My Bid Now (2.10 ETH)** button, and confirm in **MetaMask**.
+   - Switch to **Bidder 2**, click **Reveal My Bid Now (2.45 ETH)**, and confirm in **MetaMask**.
+5. **Finalization & Escrow Settlement (0.5 min)**
+   - Click **Execute finalizeAuction()** and confirm in **MetaMask** → **Bidder 2** wins with `2.45 ETH`.
+   - **Bidder 2** pays remaining balance (`2.20 ETH`), **Bidder 1** claims `0.25 ETH` refund, and **Seller** withdraws `2.45 ETH` proceeds.
+6. **Admin Delete & Platform Reset (0.5 min)**
+   - Switch to **Admin (`admin.eth` - Account #4)**.
+   - Demonstrate deleting an individual auction or clicking **Reset All Platform Data** to restore the platform to its clean initial state.

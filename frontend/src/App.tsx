@@ -25,6 +25,7 @@ import {
 import { SEALED_AUCTION_CONTRACT_ADDRESS } from './lib/hardhatConfig';
 import { executeMetaMaskTransaction } from './services/blockchain/walletService';
 import { NonceMismatchBanner } from './components/wallet/NonceMismatchBanner';
+import logoImg from './assets/images/auctionchain_logo.png';
 
 const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v1';
 const SECRETS_STORAGE_KEY = 'auctionchain_reveal_secrets_v1';
@@ -34,6 +35,7 @@ function AuctionChainAppContent() {
     isConnected,
     wallet,
     adjustBalance,
+    resetBalances,
     nonceMismatch,
     autoSyncNonce,
     confirmManualNonceClear,
@@ -58,6 +60,32 @@ function AuctionChainAppContent() {
       return [];
     }
   });
+
+  // Ensure browser tab favicon always matches the header AuctionChain emblem
+  React.useEffect(() => {
+    const existingIcons = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+    if (existingIcons.length > 0) {
+      existingIcons.forEach((link) => {
+        link.type = 'image/png';
+        link.href = logoImg;
+      });
+    } else {
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/png';
+      link.href = logoImg;
+      document.head.appendChild(link);
+    }
+  }, []);
+
+  // Reset selected auction to null whenever the user switches accounts so they always land on the first menu option
+  const prevWalletAddrRef = React.useRef<string | undefined>(wallet?.address);
+  React.useEffect(() => {
+    if (prevWalletAddrRef.current !== wallet?.address) {
+      prevWalletAddrRef.current = wallet?.address;
+      setSelectedAuctionId(null);
+    }
+  }, [wallet?.address]);
 
   React.useEffect(() => {
     try {
@@ -92,6 +120,23 @@ function AuctionChainAppContent() {
     setSelectedAuctionId(newAuction.id);
   };
 
+  const handleDeleteAuction = (auctionId: string) => {
+    setAuctions((prev) => prev.filter((a) => a.id !== auctionId));
+    setSavedSecrets((prev) => prev.filter((s) => s.auctionId !== auctionId));
+    if (selectedAuctionId === auctionId) {
+      setSelectedAuctionId(null);
+    }
+  };
+
+  const handleResetAllData = () => {
+    setAuctions([]);
+    setSavedSecrets([]);
+    setSelectedAuctionId(null);
+    localStorage.removeItem(AUCTIONS_STORAGE_KEY);
+    localStorage.removeItem(SECRETS_STORAGE_KEY);
+    resetBalances();
+  };
+
   // Commit Sealed Bid on SealedAuction.sol
   const handleCommitBid = async (
     auctionId: string,
@@ -110,6 +155,8 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: targetAuction.fixedDepositEth,
+      actionName: 'SealedAuction.commitBid(uint256,bytes32) payable',
+      summary: `${wallet.label} committed sealed hash ${commitmentHash.slice(0, 14)}... and locked ${targetAuction.fixedDepositEth.toFixed(2)} ETH collateral on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
@@ -241,6 +288,8 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      actionName: 'SealedAuction.revealBid(uint256,uint256,bytes32)',
+      summary: `${wallet.label} verified Keccak-256 hash and revealed bid of ${bidAmountEth.toFixed(2)} ETH on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
@@ -333,10 +382,17 @@ function AuctionChainAppContent() {
     }
 
     const senderAddr = wallet?.address || targetAuction.sellerAddress;
+    const highest = targetAuction.highestBidEth || 0;
+    const isSold =
+      highest >= targetAuction.reservePriceEth && Boolean(targetAuction.winningBidderAddress);
+    const newPhase = isSold ? 'Sold' : 'No Sale';
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: senderAddr,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      actionName: 'SealedAuction.finalizeAuction(uint256)',
+      summary: `Finalized Lot #${targetAuction.numericId} as ${newPhase} (Highest Revealed Bid: ${highest.toFixed(2)} ETH vs Seller Reserve: ${targetAuction.reservePriceEth.toFixed(2)} ETH)`,
     });
 
     if (!txRes.success) {
@@ -349,10 +405,6 @@ function AuctionChainAppContent() {
       };
     }
 
-    const highest = targetAuction.highestBidEth || 0;
-    const isSold =
-      highest >= targetAuction.reservePriceEth && Boolean(targetAuction.winningBidderAddress);
-    const newPhase = isSold ? 'Sold' : 'No Sale';
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
     const blockNum = txRes.receipt?.blockNumber || 4189400 + targetAuction.events.length;
@@ -431,6 +483,8 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: due,
+      actionName: 'SealedAuction.settleWinner(uint256) payable',
+      summary: `Winner (${wallet.label}) settled remaining ${due.toFixed(2)} ETH balance (+ ${targetAuction.fixedDepositEth.toFixed(2)} ETH deposit credit) on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
@@ -512,6 +566,8 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      actionName: 'SealedAuction.claimRefund(uint256)',
+      summary: `${wallet.label} claimed pull-based collateral refund of ${myComm.depositEth.toFixed(2)} ETH from Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
@@ -581,10 +637,13 @@ function AuctionChainAppContent() {
       return { success: false, message: 'Proceeds already withdrawn or auction not found.' };
     }
 
+    const proceeds = targetAuction.highestBidEth || 0;
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      actionName: 'SealedAuction.withdrawSellerProceeds(uint256)',
+      summary: `Seller (${wallet.label}) withdrew ${proceeds.toFixed(2)} ETH sale proceeds from Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
@@ -597,7 +656,6 @@ function AuctionChainAppContent() {
       };
     }
 
-    const proceeds = targetAuction.highestBidEth || 0;
     const txHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
@@ -721,6 +779,8 @@ function AuctionChainAppContent() {
             <AdminDashboard
               auctions={auctions}
               onSelectAuction={handleSelectAuction}
+              onDeleteAuction={handleDeleteAuction}
+              onResetAllData={handleResetAllData}
             />
           ) : (
             <div className="p-8 text-center text-xs text-slate-400">

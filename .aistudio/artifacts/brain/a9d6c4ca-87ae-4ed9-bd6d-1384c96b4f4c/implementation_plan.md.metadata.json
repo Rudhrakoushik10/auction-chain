@@ -1,6 +1,0 @@
-{
-  "summary":  "Implementation plan for integrating a Chainlink-style live ETH/INR Price Feed Oracle into AuctionChain. Upgrades PriceOracle.sol with latestRoundData(), updates the Admin / Live Oracle feed display, and syncs on-chain rates with real-time frontend conversion.",
-  "updatedAt":  "2026-11-08T07:29:30.294592975Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}

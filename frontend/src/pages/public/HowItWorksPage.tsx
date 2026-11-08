@@ -135,11 +135,135 @@ export const HowItWorksPage: React.FC = () => {
               02. How AuctionChain Automates This Digitally
             </div>
             <h2 className="text-lg font-display font-semibold text-[#F4F5F7]">
-              Cryptographic Seals & Non-Custodial Escrow
+              Cryptographic Seals &amp; Non-Custodial Escrow
             </h2>
             <p className="text-sm text-[#8E95A5] leading-relaxed">
               AuctionChain executes this exact process in software. First, an AI valuation engine estimates the vehicle’s fair market worth in Indian Rupees (₹) so buyers and sellers share an objective baseline. Next, your browser locks your bid inside a cryptographic hash during the <strong className="text-[#F4F5F7] font-medium">Commit Window</strong>. Once bidding closes, participants unlock their bids during the <strong className="text-[#F4F5F7] font-medium">Reveal Window</strong>, the smart contract verifies every seal, awards the vehicle to the highest qualifying bidder, and returns 100% of the security deposit to everyone else.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          SECTION 1B: ESSENTIAL AUCTION TERMINOLOGIES & PHASE DEFINITIONS
+         ===================================================================== */}
+      <section className="space-y-8">
+        <div className="max-w-3xl space-y-2">
+          <div className="text-xs font-mono text-[#C5A46D]">
+            Glossary &amp; Phase Definitions
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
+            Key Auction Terminologies &amp; Phases Explained
+          </h2>
+          <p className="text-sm text-[#8E95A5] leading-relaxed">
+            Before participating as a Seller or Bidder, review these core terms that govern how prices, deposits, and auction windows work on AuctionChain.
+          </p>
+        </div>
+
+        {/* Part A: Core Price & Deposit Terminologies */}
+        <div className="border-t border-b border-[#232730] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#232730]">
+          <div className="py-7 md:pr-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">01 · Starting Bid</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Public Opening Floor Price
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              The lowest bid amount accepted by the auction smart contract. Any revealed bid below the Starting Bid is automatically rejected by <code className="text-[#F4F5F7] font-mono">SealedAuction.sol</code>.
+            </p>
+          </div>
+
+          <div className="py-7 md:px-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">02 · Seller Reserve Price</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Minimum Acceptable Sale Price
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              The minimum price the seller is willing to accept to part with the vehicle. Even if a bidder places the highest offer, the car is only marked <strong className="text-[#F4F5F7]">Sold</strong> if the highest revealed bid meets or exceeds the Seller Reserve Price. Otherwise, the lot closes as <strong className="text-[#F4F5F7]">No Sale</strong> and all deposits are refunded.
+            </p>
+          </div>
+
+          <div className="py-7 md:pl-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">03 · Collateral Deposit</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Uniform Refundable Security Lock
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              A fixed security deposit (e.g., <code className="text-[#F4F5F7] font-mono">0.25 ETH</code>) that every bidder locks in the smart contract when submitting a sealed bid. Because every bidder locks the exact same deposit regardless of whether they bid ₹3 Lakhs or ₹5 Lakhs, observers cannot guess anyone’s bid from their wallet transfer. It is 100% refunded to non-winners after they reveal their bid.
+            </p>
+          </div>
+        </div>
+
+        <div className="border-b border-[#232730] grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#232730]">
+          <div className="py-7 md:pr-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">04 · AI Advisory Valuation (₹ INR)</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Fair-Market Benchmark Estimate
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              An independent fair resale estimate in Indian Rupees (₹) computed from the vehicle’s brand, model year, kilometer reading, fuel type, and condition. Its SHA-256 fingerprint (<code className="text-[#F4F5F7] font-mono">product_data_hash</code>) is anchored on <code className="text-[#F4F5F7] font-mono">PriceOracle.sol</code> so buyers know the car specs were not altered after listing.
+            </p>
+          </div>
+
+          <div className="py-7 md:px-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">05 · Secret Salt &amp; Commitment Hash</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Your Digital Envelope &amp; Passkey
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              A 32-byte random secret key (<strong className="text-[#F4F5F7]">Salt</strong>) combined with your bid amount to produce a <strong className="text-[#F4F5F7]">Keccak-256 Commitment Hash</strong>. During bidding, only the scrambled hash is sent to the blockchain—keeping your rupee/ETH offer completely private until the Reveal window.
+            </p>
+          </div>
+
+          <div className="py-7 md:pl-7 space-y-2.5">
+            <div className="text-xs font-mono text-[#C5A46D]">06 · Live ETH / ₹ Oracle Feed</div>
+            <h3 className="text-base font-display font-semibold text-[#F4F5F7]">
+              Real-Time Rupee Conversion
+            </h3>
+            <p className="text-xs text-[#8E95A5] leading-relaxed">
+              While smart contract escrow transfers execute in ETH on Hardhat Chain 31337, the platform’s live Oracle rate converts every Starting Bid, Seller Reserve, Collateral Deposit, and Sealed Bid into Indian Rupees (₹) in real time.
+            </p>
+          </div>
+        </div>
+
+        {/* Part B: The 4 Auction Lifecycle Phases Explained */}
+        <div className="bg-[#12141A] border border-[#232730] rounded-md overflow-hidden">
+          <div className="px-6 py-4 bg-[#0B0C10] border-b border-[#232730] flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-[#C5A46D]">
+              Auction Phase Progression (State Machine)
+            </span>
+            <span className="text-xs font-mono text-[#8E95A5]">
+              Commit → Reveal → Sold / No Sale
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-[#232730] text-xs">
+            <div className="p-5 space-y-2">
+              <div className="font-mono text-[#C5A46D] font-semibold">Phase 1 · Commit Window</div>
+              <div className="text-sm font-semibold text-[#F4F5F7]">Bidding Open (Sealed)</div>
+              <p className="text-[#8E95A5] leading-relaxed">
+                Bidders submit their encrypted commitment hash and lock the uniform collateral deposit. All bid amounts remain strictly hidden from the seller and other bidders.
+              </p>
+            </div>
+            <div className="p-5 space-y-2">
+              <div className="font-mono text-[#C5A46D] font-semibold">Phase 2 · Reveal Window</div>
+              <div className="text-sm font-semibold text-[#F4F5F7]">Opening Envelopes</div>
+              <p className="text-[#8E95A5] leading-relaxed">
+                New bids are blocked. Bidders click <strong className="text-[#F4F5F7]">1-Click Verify &amp; Reveal</strong> to unseal their saved offer. The smart contract verifies that the bid + salt match the Phase 1 hash.
+              </p>
+            </div>
+            <div className="p-5 space-y-2">
+              <div className="font-mono text-emerald-400 font-semibold">Outcome A · Sold</div>
+              <div className="text-sm font-semibold text-[#F4F5F7]">Reserve Price Met</div>
+              <p className="text-[#8E95A5] leading-relaxed">
+                Highest revealed bid ≥ Seller Reserve Price. Winner pays the remaining balance (Bid − Deposit), seller withdraws the full sale price, and non-winners claim 100% deposit refunds.
+              </p>
+            </div>
+            <div className="p-5 space-y-2">
+              <div className="font-mono text-amber-400 font-semibold">Outcome B · No Sale</div>
+              <div className="text-sm font-semibold text-[#F4F5F7]">Below Seller Reserve</div>
+              <p className="text-[#8E95A5] leading-relaxed">
+                Highest revealed bid is below the Seller Reserve Price (or no valid bids were revealed). Seller keeps the vehicle and all revealed bidders claim a 100% deposit refund.
+              </p>
+            </div>
           </div>
         </div>
       </section>

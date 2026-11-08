@@ -71,6 +71,7 @@ interface WalletContextValue {
   switchNetworkToHardhat: () => Promise<void>;
   requestAccountSwitchInMetaMask: () => Promise<void>;
   adjustBalance: (address: string, deltaEth: number) => void;
+  resetBalances: () => void;
   updateAuthorizedOracle: (newOracleAddress: string) => boolean;
 }
 
@@ -404,6 +405,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }, []);
 
+  const resetBalances = useCallback(() => {
+    setWallets(HARDHAT_WALLETS.map((w) => ({ ...w })));
+    refreshHardhatNode().catch(() => {});
+  }, [refreshHardhatNode]);
+
   const updateAuthorizedOracle = useCallback(
     (newOracleAddress: string): boolean => {
       if (!currentWallet || currentWallet.role !== 'admin') return false;
@@ -419,10 +425,27 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (newRateInr <= 0) return false;
       localStorage.setItem('auctionchain_oracle_eth_inr_rate', String(newRateInr));
       setLiveEthInrRate(newRateInr);
-      setOracleRoundId((prev) => prev + 1);
+      const nextRound = oracleRoundId + 1;
+      setOracleRoundId(nextRound);
+      fetch('/api/audit/log-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'PRICE_ORACLE_FEED_UPDATE',
+          action: 'PriceOracle.updateEthInrRate(uint256)',
+          actorAddress: currentWallet?.address || ORACLE_BACKGROUND_ACCOUNT.address,
+          actorLabel: currentWallet?.label || 'PriceOracle Service',
+          contractAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
+          valueEth: 0,
+          txHash: `0x${Array.from({ length: 64 }, (_, i) => ((newRateInr + nextRound + i * 7) % 16).toString(16)).join('')}`,
+          blockNumber: (latestBlock || 4189200) + nextRound,
+          details: `Updated ETH/INR Oracle Feed (Round #${nextRound}): 1 ETH = ₹${newRateInr.toLocaleString('en-IN')}`,
+          executionMode: 'PriceOracle.sol Live Feed',
+        }),
+      }).catch(() => {});
       return true;
     },
-    []
+    [currentWallet?.address, currentWallet?.label, latestBlock, oracleRoundId]
   );
 
   const fetchRealMarketEthRate = useCallback(async (): Promise<number | null> => {
@@ -535,6 +558,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         switchNetworkToHardhat,
         requestAccountSwitchInMetaMask,
         adjustBalance,
+        resetBalances,
         updateAuthorizedOracle,
       }}
     >

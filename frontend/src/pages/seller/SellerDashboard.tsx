@@ -47,10 +47,15 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   const [txNotice, setTxNotice] = useState<string | null>(null);
 
   React.useEffect(() => {
+    setActiveTab('dashboard');
+    setAuctionFilter('all');
+  }, [wallet?.address]);
+
+  React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-  }, [activeTab]);
+  }, [activeTab, wallet?.address]);
 
   if (!wallet) return null;
 

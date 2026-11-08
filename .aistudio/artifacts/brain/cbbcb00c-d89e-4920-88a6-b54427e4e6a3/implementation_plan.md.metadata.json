@@ -1,6 +1,0 @@
-{
-  "summary": "Architectural implementation plan for the AI Sealed Auction Platform (AetherSealed), detailing the cryptographic commit-reveal bidding lifecycle, Gemini-powered fair valuation, game-theoretic bid optimizer, anti-collusion sentinel, full-stack Express and React architecture, and visual design standards.",
-  "updatedAt": "2026-11-05T09:58:48.221368185Z",
-  "requestFeedback": true,
-  "userFacing": true
-}
