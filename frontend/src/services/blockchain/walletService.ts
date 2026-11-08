@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import {
   HARDHAT_WALLETS,
   HARDHAT_CHAIN_ID,
+  HARDHAT_RPC_URL,
   HUMAN_ROLE_WALLETS,
   ORACLE_BACKGROUND_ACCOUNT,
 } from '../../lib/hardhatConfig';
@@ -71,7 +72,6 @@ export interface OnChainTxResult {
   timestamp: number;
 }
 
-const HARDHAT_RPC_URL = 'http://127.0.0.1:8545';
 const METAMASK_NONCE_CACHE_KEY = 'auctionchain_metamask_tx_nonces_v1';
 
 /**
