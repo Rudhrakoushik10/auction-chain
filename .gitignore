@@ -23,4 +23,6 @@ Thumbs.db
 !.env.example
 metadata.json
 bun.lock
+
+#unecessary files
 PROJECT_TRACKER.md
