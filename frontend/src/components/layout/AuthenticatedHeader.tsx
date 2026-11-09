@@ -90,7 +90,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
             </span>
             <span className="text-[#232730]">·</span>
             <span className="text-[#F4F5F7] tabular-nums">
-              {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+              {wallet.balanceEth.toFixed(4)} ETH ({formatEthToInr(wallet.balanceEth)})
             </span>
           </div>
 
@@ -194,7 +194,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                   <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#232730] text-xs font-mono">
                     <span className="text-[#8E95A5]">Wallet Balance</span>
                     <span className="text-[#F4F5F7] tabular-nums">
-                      {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+                      {wallet.balanceEth.toFixed(4)} ETH ({formatEthToInr(wallet.balanceEth)})
                     </span>
                   </div>
                 </div>
@@ -232,7 +232,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-[#8E95A5] tabular-nums">
-                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(2)} ETH
+                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(4)} ETH
                             </div>
                           </div>
                           {isCurrent && <Check className="w-3.5 h-3.5 text-[#C5A46D]" />}

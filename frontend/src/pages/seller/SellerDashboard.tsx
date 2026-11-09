@@ -448,7 +448,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 </p>
               </div>
               <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
-                Balance: {wallet.balanceEth.toFixed(2)} ETH ({formatEthToInr(wallet.balanceEth)})
+                Balance: {wallet.balanceEth.toFixed(4)} ETH ({formatEthToInr(wallet.balanceEth)})
               </span>
             </div>
 

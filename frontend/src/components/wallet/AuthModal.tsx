@@ -213,7 +213,7 @@ export const AuthModal: React.FC = () => {
 
                       <div className="flex items-center gap-2.5 shrink-0">
                         <span className="text-xs font-mono font-semibold text-[#F4F5F7] tabular-nums">
-                          {acc.balanceEth.toFixed(2)} ETH
+                          {acc.balanceEth.toFixed(4)} ETH
                         </span>
                         <button
                           type="button"

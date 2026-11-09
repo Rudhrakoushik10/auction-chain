@@ -35,6 +35,7 @@ function AuctionChainAppContent() {
     isConnected,
     wallet,
     adjustBalance,
+    refreshHardhatNode,
     resetBalances,
     nonceMismatch,
     autoSyncNonce,
@@ -177,8 +178,13 @@ function AuctionChainAppContent() {
     const blockNum = txRes.receipt?.blockNumber || 4189250 + targetAuction.commitments.length;
     const nowIso = new Date().toISOString();
 
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     setSavedSecrets((prev) => [secretBackup, ...prev]);
-    adjustBalance(wallet.address, -targetAuction.fixedDepositEth);
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, -(targetAuction.fixedDepositEth + gasFeeEth));
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -307,8 +313,15 @@ function AuctionChainAppContent() {
       generateDeterministicTxHash(
         `REVEAL:${auctionId}:${wallet.address}:${bidAmountEth}:${salt}`
       );
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     const blockNum = txRes.receipt?.blockNumber || 4189300 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
+
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, -gasFeeEth);
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -414,8 +427,15 @@ function AuctionChainAppContent() {
 
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     const blockNum = txRes.receipt?.blockNumber || 4189400 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
+
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance( senderAddr, -gasFeeEth);
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -507,10 +527,15 @@ function AuctionChainAppContent() {
 
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`SETTLE:${auctionId}:${wallet.address}`);
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     const blockNum = txRes.receipt?.blockNumber || 4189450 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
 
-    adjustBalance(wallet.address, -due);
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, -(due + gasFeeEth));
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -591,10 +616,15 @@ function AuctionChainAppContent() {
 
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`REFUND:${auctionId}:${wallet.address}`);
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     const blockNum = txRes.receipt?.blockNumber || 4189480 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
 
-    adjustBalance(wallet.address, myComm.depositEth);
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, myComm.depositEth - gasFeeEth);
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -669,10 +699,15 @@ function AuctionChainAppContent() {
     const txHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
     const blockNum = txRes.receipt?.blockNumber || 4189500 + targetAuction.events.length;
     const nowIso = new Date().toISOString();
 
-    adjustBalance(wallet.address, proceeds);
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, proceeds - gasFeeEth);
+    }
 
     setAuctions((prev) =>
       prev.map((auc) => {

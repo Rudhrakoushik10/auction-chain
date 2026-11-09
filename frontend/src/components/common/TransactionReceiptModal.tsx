@@ -150,9 +150,18 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
                         <Cpu className="w-3 h-3" /> Gas Used / Nonce
                       </span>
                       <span className="text-[#F4F5F7] tabular-nums">
-                        {details.gasUsed} gas · Nonce #{details.nonce}
+                        {details.gasUsed} gas ({Number(details.effectiveGasPriceGwei || 0).toFixed(1)} Gwei) · Nonce #{details.nonce}
                       </span>
                     </div>
+
+                    {details.networkFeeEth && (
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232730]">
+                        <span className="text-[#8E95A5]">Network Fee Consumed</span>
+                        <span className="text-[#C5A46D] font-semibold tabular-nums">
+                          -{Number(details.networkFeeEth).toFixed(6)} ETH
+                        </span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="pt-2 border-t border-[#232730] text-[#8E95A5] font-sans leading-relaxed">

@@ -164,37 +164,33 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLatestBlock(status.latestBlock);
       if (Object.keys(status.balances).length > 0) {
         const persisted = loadPersistedBalances();
+        let persistedChanged = false;
         setWallets((prev) =>
           prev.map((w) => {
             const key = w.address.toLowerCase();
             const liveBal = status.balances[key];
-            if (typeof persisted[key] === 'number') {
-              // Only re-push the persisted balance to Hardhat if Hardhat was restarted (reset back to 10000 ETH)
-              if (typeof liveBal === 'number' && liveBal >= 9999.99 && persisted[key] < 9999.99) {
+            if (typeof liveBal === 'number') {
+              // Only re-push the persisted balance to Hardhat if Hardhat node was restarted (reset back to 10000 ETH)
+              if (
+                liveBal >= 9999.9999 &&
+                typeof persisted[key] === 'number' &&
+                Math.abs(persisted[key] - 10000) > 0.0001
+              ) {
                 setHardhatAccountBalance(w.address, persisted[key]).catch(() => {});
+                return { ...w, balanceEth: persisted[key] };
               }
-              return { ...w, balanceEth: persisted[key] };
+              if (persisted[key] !== liveBal) {
+                persisted[key] = liveBal;
+                persistedChanged = true;
+              }
+              return { ...w, balanceEth: liveBal };
             }
-            return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
+            return typeof persisted[key] === 'number' ? { ...w, balanceEth: persisted[key] } : w;
           })
         );
-      }
-
-      // Automatically synchronize Hardhat nonces (`hardhat_setNonce`) if Hardhat node was closed and reopened
-      let unresolvedMismatch: NonceMismatchInfo | null = null;
-      for (const w of HUMAN_ROLE_WALLETS) {
-        const m = detectAccountNonceMismatch(w.address, status.nonces);
-        if (m) {
-          const synced = await syncHardhatNonceWithMetaMask(w.address, m.cachedMetaMaskNonce);
-          if (!synced && !unresolvedMismatch) {
-            unresolvedMismatch = m;
-          }
+        if (persistedChanged) {
+          savePersistedBalances(persisted);
         }
-      }
-      if (unresolvedMismatch) {
-        setNonceMismatch(unresolvedMismatch);
-      } else {
-        setNonceMismatch(null);
       }
     }
     return status.isNodeOnline;
@@ -438,7 +434,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const persisted = loadPersistedBalances();
       const next = prev.map((w) => {
         if (w.address.toLowerCase() !== key) return w;
-        const updatedBal = Number((w.balanceEth + deltaEth).toFixed(4));
+        const updatedBal = Number(Math.max(0, w.balanceEth + deltaEth).toFixed(6));
         persisted[key] = updatedBal;
         setHardhatAccountBalance(w.address, updatedBal).catch(() => {});
         return { ...w, balanceEth: updatedBal };

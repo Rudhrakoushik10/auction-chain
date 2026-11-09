@@ -51,6 +51,8 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     liveEthInrRate,
     reportNonceMismatch,
     inspectTransaction,
+    refreshHardhatNode,
+    adjustBalance,
   } = useWallet();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -209,6 +211,13 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       }
       setTermsError(txRes.error || 'Failed to publish auction transaction.');
       return;
+    }
+
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
+    if (txRes.receipt?.isOnChain) {
+      await refreshHardhatNode();
+    } else {
+      adjustBalance(wallet.address, -gasFeeEth);
     }
 
     setDeployTxStage('submitted');

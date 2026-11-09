@@ -387,7 +387,7 @@ export const BidderDashboard: React.FC<BidderDashboardProps> = ({
               <div>
                 <div className="text-xs font-sans text-[#8E95A5]">Wallet Balance</div>
                 <div className="text-2xl font-semibold text-[#F4F5F7] mt-1">{formatEthToInr(wallet.balanceEth)}</div>
-                <div className="text-[11px] text-[#8E95A5] mt-0.5">{wallet.balanceEth.toFixed(2)} ETH</div>
+                <div className="text-[11px] text-[#8E95A5] mt-0.5">{wallet.balanceEth.toFixed(4)} ETH</div>
               </div>
             </div>
 

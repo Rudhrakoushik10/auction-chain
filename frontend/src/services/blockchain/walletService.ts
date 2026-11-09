@@ -53,6 +53,7 @@ export interface LiveReceiptVerification {
   transactionIndex?: number;
   gasUsed?: string;
   effectiveGasPriceGwei?: string;
+  networkFeeEth?: string;
   status?: string;
   confirmations?: number;
   from?: string;
@@ -66,6 +67,8 @@ export interface OnChainTxResult {
   blockNumber: number;
   blockHash: string;
   gasUsed: number;
+  gasFeeEth: number;
+  isOnChain: boolean;
   nonce: number;
   from: string;
   to: string;
@@ -132,22 +135,36 @@ export function isUserRejection(err: any): boolean {
 
 /**
  * Parses a MetaMask / Hardhat nonce mismatch error ("Nonce too high. Expected nonce to be X but got Y"
- * or "nonce has already been used") into a structured NonceMismatchInfo object.
+ * or "Nonce too low" or "nonce has already been used") into a structured NonceMismatchInfo object.
  */
 export function parseNonceMismatchFromError(
   err: any,
   address: string
 ): NonceMismatchInfo | null {
-  const fullMsg = String(
-    err?.info?.error?.message ||
-      err?.error?.message ||
-      err?.shortMessage ||
-      err?.reason ||
-      err?.message ||
-      ''
-  );
+  let serialized = '';
+  try {
+    serialized = JSON.stringify(err);
+  } catch {
+    serialized = '';
+  }
 
-  const matchExpected = fullMsg.match(/Expected nonce to be (\d+) but got (\d+)/i);
+  const fullMsg = [
+    err?.info?.error?.message,
+    err?.info?.error?.data?.message,
+    err?.error?.message,
+    err?.error?.data?.message,
+    err?.data?.message,
+    err?.shortMessage,
+    err?.reason,
+    err?.message,
+    serialized,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+
+  const matchExpected =
+    fullMsg.match(/Expected nonce to be (\d+) but got (\d+)/i) ||
+    fullMsg.match(/next nonce (\d+),\s*tx nonce (\d+)/i);
   const isNonceError =
     Boolean(matchExpected) ||
     /nonce too high/i.test(fullMsg) ||
@@ -157,7 +174,7 @@ export function parseNonceMismatchFromError(
   if (!isNonceError) return null;
 
   const expectedHardhatNonce = matchExpected ? parseInt(matchExpected[1], 10) : 0;
-  const gotMetaMaskNonce = matchExpected ? parseInt(matchExpected[2], 10) : 1;
+  const gotMetaMaskNonce = matchExpected ? parseInt(matchExpected[2], 10) : 0;
   const roleAcct = findRoleAccountByAddress(address);
 
   return {
@@ -165,9 +182,9 @@ export function parseNonceMismatchFromError(
     accountLabel: roleAcct ? `${roleAcct.label} (${roleAcct.roleTitle})` : address,
     hardhatNonce: expectedHardhatNonce,
     cachedMetaMaskNonce: gotMetaMaskNonce,
-    reason: `Hardhat node was restarted (expecting Nonce ${expectedHardhatNonce}), but MetaMask still caches Nonce ${gotMetaMaskNonce} from a previous session.`,
+    reason: `Hardhat node expected Nonce ${expectedHardhatNonce}, while MetaMask signed with Nonce ${gotMetaMaskNonce}.`,
     howToFixManual:
-      'In MetaMask: Go to Settings → Developer Tools → Click on "Delete activity and nonce data".',
+      'In MetaMask: Go to Settings → Advanced / Developer Tools → Click "Clear activity tab data" (or click Retry now that Hardhat nonce is synced).',
     detectedAt: Date.now(),
   };
 }
@@ -309,7 +326,7 @@ export async function checkLocalHardhatNode(addresses: string[] = []): Promise<H
 
             if (balItem?.result) {
               balances[addr.toLowerCase()] = Number(
-                parseFloat(ethers.formatEther(BigInt(balItem.result))).toFixed(4)
+                parseFloat(ethers.formatEther(BigInt(balItem.result))).toFixed(6)
               );
             }
             if (nonceItem?.result) {
@@ -506,16 +523,12 @@ export async function connectMetaMaskWithEthers(
       (preferredAddress ? findRoleAccountByAddress(preferredAddress) : null) ||
       HUMAN_ROLE_WALLETS[0];
 
-    // Check if Hardhat was restarted without clearing MetaMask's cached nonce
-    const nonceMismatch = detectAccountNonceMismatch(resolvedRole.address, rpcStatus.nonces);
-
     return {
       success: true,
       address: resolvedRole.address,
       account: resolvedRole,
       chainId: HARDHAT_CHAIN_ID,
       isCorrectNetwork: true,
-      nonceMismatch: nonceMismatch || undefined,
     };
   } catch (err: any) {
     if (isUserRejection(err)) {
@@ -532,10 +545,7 @@ export async function connectMetaMaskWithEthers(
 }
 
 /**
- * Executes a real MetaMask-confirmed transaction on http://127.0.0.1:8545.
- * If MetaMask throws a nonce mismatch error (because Hardhat was restarted without clearing
- * MetaMask's activity data), returns the structured `nonceMismatch` diagnostic so the UI
- * can clearly display the error and offer 1-click recovery.
+ * Reports confirmed blockchain transaction events to the backend terminal log.
  */
 export async function reportTerminalAuditLog(payload: {
   category?: string;
@@ -560,6 +570,12 @@ export async function reportTerminalAuditLog(payload: {
   }
 }
 
+/**
+ * Executes a real MetaMask-confirmed transaction on http://127.0.0.1:8545.
+ * - Never generates a receipt or mutates frontend state if MetaMask rejects or fails the interaction.
+ * - Ensures every smart contract interaction consumes a realistic network gas fee on-chain so both
+ *   MetaMask and the frontend visibly deduct the network fee from the signer's ETH balance.
+ */
 export async function executeMetaMaskTransaction(params: {
   senderAddress: string;
   toAddress: string;
@@ -589,6 +605,20 @@ export async function executeMetaMaskTransaction(params: {
       ? 'SealedAuction.commitBid() [Lock Collateral ETH]'
       : 'SealedAuction.sol State Transition');
 
+  // Encode deterministic contract interaction payload so gasUsed (~26,000 gas) * 60 gwei (~0.0015 ETH)
+  // produces a clearly visible network fee deduction in both MetaMask and the frontend UI.
+  const txData =
+    params.dataHex && params.dataHex !== '0x'
+      ? params.dataHex
+      : ethers.hexlify(
+          ethers.toUtf8Bytes(
+            `AuctionChain:${actionLabel}:${params.senderAddress}:${params.summary || ''}`
+          )
+        );
+  const priorityFeeWei = ethers.parseUnits('60', 'gwei');
+  const maxFeeWei = ethers.parseUnits('75', 'gwei');
+  const gasLimitVal = 120000n;
+
   const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
 
   // Helper to disburse escrow payout (refund or seller proceeds) on-chain from the Hardhat Escrow Vault
@@ -609,18 +639,38 @@ export async function executeMetaMaskTransaction(params: {
         });
         await rolePayoutTx.wait();
       }
+      // Mine a block so MetaMask's BlockTracker immediately refreshes the recipient's balance
+      await fetch(HARDHAT_RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'evm_mine',
+          params: [],
+          id: Date.now(),
+        }),
+        cache: 'no-store',
+      }).catch(() => {});
     } catch {
-      // Fallback handled by setHardhatAccountBalance + evm_mine
+      // ignore vault error
     }
   };
 
-  // 1. PRIORITY: Whenever MetaMask is installed and local Hardhat node is online, ALWAYS trigger MetaMask confirmation popup!
+  // 1. PRIORITY: When MetaMask is installed and local Hardhat node is online, strictly require MetaMask confirmation.
+  //    Never generate a fallback receipt if the MetaMask interaction fails!
   if (ethereum && status.isNodeOnline) {
+    let actualSignerAddr = ethers.getAddress(params.senderAddress);
     try {
       // Ensure Hardhat network (Chain ID 31337 / 0x7a69) is active in MetaMask
       const chainHex: string = await ethereum.request({ method: 'eth_chainId' });
       if (parseInt(chainHex, 16) !== HARDHAT_CHAIN_ID) {
-        await requestSwitchToHardhatChain();
+        const switchRes = await requestSwitchToHardhatChain();
+        if (!switchRes.success) {
+          return {
+            success: false,
+            error: switchRes.error || 'Please switch MetaMask to Hardhat Localhost 8545 (Chain ID 31337).',
+          };
+        }
       }
 
       let accounts: string[] = await ethereum.request({ method: 'eth_accounts' });
@@ -628,112 +678,140 @@ export async function executeMetaMaskTransaction(params: {
         accounts = await ethereum.request({ method: 'eth_requestAccounts' });
       }
 
-      if (accounts && accounts.length > 0) {
-        const requestedSender = ethers.getAddress(params.senderAddress);
-        const matchedInMetaMask = accounts.find(
-          (a) => a.toLowerCase() === requestedSender.toLowerCase()
-        );
-        const signerAddr = ethers.getAddress(matchedInMetaMask || accounts[0]);
-
-        // 1a. Proactive Auto-Sync: If Hardhat node was restarted (hardhatNonce < cachedMetaMaskNonce),
-        // automatically advance Hardhat's account nonce via `hardhat_setNonce` BEFORE opening MetaMask.
-        const preMismatch = detectAccountNonceMismatch(signerAddr, status.nonces);
-        if (preMismatch) {
-          await syncHardhatNonceWithMetaMask(signerAddr, preMismatch.cachedMetaMaskNonce);
-        }
-
-        // Determine safe destination address: route ETH value transfers to the dedicated Hardhat Escrow Vault
-        // if the contract at params.toAddress does not accept raw ETH transfers, preventing self-transfers.
-        let targetTo = ethers.getAddress(params.toAddress);
-        try {
-          await rpcProvider.estimateGas({
-            from: signerAddr,
-            to: targetTo,
-            value: valueWei,
-            data: params.dataHex || '0x',
-          });
-        } catch {
-          targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
-        }
-
-        const browserProvider = new ethers.BrowserProvider(ethereum);
-        let txResponse: ethers.TransactionResponse;
-        let actualSignerAddr = signerAddr;
-
-        try {
-          const signer = await browserProvider.getSigner(signerAddr);
-          txResponse = await signer.sendTransaction({
-            to: targetTo,
-            value: valueWei,
-            data: params.dataHex || '0x',
-          });
-        } catch (innerErr: any) {
-          if (isUserRejection(innerErr)) {
-            throw innerErr;
-          }
-          // If innerErr is a nonce mismatch on signerAddr, rethrow to outer catch for automatic nonce healing
-          if (parseNonceMismatchFromError(innerErr, signerAddr)) {
-            throw innerErr;
-          }
-          const primaryMetaMaskAddr = ethers.getAddress(accounts[0]);
-          actualSignerAddr = primaryMetaMaskAddr;
-          const primaryPreMismatch = detectAccountNonceMismatch(primaryMetaMaskAddr, status.nonces);
-          if (primaryPreMismatch) {
-            await syncHardhatNonceWithMetaMask(
-              primaryMetaMaskAddr,
-              primaryPreMismatch.cachedMetaMaskNonce
-            );
-          }
-          const fallbackSigner = await browserProvider.getSigner(primaryMetaMaskAddr);
-          txResponse = await fallbackSigner.sendTransaction({
-            to: targetTo,
-            value: valueWei,
-            data: params.dataHex || '0x',
-          });
-        }
-
-        const receipt = await txResponse.wait();
-        if (!receipt) {
-          return { success: false, error: 'Transaction was not mined.' };
-        }
-
-        // Track the new nonce in localStorage so if Hardhat is restarted later, we auto-sync seamlessly
-        setCachedMetaMaskNonce(actualSignerAddr, txResponse.nonce + 1);
-
-        // If this transaction is a refund or seller proceeds withdrawal, disburse the ETH on-chain from the Escrow Vault
-        if (payoutWei > 0n) {
-          await disburseEscrowPayoutOnChain(actualSignerAddr);
-        }
-
-        const txResult: OnChainTxResult = {
-          txHash: receipt.hash,
-          blockNumber: receipt.blockNumber,
-          blockHash: receipt.blockHash,
-          gasUsed: Number(receipt.gasUsed),
-          nonce: txResponse.nonce,
-          from: ethers.getAddress(receipt.from),
-          to: ethers.getAddress(receipt.to || targetTo),
-          timestamp: Math.floor(Date.now() / 1000),
-        };
-
-        await reportTerminalAuditLog({
-          category: 'METAMASK_CONFIRMED_TX',
-          action: actionLabel,
-          actorAddress: params.senderAddress,
-          actorLabel,
-          contractAddress: params.toAddress,
-          valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
-          txHash: txResult.txHash,
-          blockNumber: txResult.blockNumber,
-          details: params.summary || `Confirmed in MetaMask (${actualSignerAddr.slice(0, 10)}...)`,
-          executionMode: `MetaMask Wallet Popup -> Hardhat RPC (Chain ID 31337, Gas: ${txResult.gasUsed})`,
-        });
-
+      if (!accounts || accounts.length === 0) {
         return {
-          success: true,
-          receipt: txResult,
+          success: false,
+          error: 'No wallet account authorized in MetaMask.',
         };
       }
+
+      const requestedSender = ethers.getAddress(params.senderAddress);
+      const matchedInMetaMask = accounts.find(
+        (a) => a.toLowerCase() === requestedSender.toLowerCase()
+      );
+      actualSignerAddr = ethers.getAddress(matchedInMetaMask || accounts[0]);
+
+      // Check if MetaMask's internal NonceTracker reports a different pending nonce than Hardhat's on-chain nonce
+      try {
+        const [mmNonceHex, hhStatus] = await Promise.all([
+          ethereum.request({
+            method: 'eth_getTransactionCount',
+            params: [actualSignerAddr, 'pending'],
+          }),
+          checkLocalHardhatNode([actualSignerAddr]),
+        ]);
+        const mmNonce = typeof mmNonceHex === 'string' ? parseInt(mmNonceHex, 16) : NaN;
+        const hhNonce = hhStatus.nonces[actualSignerAddr.toLowerCase()];
+        if (!Number.isNaN(mmNonce) && typeof hhNonce === 'number' && mmNonce !== hhNonce) {
+          await syncHardhatNonceWithMetaMask(actualSignerAddr, mmNonce);
+        }
+      } catch {
+        // Non-fatal pre-check
+      }
+
+      // Verify whether target contract accepts the call with txData & valueWei without reverting;
+      // if not, route to the dedicated Hardhat Escrow Vault EOA (which can never revert).
+      let targetTo = ethers.getAddress(params.toAddress);
+      try {
+        const code = await rpcProvider.getCode(targetTo);
+        if (!code || code === '0x') {
+          targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
+        } else {
+          await rpcProvider.call({
+            from: actualSignerAddr,
+            to: targetTo,
+            value: valueWei,
+            data: txData,
+          });
+          await rpcProvider.estimateGas({
+            from: actualSignerAddr,
+            to: targetTo,
+            value: valueWei,
+            data: txData,
+          });
+        }
+      } catch {
+        targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
+      }
+
+      const browserProvider = new ethers.BrowserProvider(ethereum);
+      const signer = await browserProvider.getSigner(actualSignerAddr);
+
+      const txResponse = await signer.sendTransaction({
+        to: targetTo,
+        value: valueWei,
+        data: txData,
+        gasLimit: gasLimitVal,
+        maxPriorityFeePerGas: priorityFeeWei,
+        maxFeePerGas: maxFeeWei,
+      });
+
+      const receipt = await txResponse.wait();
+      if (!receipt || receipt.status === 0) {
+        return {
+          success: false,
+          error:
+            'Transaction failed on-chain (Status 0x0). No receipt was generated and your auction state was not modified.',
+        };
+      }
+
+      // Record the confirmed nonce
+      setCachedMetaMaskNonce(actualSignerAddr, txResponse.nonce + 1);
+
+      // Compute exact on-chain network gas fee consumed
+      const effectiveGasPrice = receipt.gasPrice ?? priorityFeeWei;
+      const gasFeeWei = receipt.gasUsed * effectiveGasPrice;
+      const gasFeeEth = Number(parseFloat(ethers.formatEther(gasFeeWei)).toFixed(6));
+
+      // If this transaction is a refund or seller proceeds withdrawal, disburse the ETH on-chain from the Escrow Vault
+      if (payoutWei > 0n) {
+        await disburseEscrowPayoutOnChain(actualSignerAddr);
+      }
+
+      // If the user's active MetaMask signer differed from the selected UI role account,
+      // also deduct the exact value + gasFeeEth from the UI role account on Hardhat so both stay in sync.
+      if (actualSignerAddr.toLowerCase() !== params.senderAddress.toLowerCase()) {
+        const roleStatus = await checkLocalHardhatNode([params.senderAddress]);
+        const currentRoleBal = roleStatus.balances[params.senderAddress.toLowerCase()];
+        if (typeof currentRoleBal === 'number') {
+          const updatedRoleBal = Math.max(
+            0,
+            currentRoleBal - valueEthNum + payoutEthNum - gasFeeEth
+          );
+          await setHardhatAccountBalance(params.senderAddress, updatedRoleBal);
+        }
+      }
+
+      const txResult: OnChainTxResult = {
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        blockHash: receipt.blockHash,
+        gasUsed: Number(receipt.gasUsed),
+        gasFeeEth,
+        isOnChain: true,
+        nonce: txResponse.nonce,
+        from: ethers.getAddress(receipt.from),
+        to: ethers.getAddress(receipt.to || targetTo),
+        timestamp: Math.floor(Date.now() / 1000),
+      };
+
+      await reportTerminalAuditLog({
+        category: 'METAMASK_CONFIRMED_TX',
+        action: actionLabel,
+        actorAddress: params.senderAddress,
+        actorLabel,
+        contractAddress: params.toAddress,
+        valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
+        txHash: txResult.txHash,
+        blockNumber: txResult.blockNumber,
+        details: `${params.summary || `Confirmed in MetaMask`} (Network Fee: ${gasFeeEth.toFixed(6)} ETH)`,
+        executionMode: `MetaMask Wallet Popup -> Hardhat RPC (Chain ID 31337, Gas: ${txResult.gasUsed}, Fee: ${gasFeeEth.toFixed(6)} ETH)`,
+      });
+
+      return {
+        success: true,
+        receipt: txResult,
+      };
     } catch (err: any) {
       if (isUserRejection(err)) {
         return {
@@ -743,89 +821,36 @@ export async function executeMetaMaskTransaction(params: {
         };
       }
 
-      // 1b. Reactive Auto-Heal: If MetaMask threw "Nonce too high / low. Expected nonce to be X but got Y"
-      // after the user clicked Confirm in MetaMask, automatically align Hardhat's nonce via `hardhat_setNonce`
-      // and complete the transaction on Hardhat so the user never gets stuck.
-      const mismatch = parseNonceMismatchFromError(err, params.senderAddress);
+      // Check if the failure in MetaMask was caused by a Nonce Mismatch between MetaMask and Hardhat.
+      // Automatically synchronize Hardhat's nonce to match MetaMask's expected nonce for the next attempt,
+      // and return `success: false` so no receipt is generated for the failed MetaMask interaction!
+      const mismatch = parseNonceMismatchFromError(err, actualSignerAddr);
       if (mismatch) {
-        try {
-          let targetTo = ethers.getAddress(params.toAddress);
-          try {
-            await rpcProvider.estimateGas({
-              from: ethers.getAddress(params.senderAddress),
-              to: targetTo,
-              value: valueWei,
-              data: params.dataHex || '0x',
-            });
-          } catch {
-            targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
-          }
-
-          // Mine the user-approved transaction on Hardhat RPC
-          const rpcSigner = await rpcProvider.getSigner(ethers.getAddress(params.senderAddress));
-          const healedTx = await rpcSigner.sendTransaction({
-            to: targetTo,
-            value: valueWei,
-            data: params.dataHex || '0x',
-          });
-          const healedReceipt = await healedTx.wait();
-
-          if (payoutWei > 0n) {
-            await disburseEscrowPayoutOnChain(params.senderAddress);
-          }
-
-          // Now align Hardhat's account nonce with MetaMask's cached nonce (`gotMetaMaskNonce`)
-          // so the next MetaMask transaction is 100% synchronized
-          await syncHardhatNonceWithMetaMask(params.senderAddress, mismatch.cachedMetaMaskNonce);
-
-          if (healedReceipt) {
-            const txResult: OnChainTxResult = {
-              txHash: healedReceipt.hash,
-              blockNumber: healedReceipt.blockNumber,
-              blockHash: healedReceipt.blockHash,
-              gasUsed: Number(healedReceipt.gasUsed),
-              nonce: mismatch.cachedMetaMaskNonce,
-              from: ethers.getAddress(healedReceipt.from),
-              to: ethers.getAddress(healedReceipt.to || targetTo),
-              timestamp: Math.floor(Date.now() / 1000),
-            };
-
-            await reportTerminalAuditLog({
-              category: 'METAMASK_CONFIRMED_TX',
-              action: `${actionLabel} [Auto-Synced Nonce ${mismatch.hardhatNonce} → ${mismatch.cachedMetaMaskNonce}]`,
-              actorAddress: params.senderAddress,
-              actorLabel,
-              contractAddress: params.toAddress,
-              valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
-              txHash: txResult.txHash,
-              blockNumber: txResult.blockNumber,
-              details:
-                params.summary ||
-                `Approved in MetaMask & Auto-Synced Hardhat Nonce (${mismatch.hardhatNonce} -> ${mismatch.cachedMetaMaskNonce})`,
-              executionMode: `MetaMask Popup + Hardhat Nonce Auto-Heal (Chain ID 31337, Gas: ${txResult.gasUsed})`,
-            });
-
-            return {
-              success: true,
-              receipt: txResult,
-            };
-          }
-        } catch {
-          // If RPC auto-heal fails, surface the NonceMismatchBanner so the user can 1-click sync or clear in MetaMask
-          setCachedMetaMaskNonce(params.senderAddress, mismatch.cachedMetaMaskNonce);
-          return {
-            success: false,
-            nonceMismatch: mismatch,
-            error: `MetaMask Nonce Mismatch: ${mismatch.reason} ${mismatch.howToFixManual}`,
-          };
-        }
+        await syncHardhatNonceWithMetaMask(actualSignerAddr, mismatch.cachedMetaMaskNonce);
+        return {
+          success: false,
+          nonceMismatch: mismatch,
+          error: `Transaction failed in MetaMask due to a nonce mismatch (Hardhat expected ${mismatch.hardhatNonce}, MetaMask sent ${mismatch.cachedMetaMaskNonce}). Hardhat's nonce has now been automatically synchronized to ${mismatch.cachedMetaMaskNonce} — please click the button again to confirm in MetaMask.`,
+        };
       }
-      // If MetaMask wasn't unlocked or failed for a non-rejection reason, fall through to Hardhat RPC signer below
+
+      const rawErrMsg =
+        err?.shortMessage ||
+        err?.reason ||
+        err?.info?.error?.message ||
+        err?.error?.message ||
+        err?.message ||
+        'MetaMask interaction failed.';
+
+      return {
+        success: false,
+        error: `MetaMask Interaction Failed: ${rawErrMsg}`,
+      };
     }
   }
 
-  // 2. Fallback: Direct Hardhat JSON-RPC node execution (when MetaMask is not installed or user is in no-extension mode)
-  if (status.isNodeOnline) {
+  // 2. Fallback: Direct Hardhat JSON-RPC node execution (ONLY when MetaMask extension is not installed)
+  if (!ethereum && status.isNodeOnline) {
     try {
       let targetTo = ethers.getAddress(params.toAddress);
       try {
@@ -833,7 +858,7 @@ export async function executeMetaMaskTransaction(params: {
           from: ethers.getAddress(params.senderAddress),
           to: targetTo,
           value: valueWei,
-          data: params.dataHex || '0x',
+          data: txData,
         });
       } catch {
         targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
@@ -843,18 +868,27 @@ export async function executeMetaMaskTransaction(params: {
       const txResponse = await signer.sendTransaction({
         to: targetTo,
         value: valueWei,
-        data: params.dataHex || '0x',
+        data: txData,
+        gasLimit: gasLimitVal,
+        maxPriorityFeePerGas: priorityFeeWei,
+        maxFeePerGas: maxFeeWei,
       });
       const receipt = await txResponse.wait();
       if (payoutWei > 0n) {
         await disburseEscrowPayoutOnChain(params.senderAddress);
       }
-      if (receipt) {
+      if (receipt && receipt.status !== 0) {
+        const effectiveGasPrice = receipt.gasPrice ?? priorityFeeWei;
+        const gasFeeWei = receipt.gasUsed * effectiveGasPrice;
+        const gasFeeEth = Number(parseFloat(ethers.formatEther(gasFeeWei)).toFixed(6));
+
         const txResult: OnChainTxResult = {
           txHash: receipt.hash,
           blockNumber: receipt.blockNumber,
           blockHash: receipt.blockHash,
           gasUsed: Number(receipt.gasUsed),
+          gasFeeEth,
+          isOnChain: true,
           nonce: txResponse.nonce,
           from: ethers.getAddress(receipt.from),
           to: ethers.getAddress(receipt.to || targetTo),
@@ -870,8 +904,8 @@ export async function executeMetaMaskTransaction(params: {
           valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
           txHash: txResult.txHash,
           blockNumber: txResult.blockNumber,
-          details: params.summary || `Mined on Hardhat Localhost Node (127.0.0.1:8545)`,
-          executionMode: `Hardhat JSON-RPC Signer (Chain ID 31337, Gas: ${txResult.gasUsed})`,
+          details: `${params.summary || `Mined on Hardhat Localhost Node`} (Network Fee: ${gasFeeEth.toFixed(6)} ETH)`,
+          executionMode: `Hardhat JSON-RPC Signer (Chain ID 31337, Gas: ${txResult.gasUsed}, Fee: ${gasFeeEth.toFixed(6)} ETH)`,
         });
 
         return {
@@ -884,7 +918,9 @@ export async function executeMetaMaskTransaction(params: {
     }
   }
 
-  // 3. Cloud Preview / Offline Node Fallback
+  // 3. Cloud Preview / Offline Node Fallback (ONLY when local Hardhat node is offline)
+  const fallbackGasUsed = 26420;
+  const fallbackGasFeeEth = 0.001585; // 26,420 gas * 60 gwei
   const mockHash = ethers.keccak256(
     ethers.toUtf8Bytes(
       `EVM_TX:${params.senderAddress}:${params.toAddress}:${valueEthNum}:${Date.now()}`
@@ -897,7 +933,9 @@ export async function executeMetaMaskTransaction(params: {
     txHash: mockHash,
     blockNumber: (status.latestBlock || 4189200) + 1,
     blockHash: mockBlockHash,
-    gasUsed: 68420,
+    gasUsed: fallbackGasUsed,
+    gasFeeEth: fallbackGasFeeEth,
+    isOnChain: false,
     nonce: status.nonces[params.senderAddress.toLowerCase()] ?? 1,
     from: ethers.getAddress(params.senderAddress),
     to: ethers.getAddress(params.toAddress),
@@ -913,7 +951,7 @@ export async function executeMetaMaskTransaction(params: {
     valueEth: valueEthNum,
     txHash: fallbackReceipt.txHash,
     blockNumber: fallbackReceipt.blockNumber,
-    details: params.summary || `Executed by ${actorLabel}`,
+    details: `${params.summary || `Executed by ${actorLabel}`} (Network Fee: ${fallbackGasFeeEth.toFixed(6)} ETH)`,
     executionMode: 'Embedded EVM Engine (Chain ID 31337)',
   });
 
@@ -963,6 +1001,9 @@ export async function verifyTransactionOnChain(txHash: string): Promise<LiveRece
       };
     }
 
+    const gasPriceWei = receipt.gasPrice ?? 0n;
+    const feeWei = receipt.gasUsed * gasPriceWei;
+
     return {
       verified: true,
       txHash,
@@ -972,7 +1013,8 @@ export async function verifyTransactionOnChain(txHash: string): Promise<LiveRece
       blockHash: receipt.blockHash,
       transactionIndex: receipt.index,
       gasUsed: receipt.gasUsed.toString(),
-      effectiveGasPriceGwei: ethers.formatUnits(receipt.gasPrice ?? 0n, 'gwei'),
+      effectiveGasPriceGwei: ethers.formatUnits(gasPriceWei, 'gwei'),
+      networkFeeEth: ethers.formatEther(feeWei),
       status: receipt.status === 1 ? '0x1 (Success)' : '0x0 (Reverted)',
       confirmations: Math.max(1, currentBlock - receipt.blockNumber + 1),
       from: receipt.from,
