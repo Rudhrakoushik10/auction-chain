@@ -71,7 +71,7 @@ interface WalletContextValue {
   disconnectWallet: () => void;
   switchNetworkToHardhat: () => Promise<void>;
   requestAccountSwitchInMetaMask: () => Promise<void>;
-  adjustBalance: (address: string, deltaEth: number) => void;
+  adjustBalance: (address: string, deltaEth: number, signerAddress?: string) => void;
   resetBalances: () => void;
   updateAuthorizedOracle: (newOracleAddress: string) => boolean;
 }
@@ -164,33 +164,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLatestBlock(status.latestBlock);
       if (Object.keys(status.balances).length > 0) {
         const persisted = loadPersistedBalances();
-        let persistedChanged = false;
         setWallets((prev) =>
           prev.map((w) => {
             const key = w.address.toLowerCase();
             const liveBal = status.balances[key];
-            if (typeof liveBal === 'number') {
-              // Only re-push the persisted balance to Hardhat if Hardhat node was restarted (reset back to 10000 ETH)
-              if (
-                liveBal >= 9999.9999 &&
-                typeof persisted[key] === 'number' &&
-                Math.abs(persisted[key] - 10000) > 0.0001
-              ) {
+            if (typeof persisted[key] === 'number') {
+              // Ensure Hardhat node on-chain balance matches the authoritative persisted balance
+              if (typeof liveBal === 'number' && Math.abs(liveBal - persisted[key]) > 0.0001) {
                 setHardhatAccountBalance(w.address, persisted[key]).catch(() => {});
-                return { ...w, balanceEth: persisted[key] };
               }
-              if (persisted[key] !== liveBal) {
-                persisted[key] = liveBal;
-                persistedChanged = true;
-              }
-              return { ...w, balanceEth: liveBal };
+              return { ...w, balanceEth: persisted[key] };
             }
-            return typeof persisted[key] === 'number' ? { ...w, balanceEth: persisted[key] } : w;
+            return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
           })
         );
-        if (persistedChanged) {
-          savePersistedBalances(persisted);
-        }
       }
     }
     return status.isNodeOnline;
@@ -428,21 +415,51 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const adjustBalance = useCallback((address: string, deltaEth: number) => {
-    const key = address.toLowerCase();
-    setWallets((prev) => {
-      const persisted = loadPersistedBalances();
-      const next = prev.map((w) => {
-        if (w.address.toLowerCase() !== key) return w;
-        const updatedBal = Number(Math.max(0, w.balanceEth + deltaEth).toFixed(6));
-        persisted[key] = updatedBal;
-        setHardhatAccountBalance(w.address, updatedBal).catch(() => {});
-        return { ...w, balanceEth: updatedBal };
+  const adjustBalance = useCallback(
+    (address: string, deltaEth: number, signerAddress?: string) => {
+      const key = address.toLowerCase();
+      const signerKey = signerAddress ? signerAddress.toLowerCase() : null;
+      const isSignerHumanRole = signerKey
+        ? HUMAN_ROLE_WALLETS.some((hw) => hw.address.toLowerCase() === signerKey)
+        : false;
+
+      setWallets((prev) => {
+        const persisted = loadPersistedBalances();
+        let targetUpdatedBal: number | null = null;
+
+        const next = prev.map((w) => {
+          const wKey = w.address.toLowerCase();
+          if (wKey !== key) return w;
+          const updatedBal = Number(Math.max(0, w.balanceEth + deltaEth).toFixed(6));
+          targetUpdatedBal = updatedBal;
+          persisted[key] = updatedBal;
+          setHardhatAccountBalance(w.address, updatedBal).catch(() => {});
+          return { ...w, balanceEth: updatedBal };
+        });
+
+        if (signerAddress && signerKey && signerKey !== key && targetUpdatedBal !== null) {
+          if (!isSignerHumanRole) {
+            // User is signing with Account #4 (0x15d34...c6a65) or a custom MetaMask account:
+            // mirror the updated balance onto that MetaMask account so MetaMask displays the exact change.
+            persisted[signerKey] = targetUpdatedBal;
+            setHardhatAccountBalance(signerAddress, targetUpdatedBal).catch(() => {});
+          } else {
+            // User signed with a different human role account in MetaMask: restore that signer's own balance on Hardhat
+            const signerOwnWallet = prev.find((w) => w.address.toLowerCase() === signerKey);
+            if (signerOwnWallet) {
+              const ownBal = persisted[signerKey] ?? signerOwnWallet.balanceEth;
+              persisted[signerKey] = ownBal;
+              setHardhatAccountBalance(signerAddress, ownBal).catch(() => {});
+            }
+          }
+        }
+
+        savePersistedBalances(persisted);
+        return next;
       });
-      savePersistedBalances(persisted);
-      return next;
-    });
-  }, []);
+    },
+    []
+  );
 
   const resetBalances = useCallback(() => {
     try {

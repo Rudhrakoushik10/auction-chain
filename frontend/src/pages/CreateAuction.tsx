@@ -213,12 +213,8 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       return;
     }
 
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.001585;
-    if (txRes.receipt?.isOnChain) {
-      await refreshHardhatNode();
-    } else {
-      adjustBalance(wallet.address, -gasFeeEth);
-    }
+    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
+    adjustBalance(wallet.address, -gasFeeEth, txRes.receipt?.from);
 
     setDeployTxStage('submitted');
     await new Promise((r) => setTimeout(r, 120));
