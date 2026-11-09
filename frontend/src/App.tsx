@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { ethers } from 'ethers';
 import { WalletProvider, useWallet } from './context/WalletContext';
 import { PublicHeader, PublicNavTab } from './components/layout/PublicHeader';
 import { AuthenticatedHeader } from './components/layout/AuthenticatedHeader';
@@ -20,11 +21,11 @@ import { AuctionItem, LocalRevealBackupSecret } from './types/auction';
 import {
   computeCommitmentHash,
   generateDeterministicTxHash,
+  normalizeSaltHex,
   shortenAddress,
 } from './lib/crypto';
 import { SEALED_AUCTION_CONTRACT_ADDRESS } from './lib/hardhatConfig';
 import { executeMetaMaskTransaction } from './services/blockchain/walletService';
-import { NonceMismatchBanner } from './components/wallet/NonceMismatchBanner';
 import logoImg from './assets/images/auctionchain_logo.png';
 
 const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v1';
@@ -34,13 +35,8 @@ function AuctionChainAppContent() {
   const {
     isConnected,
     wallet,
-    adjustBalance,
     refreshHardhatNode,
     resetBalances,
-    nonceMismatch,
-    autoSyncNonce,
-    confirmManualNonceClear,
-    reportNonceMismatch,
     inspectTransaction,
   } = useWallet();
   const [publicTab, setPublicTab] = useState<PublicNavTab>('home');
@@ -138,7 +134,7 @@ function AuctionChainAppContent() {
     resetBalances();
   };
 
-  // Commit Sealed Bid on SealedAuction.sol
+  // Commit Sealed Bid on Auction.sol (Payable deposit locked in smart contract)
   const handleCommitBid = async (
     auctionId: string,
     commitmentHash: string,
@@ -152,39 +148,36 @@ function AuctionChainAppContent() {
       return { success: false, message: 'Auction not found.' };
     }
 
+    const hashBytes32 = normalizeSaltHex(commitmentHash);
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: targetAuction.fixedDepositEth,
-      actionName: 'SealedAuction.commitBid(uint256,bytes32) payable',
-      summary: `${wallet.label} committed sealed hash ${commitmentHash.slice(0, 14)}... and locked ${targetAuction.fixedDepositEth.toFixed(2)} ETH collateral on Lot #${targetAuction.numericId}`,
+      contractMethod: 'commitBid',
+      contractArgs: [BigInt(targetAuction.numericId || 1), hashBytes32],
+      actionName: 'Auction.commitBid(uint256,bytes32) payable',
+      summary: `${wallet.label} committed sealed hash ${commitmentHash.slice(0, 14)}... and locked ${targetAuction.fixedDepositEth.toFixed(4)} ETH collateral on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const txHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(
         `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
       );
-    const blockNum = txRes.receipt?.blockNumber || 4189250 + targetAuction.commitments.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
 
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
     setSavedSecrets((prev) => [secretBackup, ...prev]);
-    adjustBalance(
-      wallet.address,
-      -(targetAuction.fixedDepositEth + gasFeeEth),
-      txRes.receipt?.from
-    );
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -221,7 +214,7 @@ function AuctionChainAppContent() {
               summary: `${wallet.label} submitted sealed commitment ${commitmentHash.slice(
                 0,
                 14
-              )}... with ${auc.fixedDepositEth.toFixed(2)} ETH collateral`,
+              )}... with ${auc.fixedDepositEth.toFixed(4)} ETH collateral`,
             },
           ],
         };
@@ -234,11 +227,11 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Sealed commitment ${commitmentHash.slice(0, 14)}... recorded with ${targetAuction.fixedDepositEth.toFixed(2)} ETH collateral deposit.`,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Sealed commitment ${commitmentHash.slice(0, 14)}... recorded with ${targetAuction.fixedDepositEth.toFixed(4)} ETH collateral deposit.`,
     };
   };
 
-  // Reveal Sealed Bid on SealedAuction.sol
+  // Reveal Sealed Bid on Auction.sol
   const handleRevealBid = async (
     auctionId: string,
     bidAmountEth: number,
@@ -290,34 +283,35 @@ function AuctionChainAppContent() {
       };
     }
 
+    const bidWei = ethers.parseEther(bidAmountEth.toFixed(6));
+    const saltBytes32 = normalizeSaltHex(salt);
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
-      actionName: 'SealedAuction.revealBid(uint256,uint256,bytes32)',
-      summary: `${wallet.label} verified Keccak-256 hash and revealed bid of ${bidAmountEth.toFixed(2)} ETH on Lot #${targetAuction.numericId}`,
+      contractMethod: 'revealBid',
+      contractArgs: [BigInt(targetAuction.numericId || 1), bidWei, saltBytes32],
+      actionName: 'Auction.revealBid(uint256,uint256,bytes32)',
+      summary: `${wallet.label} verified hash and revealed bid of ${bidAmountEth.toFixed(4)} ETH on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const revealTxHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(
         `REVEAL:${auctionId}:${wallet.address}:${bidAmountEth}:${salt}`
       );
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    const blockNum = txRes.receipt?.blockNumber || 4189300 + targetAuction.events.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    adjustBalance(wallet.address, -gasFeeEth, txRes.receipt?.from);
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -361,7 +355,7 @@ function AuctionChainAppContent() {
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `${wallet.label} verified hash and revealed bid of ${bidAmountEth.toFixed(
-                2
+                4
               )} ETH`,
             },
           ],
@@ -376,8 +370,8 @@ function AuctionChainAppContent() {
     return {
       success: true,
       message: `Hash verified & confirmed (${revealTxHash.slice(0, 12)}...)! Revealed bid of ${bidAmountEth.toFixed(
-        2
-      )} ETH recorded on SealedAuction.sol.`,
+        4
+      )} ETH recorded on Auction.sol.`,
     };
   };
 
@@ -407,27 +401,25 @@ function AuctionChainAppContent() {
       senderAddress: senderAddr,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
-      actionName: 'SealedAuction.finalizeAuction(uint256)',
-      summary: `Finalized Lot #${targetAuction.numericId} as ${newPhase} (Highest Revealed Bid: ${highest.toFixed(2)} ETH vs Seller Reserve: ${targetAuction.reservePriceEth.toFixed(2)} ETH)`,
+      contractMethod: 'finalizeAuction',
+      contractArgs: [BigInt(targetAuction.numericId || 1)],
+      actionName: 'Auction.finalizeAuction(uint256)',
+      summary: `Finalized Lot #${targetAuction.numericId} as ${newPhase} (Highest Revealed Bid: ${highest.toFixed(4)} ETH vs Seller Reserve: ${targetAuction.reservePriceEth.toFixed(4)} ETH)`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    const blockNum = txRes.receipt?.blockNumber || 4189400 + targetAuction.events.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    adjustBalance(senderAddr, -gasFeeEth, txRes.receipt?.from);
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -449,12 +441,12 @@ function AuctionChainAppContent() {
               summary: isSold
                 ? `Auction #${auc.numericId} finalized as SOLD to ${shortenAddress(
                     auc.winningBidderAddress || ''
-                  )} for ${highest.toFixed(2)} ETH (Reserve ${auc.reservePriceEth.toFixed(
-                    2
+                  )} for ${highest.toFixed(4)} ETH (Reserve ${auc.reservePriceEth.toFixed(
+                    4
                   )} ETH met)`
                 : `Auction #${auc.numericId} finalized as NO SALE (Highest revealed bid ${highest.toFixed(
-                    2
-                  )} ETH below reserve ${auc.reservePriceEth.toFixed(2)} ETH)`,
+                    4
+                  )} ETH below reserve ${auc.reservePriceEth.toFixed(4)} ETH)`,
             },
           ],
         };
@@ -485,7 +477,7 @@ function AuctionChainAppContent() {
     }
   };
 
-  // Winner Settles Balance
+  // Winner Settles Balance (Payable on Auction.sol)
   const handleSettleWinner = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
@@ -503,27 +495,25 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: due,
-      actionName: 'SealedAuction.settleWinner(uint256) payable',
-      summary: `Winner (${wallet.label}) settled remaining ${due.toFixed(2)} ETH balance (+ ${targetAuction.fixedDepositEth.toFixed(2)} ETH deposit credit) on Lot #${targetAuction.numericId}`,
+      contractMethod: 'settleWinnerPayment',
+      contractArgs: [BigInt(targetAuction.numericId || 1)],
+      actionName: 'Auction.settleWinnerPayment(uint256) payable',
+      summary: `Winner (${wallet.label}) settled remaining ${due.toFixed(4)} ETH balance (+ ${targetAuction.fixedDepositEth.toFixed(4)} ETH deposit credit) on Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`SETTLE:${auctionId}:${wallet.address}`);
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    const blockNum = txRes.receipt?.blockNumber || 4189450 + targetAuction.events.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    adjustBalance(wallet.address, -(due + gasFeeEth), txRes.receipt?.from);
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -547,8 +537,8 @@ function AuctionChainAppContent() {
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `Winner settled remaining ${due.toFixed(
-                2
-              )} ETH balance (+ ${auc.fixedDepositEth.toFixed(2)} ETH deposit credit)`,
+                4
+              )} ETH balance (+ ${auc.fixedDepositEth.toFixed(4)} ETH deposit credit)`,
             },
           ],
         };
@@ -561,11 +551,11 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Winning balance of ${due.toFixed(2)} ETH settled on SealedAuction.sol.`,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Winning balance of ${due.toFixed(4)} ETH settled on Auction.sol.`,
     };
   };
 
-  // Pull-Based Deposit Refund
+  // Pull-Based Deposit Refund (Transfers deposit ETH from Auction.sol back to Bidder's wallet on-chain)
   const handleClaimRefund = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
@@ -583,36 +573,32 @@ function AuctionChainAppContent() {
       return { success: false, message: 'No refundable deposit available.' };
     }
 
+    const refundWei = ethers.parseEther(myComm.depositEth.toFixed(6));
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
       payoutEth: myComm.depositEth,
-      actionName: 'SealedAuction.claimRefund(uint256)',
-      summary: `${wallet.label} claimed pull-based collateral refund of ${myComm.depositEth.toFixed(2)} ETH from Lot #${targetAuction.numericId}`,
+      contractMethod: 'claimRefundWithAmount',
+      contractArgs: [BigInt(targetAuction.numericId || 1), refundWei],
+      actionName: 'Auction.claimRefund(uint256)',
+      summary: `${wallet.label} claimed pull-based collateral refund of ${myComm.depositEth.toFixed(4)} ETH from Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const txHash =
       txRes.receipt?.txHash || generateDeterministicTxHash(`REFUND:${auctionId}:${wallet.address}`);
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    const blockNum = txRes.receipt?.blockNumber || 4189480 + targetAuction.events.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    adjustBalance(
-      wallet.address,
-      myComm.depositEth - gasFeeEth,
-      txRes.receipt?.from
-    );
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -634,7 +620,7 @@ function AuctionChainAppContent() {
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `${wallet.label} claimed pull-based deposit refund of ${myComm.depositEth.toFixed(
-                2
+                4
               )} ETH`,
             },
           ],
@@ -648,11 +634,11 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Refunded ${myComm.depositEth.toFixed(2)} ETH deposit to your wallet.`,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Refunded ${myComm.depositEth.toFixed(4)} ETH deposit to your wallet.`,
     };
   };
 
-  // Pull-Based Seller Proceeds Withdrawal
+  // Pull-Based Seller Proceeds Withdrawal (Transfers full winning bid ETH from Auction.sol to Seller's wallet on-chain)
   const handleWithdrawProceeds = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
@@ -665,33 +651,33 @@ function AuctionChainAppContent() {
     }
 
     const proceeds = targetAuction.highestBidEth || 0;
+    const proceedsWei = ethers.parseEther(proceeds.toFixed(6));
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
       payoutEth: proceeds,
-      actionName: 'SealedAuction.withdrawSellerProceeds(uint256)',
-      summary: `Seller (${wallet.label}) withdrew ${proceeds.toFixed(2)} ETH sale proceeds from Lot #${targetAuction.numericId}`,
+      contractMethod: 'withdrawSellerProceedsWithAmount',
+      contractArgs: [BigInt(targetAuction.numericId || 1), proceedsWei],
+      actionName: 'Auction.withdrawSellerProceeds(uint256)',
+      summary: `Seller (${wallet.label}) withdrew ${proceeds.toFixed(4)} ETH sale proceeds from Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       return {
         success: false,
         message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
       };
     }
 
+    await refreshHardhatNode();
+
     const txHash =
       txRes.receipt?.txHash ||
       generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    const blockNum = txRes.receipt?.blockNumber || 4189500 + targetAuction.events.length;
+    const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    adjustBalance(wallet.address, proceeds - gasFeeEth, txRes.receipt?.from);
 
     setAuctions((prev) =>
       prev.map((auc) => {
@@ -710,7 +696,7 @@ function AuctionChainAppContent() {
               timestamp: nowIso,
               actorAddress: wallet.address,
               summary: `Seller withdrew ${proceeds.toFixed(
-                2
+                4
               )} ETH proceeds via pull-based withdrawSellerProceeds()`,
             },
           ],
@@ -724,7 +710,7 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Withdrew ${proceeds.toFixed(2)} ETH sale proceeds.`,
+      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Withdrew ${proceeds.toFixed(4)} ETH sale proceeds.`,
     };
   };
 
@@ -750,15 +736,6 @@ function AuctionChainAppContent() {
 
       {/* Main Content Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-6">
-        {nonceMismatch && (
-          <div className="mb-6">
-            <NonceMismatchBanner
-              mismatch={nonceMismatch}
-              onAutoSyncNonce={autoSyncNonce}
-              onConfirmManualClear={confirmManualNonceClear}
-            />
-          </div>
-        )}
         {!isConnected || !wallet ? (
           /* ================= PRE-LOGIN PUBLIC ROUTES (Overview, How It Works, Architecture) ================= */
           publicTab === 'home' ? (

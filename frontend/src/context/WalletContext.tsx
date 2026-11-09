@@ -15,10 +15,10 @@ import {
   requestSwitchToHardhatChain,
   promptMetaMaskAccountSwitch,
   findRoleAccountByAddress,
-  detectAccountNonceMismatch,
   syncHardhatNonceWithMetaMask,
   clearCachedMetaMaskNonce,
-  setHardhatAccountBalance,
+  resetHardhatAccountBalance,
+  ensureAuctionContractsDeployed,
   NonceMismatchInfo,
 } from '../services/blockchain/walletService';
 import { TransactionReceiptModal } from '../components/common/TransactionReceiptModal';
@@ -80,35 +80,12 @@ const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 const STORAGE_ADDR_KEY = 'auctionchain_wallet_active_addr_v4';
 const STORAGE_ORACLE_KEY = 'auctionchain_wallet_oracle_v4';
-const STORAGE_BALANCES_KEY = 'auctionchain_wallet_balances_v1';
-
-function loadPersistedBalances(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(STORAGE_BALANCES_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePersistedBalances(map: Record<string, number>): void {
-  try {
-    localStorage.setItem(STORAGE_BALANCES_KEY, JSON.stringify(map));
-  } catch {
-    // ignore storage errors
-  }
-}
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [wallets, setWallets] = useState<WalletAccount[]>(() => {
-    const saved = loadPersistedBalances();
-    return HARDHAT_WALLETS.map((w) => {
-      const savedBal = saved[w.address.toLowerCase()];
-      return typeof savedBal === 'number' ? { ...w, balanceEth: savedBal } : { ...w };
-    });
-  });
+  const [wallets, setWallets] = useState<WalletAccount[]>(() =>
+    HARDHAT_WALLETS.map((w) => ({ ...w }))
+  );
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [isMetaMaskAuthorized, setIsMetaMaskAuthorized] = useState<boolean>(false);
   const [activeAddress, setActiveAddress] = useState<string>(() => {
     return localStorage.getItem(STORAGE_ADDR_KEY) || HUMAN_ROLE_WALLETS[0].address;
   });
@@ -122,6 +99,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [isMetaMaskAvailable, setIsMetaMaskAvailable] = useState<boolean>(false);
   const [inspectedTxHash, setInspectedTxHash] = useState<string | null>(null);
+  const [deployedAuctionAddress, setDeployedAuctionAddress] = useState<string>(
+    SEALED_AUCTION_CONTRACT_ADDRESS
+  );
+  const [deployedOracleAddress, setDeployedOracleAddress] = useState<string>(
+    PRICE_ORACLE_CONTRACT_ADDRESS
+  );
 
   const [authorizedOracleAddress, setAuthorizedOracleAddress] = useState<string>(() => {
     return (
@@ -155,6 +138,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [activeAddress]);
 
+  /**
+   * Synchronizes live ETH balances directly from Hardhat RPC (`eth_getBalance`),
+   * matching `evm.syncWithLiveChain()` in the Freelance-Milestone-Escrow reference project.
+   */
   const refreshHardhatNode = useCallback(async (): Promise<boolean> => {
     const addrs = HARDHAT_WALLETS.map((w) => w.address);
     const status = await checkLocalHardhatNode(addrs);
@@ -163,25 +150,24 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (status.chainId) setChainId(status.chainId);
       setLatestBlock(status.latestBlock);
       if (Object.keys(status.balances).length > 0) {
-        const persisted = loadPersistedBalances();
         setWallets((prev) =>
           prev.map((w) => {
             const key = w.address.toLowerCase();
             const liveBal = status.balances[key];
-            if (typeof persisted[key] === 'number') {
-              // Ensure Hardhat node on-chain balance matches the authoritative persisted balance
-              if (typeof liveBal === 'number' && Math.abs(liveBal - persisted[key]) > 0.0001) {
-                setHardhatAccountBalance(w.address, persisted[key]).catch(() => {});
-              }
-              return { ...w, balanceEth: persisted[key] };
-            }
             return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
           })
         );
       }
+      // Ensure Auction.sol & PriceOracle.sol are deployed on the running Hardhat chain
+      ensureAuctionContractsDeployed()
+        .then(({ auctionAddress, oracleAddress }) => {
+          setDeployedAuctionAddress(auctionAddress);
+          setDeployedOracleAddress(oracleAddress);
+        })
+        .catch(() => {});
     }
     return status.isNodeOnline;
-  }, [activeAddress]);
+  }, []);
 
   useEffect(() => {
     setIsMetaMaskAvailable(hasMetaMask());
@@ -189,7 +175,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const timer = setInterval(() => {
       refreshHardhatNode();
-    }, 3000);
+    }, 2500);
+
+    const handleFocus = () => {
+      refreshHardhatNode();
+    };
+    window.addEventListener('focus', handleFocus);
 
     const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
     if (ethereum && typeof ethereum.on === 'function') {
@@ -206,6 +197,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setMismatchInfo(null);
             setErrorMessage(null);
           }
+          refreshHardhatNode();
         }
       };
 
@@ -222,6 +214,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       return () => {
         clearInterval(timer);
+        window.removeEventListener('focus', handleFocus);
         if (ethereum.removeListener) {
           ethereum.removeListener('accountsChanged', handleAccountsChanged);
           ethereum.removeListener('chainChanged', handleChainChanged);
@@ -229,7 +222,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [refreshHardhatNode]);
 
   const currentWallet = isConnected
@@ -256,21 +252,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setErrorMessage(null);
   };
 
-  const reportNonceMismatch = useCallback((info: NonceMismatchInfo) => {
-    setNonceMismatch(info);
+  const reportNonceMismatch = useCallback((_info: NonceMismatchInfo) => {
+    // Nonces are automatically aligned via hardhat_setNonce in walletService.ts
+    setNonceMismatch(null);
   }, []);
 
   const autoSyncNonce = useCallback(async (): Promise<boolean> => {
-    if (!nonceMismatch) return false;
+    if (!nonceMismatch) return true;
     const ok = await syncHardhatNonceWithMetaMask(
       nonceMismatch.address,
       nonceMismatch.cachedMetaMaskNonce
     );
-    if (ok) {
-      setNonceMismatch(null);
-      setErrorMessage(null);
-      await refreshHardhatNode();
-    }
+    setNonceMismatch(null);
+    setErrorMessage(null);
+    await refreshHardhatNode();
     return ok;
   }, [nonceMismatch, refreshHardhatNode]);
 
@@ -296,7 +291,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const online = await refreshHardhatNode();
       if (!online) {
         setErrorMessage(
-          'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is offline. Please start Terminal 1 (Hardhat Node) first.'
+          'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is offline. Please start "npx hardhat node" in Terminal 1 first.'
         );
         setIsConnecting(false);
         return false;
@@ -310,20 +305,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return false;
         }
 
-        if (res.nonceMismatch) {
-          setNonceMismatch(res.nonceMismatch);
-        }
-
-        setIsMetaMaskAuthorized(true);
         setChainId(HARDHAT_CHAIN_ID);
 
         if (res.account && res.account.isHumanFacing) {
           setActiveAddress(res.account.address);
           setIsConnected(true);
-          if (!res.nonceMismatch) {
-            setIsAuthModalOpen(false);
-          }
+          setIsAuthModalOpen(false);
           setIsConnecting(false);
+          await refreshHardhatNode();
           return true;
         }
 
@@ -331,15 +320,16 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsConnected(true);
         setIsAuthModalOpen(false);
         setIsConnecting(false);
+        await refreshHardhatNode();
         return true;
       } else {
         const defaultRole = humanWallets[0];
         setActiveAddress(defaultRole.address);
         setIsConnected(true);
-        setIsMetaMaskAuthorized(true);
         setChainId(HARDHAT_CHAIN_ID);
         setIsAuthModalOpen(false);
         setIsConnecting(false);
+        await refreshHardhatNode();
         return true;
       }
     } catch (err: any) {
@@ -350,47 +340,71 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return false;
   }, [humanWallets, refreshHardhatNode]);
 
-  const devBypassLogin = useCallback((roleAddress?: string) => {
-    const sellerWallet =
-      HUMAN_ROLE_WALLETS.find((w) => w.role === 'seller') || HUMAN_ROLE_WALLETS[0];
-    const targetAddr = roleAddress || sellerWallet.address;
-    localStorage.setItem('auctionchain_bypass_mode_v1', 'true');
-    setActiveAddress(targetAddr);
-    setIsConnected(true);
-    setIsMetaMaskAuthorized(true);
-    setChainId(HARDHAT_CHAIN_ID);
-    setErrorMessage(null);
-    setMismatchInfo(null);
-    setIsAuthModalOpen(false);
-    // Refresh node status non-blockingly in background
-    refreshHardhatNode();
-  }, [refreshHardhatNode]);
+  const devBypassLogin = useCallback(
+    (roleAddress?: string) => {
+      const sellerWallet =
+        HUMAN_ROLE_WALLETS.find((w) => w.role === 'seller') || HUMAN_ROLE_WALLETS[0];
+      const targetAddr = roleAddress || sellerWallet.address;
+      setActiveAddress(targetAddr);
+      setIsConnected(true);
+      setChainId(HARDHAT_CHAIN_ID);
+      setErrorMessage(null);
+      setMismatchInfo(null);
+      setIsAuthModalOpen(false);
+      refreshHardhatNode();
+    },
+    [refreshHardhatNode]
+  );
 
+  /**
+   * Matches `handleSelectRoleAccount` in Freelance-Milestone-Escrow `ConnectWalletModal.tsx`
+   * when logging in from `AuthModal`, and `evm.setActiveAccount` when switching roles in the header.
+   */
   const selectRoleDirect = useCallback(
     async (targetAccount: WalletAccount): Promise<boolean> => {
       setErrorMessage(null);
       setMismatchInfo(null);
 
-      // Immediately switch active signer role so bypass & role switching never hang or fail
-      localStorage.setItem('auctionchain_bypass_mode_v1', 'true');
+      // If logging in from the Connect Wallet modal (`!isConnected`), prompt MetaMask connection
+      // just like `ConnectWalletModal.tsx` in the reference project
+      if (!isConnected && hasMetaMask()) {
+        const online = await refreshHardhatNode();
+        if (!online) {
+          setErrorMessage(
+            'Cannot connect wallet: Hardhat RPC Server (http://127.0.0.1:8545) is offline. Please run "npx hardhat node" in your terminal first.'
+          );
+          return false;
+        }
+        setIsConnecting(true);
+        try {
+          const res = await connectMetaMaskWithEthers(targetAccount.address);
+          if (!res.success) {
+            setErrorMessage(res.error || 'MetaMask connection cancelled or failed.');
+            setIsConnecting(false);
+            return false;
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || 'MetaMask connection cancelled or failed.');
+          setIsConnecting(false);
+          return false;
+        }
+        setIsConnecting(false);
+      }
+
       setActiveAddress(targetAccount.address);
       setIsConnected(true);
-      setIsMetaMaskAuthorized(true);
       setChainId(HARDHAT_CHAIN_ID);
       setIsAuthModalOpen(false);
       setIsConnecting(false);
 
-      // Best-effort background refresh of Hardhat balances if local node is running
-      refreshHardhatNode().catch(() => {});
+      await refreshHardhatNode().catch(() => {});
       return true;
     },
-    [refreshHardhatNode]
+    [isConnected, refreshHardhatNode]
   );
 
   const disconnectWallet = useCallback(() => {
-    localStorage.removeItem('auctionchain_bypass_mode_v1');
     setIsConnected(false);
-    setIsMetaMaskAuthorized(false);
     setMismatchInfo(null);
     setErrorMessage(null);
   }, []);
@@ -400,78 +414,41 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const res = await requestSwitchToHardhatChain();
       if (res.success) {
         setChainId(HARDHAT_CHAIN_ID);
+        await refreshHardhatNode();
       } else {
         setErrorMessage(res.error || 'Failed to switch network in MetaMask.');
       }
     } else {
       setChainId(HARDHAT_CHAIN_ID);
     }
-  }, []);
+  }, [refreshHardhatNode]);
 
   const requestAccountSwitchInMetaMask = useCallback(async () => {
     const res = await promptMetaMaskAccountSwitch();
     if (!res.success && res.error) {
       setErrorMessage(res.error);
+    } else {
+      await refreshHardhatNode();
     }
-  }, []);
+  }, [refreshHardhatNode]);
 
+  /**
+   * Immediately syncs live ETH balances from the Hardhat RPC server (`eth_getBalance`)
+   * after an on-chain transaction, matching `await this.syncWithLiveChain()` in the reference project.
+   */
   const adjustBalance = useCallback(
-    (address: string, deltaEth: number, signerAddress?: string) => {
-      const key = address.toLowerCase();
-      const signerKey = signerAddress ? signerAddress.toLowerCase() : null;
-      const isSignerHumanRole = signerKey
-        ? HUMAN_ROLE_WALLETS.some((hw) => hw.address.toLowerCase() === signerKey)
-        : false;
-
-      setWallets((prev) => {
-        const persisted = loadPersistedBalances();
-        let targetUpdatedBal: number | null = null;
-
-        const next = prev.map((w) => {
-          const wKey = w.address.toLowerCase();
-          if (wKey !== key) return w;
-          const updatedBal = Number(Math.max(0, w.balanceEth + deltaEth).toFixed(6));
-          targetUpdatedBal = updatedBal;
-          persisted[key] = updatedBal;
-          setHardhatAccountBalance(w.address, updatedBal).catch(() => {});
-          return { ...w, balanceEth: updatedBal };
-        });
-
-        if (signerAddress && signerKey && signerKey !== key && targetUpdatedBal !== null) {
-          if (!isSignerHumanRole) {
-            // User is signing with Account #4 (0x15d34...c6a65) or a custom MetaMask account:
-            // mirror the updated balance onto that MetaMask account so MetaMask displays the exact change.
-            persisted[signerKey] = targetUpdatedBal;
-            setHardhatAccountBalance(signerAddress, targetUpdatedBal).catch(() => {});
-          } else {
-            // User signed with a different human role account in MetaMask: restore that signer's own balance on Hardhat
-            const signerOwnWallet = prev.find((w) => w.address.toLowerCase() === signerKey);
-            if (signerOwnWallet) {
-              const ownBal = persisted[signerKey] ?? signerOwnWallet.balanceEth;
-              persisted[signerKey] = ownBal;
-              setHardhatAccountBalance(signerAddress, ownBal).catch(() => {});
-            }
-          }
-        }
-
-        savePersistedBalances(persisted);
-        return next;
-      });
+    (_address: string, _deltaEth: number, _signerAddress?: string) => {
+      refreshHardhatNode().catch(() => {});
     },
-    []
+    [refreshHardhatNode]
   );
 
   const resetBalances = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_BALANCES_KEY);
-    } catch {
-      // ignore
-    }
-    setWallets(HARDHAT_WALLETS.map((w) => ({ ...w })));
-    HARDHAT_WALLETS.forEach((w) => {
-      setHardhatAccountBalance(w.address, 10000.0).catch(() => {});
+    Promise.all(
+      HARDHAT_WALLETS.map((w) => resetHardhatAccountBalance(w.address, 10000.0))
+    ).then(() => {
+      refreshHardhatNode().catch(() => {});
     });
-    refreshHardhatNode().catch(() => {});
   }, [refreshHardhatNode]);
 
   const updateAuthorizedOracle = useCallback(
@@ -499,23 +476,22 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           action: 'PriceOracle.updateEthInrRate(uint256)',
           actorAddress: currentWallet?.address || ORACLE_BACKGROUND_ACCOUNT.address,
           actorLabel: currentWallet?.label || 'PriceOracle Service',
-          contractAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
+          contractAddress: deployedOracleAddress,
           valueEth: 0,
           txHash: `0x${Array.from({ length: 64 }, (_, i) => ((newRateInr + nextRound + i * 7) % 16).toString(16)).join('')}`,
-          blockNumber: (latestBlock || 4189200) + nextRound,
+          blockNumber: (latestBlock || 1) + nextRound,
           details: `Updated ETH/INR Oracle Feed (Round #${nextRound}): 1 ETH = ₹${newRateInr.toLocaleString('en-IN')}`,
           executionMode: 'PriceOracle.sol Live Feed',
         }),
       }).catch(() => {});
       return true;
     },
-    [currentWallet?.address, currentWallet?.label, latestBlock, oracleRoundId]
+    [currentWallet?.address, currentWallet?.label, deployedOracleAddress, latestBlock, oracleRoundId]
   );
 
   const fetchRealMarketEthRate = useCallback(async (): Promise<number | null> => {
     setIsFetchingMarketRate(true);
     try {
-      // 1. Query CoinGecko free public API for live ETH/INR spot price
       const cgRes = await fetch(
         'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=inr',
         { headers: { Accept: 'application/json' } }
@@ -539,7 +515,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      // 2. Fallback to Binance ETHUSDT * USD/INR (~87.5)
       const bRes = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT');
       if (bRes.ok) {
         const bData = await bRes.json();
@@ -568,7 +543,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('auctionchain_oracle_auto_sync', enabled ? 'true' : 'false');
   }, []);
 
-  // Periodic auto-sync if user enabled it
   useEffect(() => {
     if (!isAutoMarketSync) return;
     fetchRealMarketEthRate();
@@ -596,8 +570,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isConnecting,
         isAuthModalOpen,
         authorizedOracleAddress,
-        oracleContractAddress: PRICE_ORACLE_CONTRACT_ADDRESS,
-        auctionContractAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
+        oracleContractAddress: deployedOracleAddress,
+        auctionContractAddress: deployedAuctionAddress,
         liveEthInrRate,
         oracleRoundId,
         isFetchingMarketRate,
@@ -635,8 +609,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
-export const useWallet = () => {
+export function useWallet(): WalletContextValue {
   const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error('useWallet must be used inside WalletProvider');
+  if (!ctx) {
+    throw new Error('useWallet must be used inside a WalletProvider');
+  }
   return ctx;
-};
+}

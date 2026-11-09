@@ -151,6 +151,7 @@ export interface LocalRevealBackupSecret {
 
 export interface WalletAccount {
   address: string;
+  privateKey?: string;
   ens: string;
   label: string;
   accountNumber: number;
@@ -164,3 +165,4 @@ export interface WalletAccount {
   description: string;
   isHumanFacing: boolean;
 }
+

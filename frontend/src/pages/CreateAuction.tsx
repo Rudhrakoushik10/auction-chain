@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ethers } from 'ethers';
 import {
   CheckCircle2,
   ArrowRight,
@@ -16,6 +17,7 @@ import {
   formatInr,
   toInrPaise,
   formatEthToInr,
+  normalizeSaltHex,
   shortenAddress,
   generateDeterministicTxHash,
 } from '../lib/crypto';
@@ -49,10 +51,8 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     switchNetworkToHardhat,
     authorizedOracleAddress,
     liveEthInrRate,
-    reportNonceMismatch,
     inspectTransaction,
     refreshHardhatNode,
-    adjustBalance,
   } = useWallet();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -196,25 +196,39 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
     setTermsError(null);
     setDeployTxStage('waiting_approval');
 
+    const metadataHashBytes32 = normalizeSaltHex(aiRecord.product_data_hash || ethers.ZeroHash);
+    const startWei = ethers.parseEther(Number(startingBidEth || '1.0').toFixed(6));
+    const reserveWei = ethers.parseEther(Number(reservePriceEth || '1.2').toFixed(6));
+    const depositWei = ethers.parseEther(Number(fixedDepositEth || '0.25').toFixed(6));
+    const commitSec = BigInt(Math.max(60, commitMinutes * 60));
+    const revealSec = BigInt(Math.max(60, revealMinutes * 60));
+
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
-      actionName: 'SealedAuction.createAuction(uint256,bytes32,uint256,uint256,uint256)',
+      contractMethod: 'createAuction',
+      contractArgs: [
+        title.trim() || 'AuctionChain Vehicle Lot',
+        metadataHashBytes32,
+        BigInt(aiRecord.prediction_id || 1),
+        startWei,
+        reserveWei,
+        depositWei,
+        commitSec,
+        revealSec,
+      ],
+      actionName: 'Auction.createAuction(string,bytes32,uint256,uint256,uint256,uint256,uint256,uint256)',
       summary: `Seller (${wallet.label}) deployed Vehicle Auction #${nextNumericId}: ${title} (Start: ${startingBidEth} ETH, Reserve: ${reservePriceEth} ETH, Collateral Deposit: ${fixedDepositEth} ETH)`,
     });
 
     if (!txRes.success) {
       setDeployTxStage('idle');
-      if (txRes.nonceMismatch) {
-        reportNonceMismatch(txRes.nonceMismatch);
-      }
       setTermsError(txRes.error || 'Failed to publish auction transaction.');
       return;
     }
 
-    const gasFeeEth = txRes.receipt?.gasFeeEth ?? 0.0015;
-    adjustBalance(wallet.address, -gasFeeEth, txRes.receipt?.from);
+    await refreshHardhatNode();
 
     setDeployTxStage('submitted');
     await new Promise((r) => setTimeout(r, 120));
