@@ -653,7 +653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <td className="py-4 px-4 text-[#C5A46D] font-medium">{acct.roleTitle}</td>
                       <td className="py-4 px-4 font-mono text-[#8E95A5]">{shortenAddress(acct.address)}</td>
                       <td className="py-4 px-4 font-mono text-[#F4F5F7] text-right tabular-nums">
-                        {acct.balanceEth.toFixed(1)} ETH
+                        {acct.balanceEth.toFixed(2)} ETH
                       </td>
                       <td className="py-4 px-4 text-[#8E95A5]">{acct.description}</td>
                     </tr>

@@ -205,6 +205,37 @@ export async function syncHardhatNonceWithMetaMask(
 }
 
 /**
+ * Synchronizes an account's on-chain ETH balance on the local Hardhat node (`hardhat_setBalance`)
+ * so that deposits, winner remaining balance settlements, refunds, and seller withdrawals are
+ * reflected both in the application ledger and in `eth_getBalance` / MetaMask.
+ */
+export async function setHardhatAccountBalance(
+  address: string,
+  balanceEth: number
+): Promise<boolean> {
+  try {
+    const safeEth = Math.max(0, Number(balanceEth.toFixed(6)));
+    const weiBigInt = ethers.parseEther(safeEth.toString());
+    const hexWei = '0x' + weiBigInt.toString(16);
+    const response = await fetch(HARDHAT_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'hardhat_setBalance',
+        params: [address, hexWei],
+        id: Date.now(),
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json();
+    return !data?.error;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Performs an uncached JSON-RPC ping to http://127.0.0.1:8545 and fetches live ETH balances
  * and on-chain nonces (`eth_getTransactionCount`) without touching window.ethereum on page load.
  */

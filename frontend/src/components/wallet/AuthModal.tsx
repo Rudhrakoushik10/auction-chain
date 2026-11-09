@@ -213,7 +213,7 @@ export const AuthModal: React.FC = () => {
 
                       <div className="flex items-center gap-2.5 shrink-0">
                         <span className="text-xs font-mono font-semibold text-[#F4F5F7] tabular-nums">
-                          {acc.balanceEth.toFixed(1)} ETH
+                          {acc.balanceEth.toFixed(2)} ETH
                         </span>
                         <button
                           type="button"
@@ -254,7 +254,7 @@ export const AuthModal: React.FC = () => {
                 </span>
               </div>
               <span className="text-xs font-mono font-semibold text-[#F4F5F7] tabular-nums shrink-0">
-                {ORACLE_BACKGROUND_ACCOUNT.balanceEth.toFixed(1)} ETH
+                {ORACLE_BACKGROUND_ACCOUNT.balanceEth.toFixed(2)} ETH
               </span>
             </div>
 

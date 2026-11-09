@@ -372,16 +372,23 @@ function AuctionChainAppContent() {
     };
   };
 
-  // Finalize Auction & Check Reserve Price
+  // Finalize Auction & Check Reserve Price (Seller Only)
   const handleFinalizeAuction = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
+    if (!wallet || wallet.role !== 'seller') {
+      return {
+        success: false,
+        message: 'Only the Vehicle Seller account can finalize the auction.',
+      };
+    }
+
     const targetAuction = auctions.find((a) => a.id === auctionId);
     if (!targetAuction) {
       return { success: false, message: 'Auction not found.' };
     }
 
-    const senderAddr = wallet?.address || targetAuction.sellerAddress;
+    const senderAddr = wallet.address;
     const highest = targetAuction.highestBidEth || 0;
     const isSold =
       highest >= targetAuction.reservePriceEth && Boolean(targetAuction.winningBidderAddress);
@@ -452,8 +459,9 @@ function AuctionChainAppContent() {
     };
   };
 
-  // Demo helper to advance phase
+  // Seller helper to advance phase
   const handleAdvancePhaseDemo = (auctionId: string) => {
+    if (!wallet || wallet.role !== 'seller') return;
     const target = auctions.find((a) => a.id === auctionId);
     if (!target) return;
     if (target.phase === 'Commit') {

@@ -400,17 +400,19 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             <span>Seller: {shortenAddress(auction.sellerAddress)}</span>
           </div>
 
-          {(auction.phase === 'Commit' || auction.phase === 'Reveal') && (
-            <button
-              type="button"
-              onClick={() => onAdvancePhaseDemo(auction.id)}
-              className="px-3.5 py-1.5 rounded-md bg-[#12141A] hover:bg-[#171A22] border border-[#232730] text-[#F4F5F7] text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              {auction.phase === 'Commit'
-                ? 'Advance to Reveal Phase'
-                : 'Finalize Auction Window'}
-            </button>
-          )}
+          {isConnected &&
+            wallet?.role === 'seller' &&
+            (auction.phase === 'Commit' || auction.phase === 'Reveal') && (
+              <button
+                type="button"
+                onClick={() => onAdvancePhaseDemo(auction.id)}
+                className="px-3.5 py-1.5 rounded-md bg-[#12141A] hover:bg-[#171A22] border border-[#232730] text-[#F4F5F7] text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                {auction.phase === 'Commit'
+                  ? 'Advance to Reveal Phase'
+                  : 'Finalize Auction Window'}
+              </button>
+            )}
         </div>
       </div>
 
@@ -845,13 +847,15 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onAdvancePhaseDemo(auction.id)}
-                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Close Bidding &amp; Advance to Reveal Phase ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
-              </button>
+              {wallet?.role === 'seller' && (
+                <button
+                  type="button"
+                  onClick={() => onAdvancePhaseDemo(auction.id)}
+                  className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close Bidding &amp; Advance to Reveal Phase ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
+                </button>
+              )}
             </section>
           )}
 
@@ -1084,21 +1088,23 @@ export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() =>
-                  runSimulatedTxLifecycle(async () => {
-                    const res = await onFinalizeAuction(auction.id);
-                    return {
-                      ok: res.success,
-                      msg: res.message,
-                    };
-                  })
-                }
-                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Finalize Auction &amp; Resolve Winner (finalizeAuction)
-              </button>
+              {wallet?.role === 'seller' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    runSimulatedTxLifecycle(async () => {
+                      const res = await onFinalizeAuction(auction.id);
+                      return {
+                        ok: res.success,
+                        msg: res.message,
+                      };
+                    })
+                  }
+                  className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Finalize Auction &amp; Resolve Winner (finalizeAuction)
+                </button>
+              )}
             </section>
           )}
 

@@ -232,7 +232,7 @@ export const AuthenticatedHeader: React.FC<AuthenticatedHeaderProps> = ({
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-[#8E95A5] tabular-nums">
-                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(1)} ETH
+                              {shortenAddress(acc.address)} · {acc.balanceEth.toFixed(2)} ETH
                             </div>
                           </div>
                           {isCurrent && <Check className="w-3.5 h-3.5 text-[#C5A46D]" />}

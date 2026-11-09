@@ -18,6 +18,7 @@ import {
   detectAccountNonceMismatch,
   syncHardhatNonceWithMetaMask,
   clearCachedMetaMaskNonce,
+  setHardhatAccountBalance,
   NonceMismatchInfo,
 } from '../services/blockchain/walletService';
 import { TransactionReceiptModal } from '../components/common/TransactionReceiptModal';
@@ -79,9 +80,33 @@ const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 const STORAGE_ADDR_KEY = 'auctionchain_wallet_active_addr_v4';
 const STORAGE_ORACLE_KEY = 'auctionchain_wallet_oracle_v4';
+const STORAGE_BALANCES_KEY = 'auctionchain_wallet_balances_v1';
+
+function loadPersistedBalances(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(STORAGE_BALANCES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedBalances(map: Record<string, number>): void {
+  try {
+    localStorage.setItem(STORAGE_BALANCES_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [wallets, setWallets] = useState<WalletAccount[]>(HARDHAT_WALLETS);
+  const [wallets, setWallets] = useState<WalletAccount[]>(() => {
+    const saved = loadPersistedBalances();
+    return HARDHAT_WALLETS.map((w) => {
+      const savedBal = saved[w.address.toLowerCase()];
+      return typeof savedBal === 'number' ? { ...w, balanceEth: savedBal } : { ...w };
+    });
+  });
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isMetaMaskAuthorized, setIsMetaMaskAuthorized] = useState<boolean>(false);
   const [activeAddress, setActiveAddress] = useState<string>(() => {
@@ -138,9 +163,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (status.chainId) setChainId(status.chainId);
       setLatestBlock(status.latestBlock);
       if (Object.keys(status.balances).length > 0) {
+        const persisted = loadPersistedBalances();
         setWallets((prev) =>
           prev.map((w) => {
-            const liveBal = status.balances[w.address.toLowerCase()];
+            const key = w.address.toLowerCase();
+            // If this account has a settled/adjusted balance in the platform ledger, preserve it
+            // and keep the Hardhat RPC node aligned rather than overwriting it with 10000.0
+            if (typeof persisted[key] === 'number') {
+              const liveBal = status.balances[key];
+              if (typeof liveBal === 'number' && Math.abs(liveBal - persisted[key]) > 0.01) {
+                setHardhatAccountBalance(w.address, persisted[key]).catch(() => {});
+              }
+              return { ...w, balanceEth: persisted[key] };
+            }
+            const liveBal = status.balances[key];
             return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
           })
         );
@@ -399,17 +435,31 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const adjustBalance = useCallback((address: string, deltaEth: number) => {
-    setWallets((prev) =>
-      prev.map((w) =>
-        w.address.toLowerCase() === address.toLowerCase()
-          ? { ...w, balanceEth: Number((w.balanceEth + deltaEth).toFixed(4)) }
-          : w
-      )
-    );
+    const key = address.toLowerCase();
+    setWallets((prev) => {
+      const persisted = loadPersistedBalances();
+      const next = prev.map((w) => {
+        if (w.address.toLowerCase() !== key) return w;
+        const updatedBal = Number((w.balanceEth + deltaEth).toFixed(4));
+        persisted[key] = updatedBal;
+        setHardhatAccountBalance(w.address, updatedBal).catch(() => {});
+        return { ...w, balanceEth: updatedBal };
+      });
+      savePersistedBalances(persisted);
+      return next;
+    });
   }, []);
 
   const resetBalances = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_BALANCES_KEY);
+    } catch {
+      // ignore
+    }
     setWallets(HARDHAT_WALLETS.map((w) => ({ ...w })));
+    HARDHAT_WALLETS.forEach((w) => {
+      setHardhatAccountBalance(w.address, 10000.0).catch(() => {});
+    });
     refreshHardhatNode().catch(() => {});
   }, [refreshHardhatNode]);
 
