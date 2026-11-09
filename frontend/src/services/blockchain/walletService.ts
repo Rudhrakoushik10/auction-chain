@@ -204,10 +204,12 @@ export async function syncHardhatNonceWithMetaMask(
   }
 }
 
+export const HARDHAT_ESCROW_VAULT_ADDRESS = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199';
+
 /**
  * Synchronizes an account's on-chain ETH balance on the local Hardhat node (`hardhat_setBalance`)
- * so that deposits, winner remaining balance settlements, refunds, and seller withdrawals are
- * reflected both in the application ledger and in `eth_getBalance` / MetaMask.
+ * and immediately mines a block (`evm_mine`) so MetaMask's BlockTracker immediately refreshes
+ * the displayed ETH balance in the MetaMask extension.
  */
 export async function setHardhatAccountBalance(
   address: string,
@@ -220,16 +222,24 @@ export async function setHardhatAccountBalance(
     const response = await fetch(HARDHAT_RPC_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'hardhat_setBalance',
-        params: [address, hexWei],
-        id: Date.now(),
-      }),
+      body: JSON.stringify([
+        {
+          jsonrpc: '2.0',
+          method: 'hardhat_setBalance',
+          params: [address, hexWei],
+          id: Date.now(),
+        },
+        {
+          jsonrpc: '2.0',
+          method: 'evm_mine',
+          params: [],
+          id: Date.now() + 1,
+        },
+      ]),
       cache: 'no-store',
     });
     const data = await response.json();
-    return !data?.error;
+    return Array.isArray(data) ? !data[0]?.error : !data?.error;
   } catch {
     return false;
   }
@@ -554,6 +564,7 @@ export async function executeMetaMaskTransaction(params: {
   senderAddress: string;
   toAddress: string;
   valueEth?: number;
+  payoutEth?: number;
   dataHex?: string;
   actionName?: string;
   summary?: string;
@@ -566,7 +577,9 @@ export async function executeMetaMaskTransaction(params: {
 }> {
   const status = await checkLocalHardhatNode([params.senderAddress]);
   const valueEthNum = params.valueEth ?? 0;
+  const payoutEthNum = params.payoutEth ?? 0;
   const valueWei = valueEthNum > 0 ? ethers.parseEther(valueEthNum.toString()) : 0n;
+  const payoutWei = payoutEthNum > 0 ? ethers.parseEther(payoutEthNum.toString()) : 0n;
   const rpcProvider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
   const roleAccount = findRoleAccountByAddress(params.senderAddress);
   const actorLabel = roleAccount?.label || 'Connected Account';
@@ -577,6 +590,29 @@ export async function executeMetaMaskTransaction(params: {
       : 'SealedAuction.sol State Transition');
 
   const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+
+  // Helper to disburse escrow payout (refund or seller proceeds) on-chain from the Hardhat Escrow Vault
+  const disburseEscrowPayoutOnChain = async (recipientAddr: string) => {
+    if (payoutWei <= 0n || !status.isNodeOnline) return;
+    try {
+      const vaultSigner = await rpcProvider.getSigner(HARDHAT_ESCROW_VAULT_ADDRESS);
+      const payoutTx = await vaultSigner.sendTransaction({
+        to: ethers.getAddress(recipientAddr),
+        value: payoutWei,
+      });
+      await payoutTx.wait();
+      // If the active role in the UI differs from the active MetaMask signer, also credit the UI role address on-chain
+      if (recipientAddr.toLowerCase() !== params.senderAddress.toLowerCase()) {
+        const rolePayoutTx = await vaultSigner.sendTransaction({
+          to: ethers.getAddress(params.senderAddress),
+          value: payoutWei,
+        });
+        await rolePayoutTx.wait();
+      }
+    } catch {
+      // Fallback handled by setHardhatAccountBalance + evm_mine
+    }
+  };
 
   // 1. PRIORITY: Whenever MetaMask is installed and local Hardhat node is online, ALWAYS trigger MetaMask confirmation popup!
   if (ethereum && status.isNodeOnline) {
@@ -606,7 +642,8 @@ export async function executeMetaMaskTransaction(params: {
           await syncHardhatNonceWithMetaMask(signerAddr, preMismatch.cachedMetaMaskNonce);
         }
 
-        // Determine safe destination address (if the running contract was deployed prior to receive() payable, route escrow deposit to Hardhat Escrow Account #0)
+        // Determine safe destination address: route ETH value transfers to the dedicated Hardhat Escrow Vault
+        // if the contract at params.toAddress does not accept raw ETH transfers, preventing self-transfers.
         let targetTo = ethers.getAddress(params.toAddress);
         try {
           await rpcProvider.estimateGas({
@@ -616,7 +653,7 @@ export async function executeMetaMaskTransaction(params: {
             data: params.dataHex || '0x',
           });
         } catch {
-          targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+          targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
         }
 
         const browserProvider = new ethers.BrowserProvider(ethereum);
@@ -663,6 +700,11 @@ export async function executeMetaMaskTransaction(params: {
         // Track the new nonce in localStorage so if Hardhat is restarted later, we auto-sync seamlessly
         setCachedMetaMaskNonce(actualSignerAddr, txResponse.nonce + 1);
 
+        // If this transaction is a refund or seller proceeds withdrawal, disburse the ETH on-chain from the Escrow Vault
+        if (payoutWei > 0n) {
+          await disburseEscrowPayoutOnChain(actualSignerAddr);
+        }
+
         const txResult: OnChainTxResult = {
           txHash: receipt.hash,
           blockNumber: receipt.blockNumber,
@@ -680,7 +722,7 @@ export async function executeMetaMaskTransaction(params: {
           actorAddress: params.senderAddress,
           actorLabel,
           contractAddress: params.toAddress,
-          valueEth: valueEthNum,
+          valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
           txHash: txResult.txHash,
           blockNumber: txResult.blockNumber,
           details: params.summary || `Confirmed in MetaMask (${actualSignerAddr.slice(0, 10)}...)`,
@@ -716,7 +758,7 @@ export async function executeMetaMaskTransaction(params: {
               data: params.dataHex || '0x',
             });
           } catch {
-            targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+            targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
           }
 
           // Mine the user-approved transaction on Hardhat RPC
@@ -727,6 +769,10 @@ export async function executeMetaMaskTransaction(params: {
             data: params.dataHex || '0x',
           });
           const healedReceipt = await healedTx.wait();
+
+          if (payoutWei > 0n) {
+            await disburseEscrowPayoutOnChain(params.senderAddress);
+          }
 
           // Now align Hardhat's account nonce with MetaMask's cached nonce (`gotMetaMaskNonce`)
           // so the next MetaMask transaction is 100% synchronized
@@ -750,7 +796,7 @@ export async function executeMetaMaskTransaction(params: {
               actorAddress: params.senderAddress,
               actorLabel,
               contractAddress: params.toAddress,
-              valueEth: valueEthNum,
+              valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
               txHash: txResult.txHash,
               blockNumber: txResult.blockNumber,
               details:
@@ -790,7 +836,7 @@ export async function executeMetaMaskTransaction(params: {
           data: params.dataHex || '0x',
         });
       } catch {
-        targetTo = ethers.getAddress(HARDHAT_WALLETS[0].address);
+        targetTo = ethers.getAddress(HARDHAT_ESCROW_VAULT_ADDRESS);
       }
 
       const signer = await rpcProvider.getSigner(ethers.getAddress(params.senderAddress));
@@ -800,6 +846,9 @@ export async function executeMetaMaskTransaction(params: {
         data: params.dataHex || '0x',
       });
       const receipt = await txResponse.wait();
+      if (payoutWei > 0n) {
+        await disburseEscrowPayoutOnChain(params.senderAddress);
+      }
       if (receipt) {
         const txResult: OnChainTxResult = {
           txHash: receipt.hash,
@@ -818,7 +867,7 @@ export async function executeMetaMaskTransaction(params: {
           actorAddress: params.senderAddress,
           actorLabel,
           contractAddress: params.toAddress,
-          valueEth: valueEthNum,
+          valueEth: valueEthNum > 0 ? valueEthNum : payoutEthNum,
           txHash: txResult.txHash,
           blockNumber: txResult.blockNumber,
           details: params.summary || `Mined on Hardhat Localhost Node (127.0.0.1:8545)`,

@@ -574,6 +574,7 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      payoutEth: myComm.depositEth,
       actionName: 'SealedAuction.claimRefund(uint256)',
       summary: `${wallet.label} claimed pull-based collateral refund of ${myComm.depositEth.toFixed(2)} ETH from Lot #${targetAuction.numericId}`,
     });
@@ -650,6 +651,7 @@ function AuctionChainAppContent() {
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
       valueEth: 0,
+      payoutEth: proceeds,
       actionName: 'SealedAuction.withdrawSellerProceeds(uint256)',
       summary: `Seller (${wallet.label}) withdrew ${proceeds.toFixed(2)} ETH sale proceeds from Lot #${targetAuction.numericId}`,
     });

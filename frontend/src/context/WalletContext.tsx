@@ -167,16 +167,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setWallets((prev) =>
           prev.map((w) => {
             const key = w.address.toLowerCase();
-            // If this account has a settled/adjusted balance in the platform ledger, preserve it
-            // and keep the Hardhat RPC node aligned rather than overwriting it with 10000.0
+            const liveBal = status.balances[key];
             if (typeof persisted[key] === 'number') {
-              const liveBal = status.balances[key];
-              if (typeof liveBal === 'number' && Math.abs(liveBal - persisted[key]) > 0.01) {
+              // Only re-push the persisted balance to Hardhat if Hardhat was restarted (reset back to 10000 ETH)
+              if (typeof liveBal === 'number' && liveBal >= 9999.99 && persisted[key] < 9999.99) {
                 setHardhatAccountBalance(w.address, persisted[key]).catch(() => {});
               }
               return { ...w, balanceEth: persisted[key] };
             }
-            const liveBal = status.balances[key];
             return typeof liveBal === 'number' ? { ...w, balanceEth: liveBal } : w;
           })
         );
