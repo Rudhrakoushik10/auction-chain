@@ -60,65 +60,42 @@ AuctionChain/
 - **Browser**: Google Chrome, Brave, or Microsoft Edge with the **MetaMask Extension** installed
 - **Git**: For cloning the repository
 
-### 3.2 Step 1 — Environment Variables Setup (`.env`)
-Before starting the servers, create a `.env` file in the root directory by copying `.env.example`:
+### 3.2 Step 1 — Run the Setup Script (`scripts\setup.bat`)
+From the project root folder, double-click **`scripts\setup.bat`** (or run it from Command Prompt):
 
-- **Windows (Command Prompt / PowerShell)**:
-  ```cmd
-  copy .env.example .env
-  ```
-- **macOS / Linux (Bash / Zsh)**:
-  ```bash
-  cp .env.example .env
-  ```
+```cmd
+scripts\setup.bat
+```
 
-*(Note: Running `scripts\setup.bat` on Windows will automatically create `.env` from `.env.example` if it does not already exist.)*
+This script automatically performs two actions:
+1. Creates your local **`.env`** configuration file from `.env.example`.
+2. Installs all required root (`Frontend + AI Valuation Server`) and `blockchain` (`Hardhat + Solidity`) dependencies.
 
-#### Environment Variables Reference (`.env`)
+### 3.3 Step 2 — Set `GEMINI_API_KEY` in the `.env` File
+Open the newly created **`.env`** file in the root directory of the project and set your **`GEMINI_API_KEY`**:
+
 ```ini
-# 1. Server Port (Default: 3000 for Web3 Frontend & Gateway)
+# 1. Application Server Port
 PORT=3000
 
-# 2. AI Vehicle Valuation API Key (Optional)
-# Leave as default or provide a key. If omitted or offline, AuctionChain automatically
-# uses its built-in deterministic Indian Vehicle Market Valuation Engine (₹ INR).
-GEMINI_API_KEY=your_api_key_here
+# 2. Gemini API Key for AI Vehicle Valuation (Required for Live AI Inference)
+GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
-*(Note: Hardhat RPC `http://127.0.0.1:8545` and Chain ID `31337` are deterministic system constants and are hardcoded directly into the application configuration.)*
 
-### 3.3 Step 2 — Install Dependencies
-Open a terminal in the project root directory and run:
+Save and close the `.env` file after pasting your key.
 
-```bash
-# 1. Install root (Frontend + AI Server) dependencies
-npm install
+### 3.4 Step 3 — Start All Servers (`scripts\start-all.bat`)
+Double-click **`scripts\start-all.bat`** (or run it from Command Prompt):
 
-# 2. Install Hardhat blockchain dependencies
-cd blockchain
-npm install
-cd ..
+```cmd
+scripts\start-all.bat
 ```
-*(On Windows, you can simply double-click `scripts\setup.bat` to automate both `.env` creation and dependency installation.)*
 
-### 3.4 Step 3 — Launch the Platform
-
-#### Option A: Windows 1-Click 4-Terminal Launcher (Recommended for Demo)
-Double-click `scripts\start-all.bat` (or run `npm run start:all:win`). This opens **4 dedicated terminal windows**:
-1. **Terminal 1 — Hardhat Blockchain Node (`Port 8545`)**: Starts the local Ethereum node and auto-deploys `PriceOracle.sol` and `SealedAuction.sol`.
-2. **Terminal 2 — AI Vehicle Valuation Engine (`Port 8000`)**: Runs the Indian Vehicle Valuation Engine and prints live AI, Oracle, and Blockchain proof banners.
-3. **Terminal 3 — Autonomous ETH/INR Price Oracle (`Account 3`)**: Fetches live ETH/INR market rates and pushes on-chain updates to `PriceOracle.sol`.
-4. **Terminal 4 — Web3 Frontend Application (`Port 3000`)**: Serves the React Web3 interface at `http://localhost:3000`.
-
-#### Option B: Unified Single-Command Start (macOS / Linux / Windows)
-To run the full application stack from two terminals on `http://localhost:3000`:
-```bash
-# Terminal A: Start Hardhat node & deploy contracts
-npm run blockchain:node
-# (In another tab, deploy contracts once node is up: npm run blockchain:deploy)
-
-# Terminal B: Start Full-Stack Web3 App + AI Valuation Engine on Port 3000
-npm run dev
-```
+This single script automatically opens **4 dedicated terminal windows** in sequence:
+1. **Terminal 1 — Hardhat Blockchain Node (`Port 8545`)**: Starts the local Ethereum blockchain (`Chain ID: 31337`) and auto-deploys `PriceOracle.sol` and `SealedAuction.sol`.
+2. **Terminal 2 — AI Vehicle Valuation Engine (`Port 8000`)**: Runs the AI Valuation backend using `GEMINI_API_KEY` from `.env` and displays live AI, Oracle, and Blockchain execution proofs.
+3. **Terminal 3 — Autonomous ETH/INR Price Oracle (`Account #4`)**: Fetches live ETH/INR exchange rates and pushes on-chain rate updates to `PriceOracle.sol`.
+4. **Terminal 4 — Web3 Frontend & Gateway (`Port 3000`)**: Launches the web application at **`http://localhost:3000`**.
 
 ---
 
@@ -133,27 +110,19 @@ npm run dev
 ### 4.2 Import the 4 Interactive Role Accounts (10,000 Test ETH each)
 In MetaMask, click **Account Menu → Add account or hardware wallet → Import account** and paste the private keys below:
 
-| Platform Role | ENS Label | Ethereum Address | Private Key (Import into MetaMask) |
-| :--- | :--- | :--- | :--- |
-| **Seller** | `seller.eth` | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` |
-| **Bidder 1** | `bidder1.eth` | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` |
-| **Bidder 2** | `bidder2.eth` | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a` |
-| **Admin** | `admin.eth` | `0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65` | `0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a` |
+| Platform Role | Hardhat Account | ENS Label | Ethereum Address | Private Key (Import into MetaMask) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Admin** | Account #0 | `admin.eth` | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` |
+| **Seller** | Account #1 | `seller.eth` | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` |
+| **Bidder 1** | Account #2 | `bidder1.eth` | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a` |
+| **Bidder 2** | Account #3 | `bidder2.eth` | `0x90F79bf6EB2c4f870365E785982E1f101E93b906` | `0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6` |
 
-*(Note: Hardhat Account #3 `0x90F79bf6EB2c4f870365E785982E1f101E93b906` acts autonomously in the background as the authorized `PriceOracle.sol` signer.)*
+*(Note: Hardhat Account #4 `0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65` acts autonomously in the background as the authorized `PriceOracle.sol` signer.)*
 
-### 4.3 Handling MetaMask Nonce Errors After Restarting the Hardhat Node
-When you stop and restart the local Hardhat Blockchain Node (`Terminal 1`), the blockchain resets every account's transaction counter (**nonce**) back to `0`. However, MetaMask caches the previous session's higher nonce (e.g., `Nonce 4`), which normally causes a `"Nonce too high. Expected nonce to be 0 but got 4"` error.
+### 4.3 Handling MetaMask Nonce Synchronization After Restarting the Hardhat Node
+When you stop and restart the local Hardhat Blockchain Node (`Terminal 1`), the blockchain resets every account's transaction counter (**nonce**) back to `0`.
 
-AuctionChain handles this automatically at three levels:
-1. **Automatic Background & Pre-Transaction Nonce Sync (`hardhat_setNonce`)**:
-   - Whenever the app detects that the Hardhat node was restarted (`hardhatNonce < cachedMetaMaskNonce`), it automatically calls `hardhat_setNonce` on `http://127.0.0.1:8545` to fast-forward the Hardhat account nonce to match MetaMask before you send a transaction.
-2. **Automatic Reactive Nonce Self-Healing**:
-   - Even if MetaMask throws a nonce mismatch error on submission, `walletService.ts` intercepts the exact nonce expected by MetaMask, synchronizes Hardhat's RPC nonce immediately, and completes your transaction without failing.
-3. **Manual Reset in MetaMask (Optional)**:
-   - If you ever want to manually reset MetaMask's cached activity and nonce data back to `0`:
-     - Open MetaMask → **Settings → Advanced → Clear activity tab data** *(or in newer MetaMask versions: **Settings → Developer Tools → Delete activity and nonce data**)*.
-     - Or click the **Auto-Sync Nonce** button if the yellow Nonce Desynchronization banner appears at the top of the dashboard.
+AuctionChain automatically prevents nonce mismatch errors before every transaction by querying `eth_getTransactionCount` and aligning the Hardhat RPC state (`hardhat_setNonce`). If you ever wish to manually clear MetaMask's cached activity history, open MetaMask → **Settings → Advanced → Clear activity tab data**.
 
 ---
 
@@ -169,7 +138,7 @@ Follow this sequence to demonstrate every capability of **AuctionChain**—inclu
    - Scroll to the bottom of the **How It Works** page to show the **Visual End-to-End Auction Flowchart**, which illustrates the entire process from Vehicle Listing to the Smart Contract Reserve Price Checkpoint (`YES → Vehicle Sold` vs. `NO → No Sale · 100% Refund`).
 
 ### Step 2: Seller Creates a Vehicle Auction with AI Valuation & Oracle Proof
-1. Click **Connect Wallet** in the top-right corner and select **Seller (`seller.eth` - Account #0)** (also select Account #0 in MetaMask).
+1. Click **Connect Wallet** in the top-right corner and select **Seller (`seller.eth` - Account #1)** (also select Seller Account #1 in MetaMask).
 2. Notice you are taken to the **Seller Dashboard** on the first sidebar tab. Click **Create New Auction** in the left sidebar.
 3. **01. Vehicle Specifications**:
    - Choose a vehicle preset (e.g., *2021 Hyundai Creta SX 1.5L CRDi Diesel* or *2022 Tata Nexon EV Max XZ+ Lux*) or customize the mileage, year, and condition.
@@ -186,7 +155,7 @@ Follow this sequence to demonstrate every capability of **AuctionChain**—inclu
    - Show the `[METAMASK_CONFIRMED_TX · ON-CHAIN EXECUTION PROOF]` log printed in the backend terminal.
 
 ### Step 3: Bidder 1 & Bidder 2 Submit Sealed Bids (Commit Phase)
-1. Switch wallet role to **Bidder 1 (`bidder1.eth` - Account #1)** (and switch MetaMask to Account #1).
+1. Switch wallet role to **Bidder 1 (`bidder1.eth` - Account #2)** (and switch MetaMask to Bidder 1 Account #2).
    - Notice the dashboard automatically resets to the first sidebar option (**Overview & Active Bids**).
 2. Open the newly created vehicle auction in the **Marketplace**.
    - Point out that the **Submit Sealed Bid** panel is visible **only** to Bidder accounts (Seller and Admin accounts cannot bid).
@@ -197,12 +166,12 @@ Follow this sequence to demonstrate every capability of **AuctionChain**—inclu
    - **Confirm the transaction in the MetaMask popup** (locking the fixed collateral deposit, e.g., `0.25 ETH`).
    - Show the green confirmation box for Bidder 1 and the on-chain execution proof in the backend terminal.
 4. **Bidder 2 Commits a Competing Sealed Bid**:
-   - Switch wallet role to **Bidder 2 (`bidder2.eth` - Account #2)** (and switch MetaMask to Account #2).
+   - Switch wallet role to **Bidder 2 (`bidder2.eth` - Account #3)** (and switch MetaMask to Bidder 2 Account #3).
    - Open the same auction. Point out that Bidder 1's green confirmation banner is **not** shown to Bidder 2, and Bidder 1's bid amount remains completely hidden on-chain (`LOCKED` behind the Keccak-256 hash while locking the exact same `0.25 ETH` deposit).
    - Enter a higher secret bid (e.g., `2.45 ETH`), check the box, click **Lock Collateral & Commit Bid**, and **confirm in MetaMask**.
 
 ### Step 4: 1-Click Bid Reveal (Reveal Phase)
-1. Use the **Demo Phase Controls** bar at the top of the Auction Details page (available to Seller/Admin) to click **Advance to Reveal Phase**.
+1. Switch to **Seller (`seller.eth` - Account #1)** and use the **Seller Phase Controls** bar at the top of the Auction Details page to click **Advance to Reveal Phase**.
 2. **Seller View During Reveal**:
    - While on Seller (`seller.eth`), point out the **Seller Reveal & Finalization Desk**, which shows live reveal progress (`0 / 2 Revealed`) without confusing the seller with a bidder reveal input form.
 3. **Bidder 1 & Bidder 2 Reveal with 1 Click**:
@@ -212,7 +181,7 @@ Follow this sequence to demonstrate every capability of **AuctionChain**—inclu
    - Show the `[ON-CHAIN EXECUTION PROOF]` in the backend terminal verifying that `keccak256(bidAmountWei, salt, bidder)` matched the commitment stored in `SealedAuction.sol`.
 
 ### Step 5: Finalization & Trustless Escrow Settlement
-1. Advance the phase to **Finalizable** (or switch to **Seller `seller.eth`**) and click **Execute finalizeAuction()**. Confirm in MetaMask.
+1. Switch to **Seller (`seller.eth`)**, advance the phase to **Finalizable**, and click **Execute finalizeAuction()**. Confirm in MetaMask.
    - The smart contract verifies that Bidder 2's `2.45 ETH` bid exceeds the Seller's reserve price and declares **Bidder 2 (`bidder2.eth`)** the winner.
 2. **Winner Settles Net Balance**:
    - Switch to **Bidder 2 (`bidder2.eth`)** and click **Pay Remaining Balance (`2.20 ETH`)** (`2.45 ETH` winning bid minus `0.25 ETH` locked deposit). Confirm in MetaMask.
@@ -222,7 +191,7 @@ Follow this sequence to demonstrate every capability of **AuctionChain**—inclu
    - Switch to **Seller (`seller.eth`)** and click **Withdraw `2.45 ETH` Proceeds**. Confirm in MetaMask.
 
 ### Step 6: Admin Governance, Auction Deletion & Platform Data Reset
-1. Switch wallet role to **Admin (`admin.eth` - Account #4)**.
+1. Switch wallet role to **Admin (`admin.eth` - Account #0)**.
 2. Open the **Admin Console**:
    - Inspect the **Authorized Oracle Node**, live **ETH/INR Oracle Feed**, and **On-Chain Event Ledger**.
    - In the **Platform Auction State Matrix**, demonstrate deleting any individual registered or completed auction using the **Delete** button in the Action column.

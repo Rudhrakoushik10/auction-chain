@@ -37,7 +37,9 @@ echo.
 
 echo ============================================================================
 echo   Setup Complete! All dependencies are installed.
-echo   Next step: Run scripts\start-all.bat (or npm run dev)
+echo   Next step:
+echo     1. Open the .env file and set your GEMINI_API_KEY
+echo     2. Run scripts\start-all.bat
 echo ============================================================================
 echo.
 set /p DUMMY="Press ENTER to close this terminal window..."
