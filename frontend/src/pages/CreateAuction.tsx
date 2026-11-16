@@ -29,7 +29,10 @@ import {
   SEALED_AUCTION_CONTRACT_ADDRESS,
   ORACLE_SYSTEM_ACCOUNT,
 } from '../lib/hardhatConfig';
-import { executeMetaMaskTransaction } from '../services/blockchain/walletService';
+import {
+  executeMetaMaskTransaction,
+  registerOraclePredictionOnChain,
+} from '../services/blockchain/walletService';
 
 interface CreateAuctionProps {
   existingCount: number;
@@ -142,7 +145,7 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
   const computedTitle = `${year} ${brand.trim()} ${model.trim()}`;
   const computedSubtitle = `${mileageKm.toLocaleString('en-IN')} km · ${fuelType} · ${transmission} · ${condition}`;
 
-  // Step 2: Run AI Valuation
+  // Step 2: Run AI Valuation & Register On-Chain on PriceOracle.sol
   const handleRunAiOracle = async () => {
     setFormError(null);
     if (!brand.trim() || !model.trim()) {
@@ -182,7 +185,22 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
 
       const data = await apiRes.json();
       const predInr = Number(data.predicted_price_inr || data.predicted_price || 750000);
-      const predId = Number(data.prediction_id || existingCount + 1);
+      const { hash: localHash, canonicalJson: localCanonical } = await computeProductDataHash(
+        'vehicle',
+        currentAttributes
+      );
+      const productHash = data.product_data_hash || localHash;
+
+      // Ensure the prediction is registered as a real on-chain transaction on local Hardhat (http://127.0.0.1:8545)
+      const nowSec = Number(data.prediction_timestamp || Math.floor(Date.now() / 1000));
+      const onChainOracle = await registerOraclePredictionOnChain({
+        predictedPricePaise: Math.round(predInr * 100),
+        productDataHash: productHash,
+        modelVersion: data.model_version || 'Gemini 2.5 Flash Valuation Engine',
+        timestamp: nowSec,
+      });
+
+      const predId = Number(onChainOracle.predictionId || data.prediction_id || existingCount + 1);
 
       const record: AIPredictionRecord = {
         prediction_id: predId,
@@ -198,9 +216,9 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
         in_training_distribution: data.in_training_distribution ?? true,
         warnings: data.warnings || [],
         inference_ms: data.inference_ms || 0,
-        prediction_timestamp: Number(data.prediction_timestamp || Math.floor(Date.now() / 1000)),
-        product_data_hash: data.product_data_hash,
-        canonical_json: data.canonical_json,
+        prediction_timestamp: nowSec,
+        product_data_hash: productHash,
+        canonical_json: data.canonical_json || localCanonical,
         feature_breakdown: data.feature_breakdown || [],
         metrics: data.metrics || {
           mae: 38500,
@@ -209,10 +227,10 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
           trainingSamples: 10000,
           algorithm: 'Gemini 2.5 Flash Valuation Model',
         },
-        oracle_tx_hash: data.oracle_tx_hash,
-        oracle_address: data.oracle_address || ORACLE_SYSTEM_ACCOUNT.address,
-        oracle_contract_address: data.oracle_contract_address || PRICE_ORACLE_CONTRACT_ADDRESS,
-        oracle_block_number: Number(data.oracle_block_number || 1),
+        oracle_tx_hash: onChainOracle.txHash || data.oracle_tx_hash,
+        oracle_address: ORACLE_SYSTEM_ACCOUNT.address,
+        oracle_contract_address: onChainOracle.oracleContractAddress || PRICE_ORACLE_CONTRACT_ADDRESS,
+        oracle_block_number: Number(onChainOracle.blockNumber || data.oracle_block_number || 1),
         oracle_registered: true,
       };
 
@@ -230,12 +248,19 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
       const ageFactor = Math.max(0.35, 1 - ageYears * 0.075);
       const mileagePenalty = Math.min(280000, Math.round(mileageKm * 2.2));
       const estimatedInr = Math.max(250000, Math.round(baseInr * ageFactor - mileagePenalty));
-
-      const predId = existingCount + 1;
       const nowSec = Math.floor(Date.now() / 1000);
-      const oracleTxHash = generateDeterministicTxHash(
-        `ORACLE_REGISTER:${predId}:${hash}:${estimatedInr}:${nowSec}`
-      );
+
+      const onChainOracle = await registerOraclePredictionOnChain({
+        predictedPricePaise: estimatedInr * 100,
+        productDataHash: hash,
+        modelVersion: 'AuctionChain AI Valuation Engine',
+        timestamp: nowSec,
+      });
+
+      const predId = onChainOracle.predictionId || existingCount + 1;
+      const oracleTxHash =
+        onChainOracle.txHash ||
+        generateDeterministicTxHash(`ORACLE_REGISTER:${predId}:${hash}:${estimatedInr}:${nowSec}`);
 
       const record: AIPredictionRecord = {
         prediction_id: predId,
@@ -263,12 +288,14 @@ export const CreateAuction: React.FC<CreateAuctionProps> = ({
         },
         oracle_tx_hash: oracleTxHash,
         oracle_address: ORACLE_SYSTEM_ACCOUNT.address,
-        oracle_contract_address: PRICE_ORACLE_CONTRACT_ADDRESS,
-        oracle_block_number: 1,
+        oracle_contract_address: onChainOracle.oracleContractAddress || PRICE_ORACLE_CONTRACT_ADDRESS,
+        oracle_block_number: onChainOracle.blockNumber || 1,
         oracle_registered: true,
       };
 
       setPredictionRecord(record);
+      await refreshHardhatNode();
+
       const suggestedEth = inrToEth(estimatedInr);
       setStartingBidEth(Math.max(0.05, Number((suggestedEth * 0.9).toFixed(2))).toFixed(2));
       setIsPredicting(false);

@@ -23,6 +23,9 @@ Thumbs.db
 !.env.example
 metadata.json
 bun.lock
+.aistudio/
+public/assets/aistudio/
+frontend/public/assets/aistudio/
 
-#unecessary files
+# Unnecessary files
 PROJECT_TRACKER.md

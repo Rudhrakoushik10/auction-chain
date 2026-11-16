@@ -299,8 +299,8 @@ app.post('/predict', async (req, res) => {
   }
 });
 
-// Platform /api/predict-price endpoint
-app.post('/api/predict-price', async (req, res) => {
+// Platform /api/predict-price & /api/oracle/predict-and-register endpoint
+app.post(['/api/predict-price', '/api/oracle/predict-and-register'], async (req, res) => {
   try {
     const body = req.body || {};
     const category = String(body.category || 'vehicle').trim().toLowerCase();

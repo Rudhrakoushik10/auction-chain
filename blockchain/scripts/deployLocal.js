@@ -39,10 +39,14 @@ async function main() {
     },
   };
 
-  // Restore Account 0 (Admin) balance to a clean 10,000 ETH after contract deployment gas cost
+  // Fund Auction.sol contract reserve pool with 500 ETH and restore Account 0 (Admin) balance to 10,000 ETH
+  await hre.network.provider.send("hardhat_setBalance", [
+    auctionAddress,
+    "0x1b1ae4d6e2ef500000", // 500 ETH
+  ]);
   await hre.network.provider.send("hardhat_setBalance", [
     admin.address,
-    "0x21e19e0c9bab2400000",
+    "0x21e19e0c9bab2400000", // 10,000 ETH
   ]);
 
   const outPathFrontend = path.join(__dirname, "../../frontend/src/contracts/contractAddresses.json");
