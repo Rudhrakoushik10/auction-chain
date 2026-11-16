@@ -34,7 +34,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
           onClick={() => setActiveTab('home')}
           className="flex items-center gap-3 text-left group focus:outline-none shrink-0 cursor-pointer"
         >
-          <Logo size="md" subtitle="Automotive Sealed-Bid Exchange" />
+          <Logo size="md" subtitle="AI-Valued Vehicle Auction Exchange" />
         </button>
 
         {/* Zone 2: Primary Editorial Navigation (Overview, How It Works, Architecture) */}

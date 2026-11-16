@@ -1,367 +1,258 @@
 import React from 'react';
+import {
+  Cpu,
+  Database,
+  Globe,
+  Server,
+  Wallet,
+  ArrowRight,
+  CheckCircle2,
+} from 'lucide-react';
+import { useWallet } from '../../context/WalletContext';
+
+const FOUR_SERVERS = [
+  {
+    num: 'Server 1 (Terminal 1)',
+    name: 'Hardhat Blockchain Node & Contract Auto-Deploy',
+    port: 'Port 8545',
+    icon: Database,
+    badgeColor: 'text-amber-300 bg-amber-500/10 border-amber-500/30',
+    whatItIs: 'The local blockchain ledger that stores all car listings, bids, and wallet balances.',
+    howItIsUsed:
+      'Runs the local Ethereum network on Port 8545, automatically deploys Auction.sol & PriceOracle.sol, and provides pre-funded wallets for Seller, Bidder 1, Bidder 2, and Admin.',
+  },
+  {
+    num: 'Server 2 (Terminal 2)',
+    name: 'AI Vehicle Valuation Engine (Backend API)',
+    port: 'Port 8000',
+    icon: Cpu,
+    badgeColor: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30',
+    whatItIs: 'Calculates the fair market price of any car in Indian Rupees (₹ INR).',
+    howItIsUsed:
+      'Reads the car brand, model, year, mileage driven, fuel type, and condition entered by the Seller and returns an AI market price estimate before bidding begins.',
+  },
+  {
+    num: 'Server 3 (Terminal 3)',
+    name: 'Autonomous ETH / ₹ INR Price Oracle',
+    port: 'Background Service (Account #4)',
+    icon: Server,
+    badgeColor: 'text-purple-300 bg-purple-500/10 border-purple-500/30',
+    whatItIs: 'Keeps the live ETH to Indian Rupee (₹ INR) exchange rate updated on the blockchain.',
+    howItIsUsed:
+      'Runs in the background using Account #4 to feed live ETH/INR conversion rates into PriceOracle.sol so all ETH bids show accurate ₹ INR values.',
+  },
+  {
+    num: 'Server 4 (Terminal 4)',
+    name: 'Web3 Frontend & Gateway Server (React + Express)',
+    port: 'Port 3000',
+    icon: Globe,
+    badgeColor: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/30',
+    whatItIs: 'The website where Sellers and Bidders log in, place bids, and complete payment.',
+    howItIsUsed:
+      'Serves the web interface on http://localhost:3000, connects the user’s MetaMask wallet to Server 1 (Port 8545), and requests car valuations from Server 2 (Port 8000).',
+  },
+];
 
 export const ArchitecturePage: React.FC = () => {
-  const servers = [
-    {
-      index: '01',
-      name: 'Web3 Frontend',
-      everydayRole: 'The Digital Showroom & Private Bid Sealer',
-      plainExplanation:
-        'The Frontend is the website interface that sellers, buyers, and administrators interact with in their browser. Beyond displaying vehicles and dashboards, its most important job is protecting buyer privacy: when a buyer enters a bid price, the Frontend locks that price inside a digital envelope directly on the user’s computer before sending it out. Because the sealing happens on the user’s own device, the actual bid amount is never exposed over the internet while bidding is open.',
-      summary: {
-        role: 'Provides role dashboards and seals buyer bids privately in the browser.',
-        communicatesWith: 'Sends car details to the AI Backend; sends sealed bids to the Blockchain.',
-        guarantee: 'Your secret bid amount never leaves your computer in plain text during bidding.',
-      },
-    },
-    {
-      index: '02',
-      name: 'AI Valuation Backend',
-      everydayRole: 'The Independent Car Appraiser',
-      plainExplanation:
-        'Before a car is put up for auction, both the seller and potential buyers need to know what the vehicle is fairly worth in the Indian market. The AI Backend receives the car’s details—make, model, age, kilometers driven, fuel type, transmission, and condition—and calculates an objective fair-market valuation in Indian Rupees (₹). It also creates a unique digital fingerprint of the car’s description so the vehicle specifications cannot be altered later.',
-      summary: {
-        role: 'Evaluates vehicle details and estimates fair resale value in Indian Rupees (₹).',
-        communicatesWith: 'Receives vehicle specs from the Frontend; sends the valuation record to the Oracle.',
-        guarantee: 'Provides an unbiased Indian market price benchmark before anyone places a bid.',
-      },
-    },
-    {
-      index: '03',
-      name: 'Blockchain Node',
-      everydayRole: 'The Automated Escrow Vault & Referee',
-      plainExplanation:
-        'The Blockchain acts as an impartial digital referee and a secure vault that no single person or company can manipulate. While the auction is running, it safely holds every buyer’s refundable security deposit and keeps track of the official countdown timers. Once the bidding window closes and buyers unlock their bids, the Blockchain checks that no bid was tampered with, identifies the highest valid offer above the seller’s minimum price, and immediately unlocks deposit refunds for everyone else.',
-      summary: {
-        role: 'Enforces auction timers, holds refundable deposits, and selects the winner.',
-        communicatesWith: 'Receives sealed bids from the Frontend; checks vehicle records with the Oracle.',
-        guarantee: 'No human auctioneer can favour a buyer, peek at bids early, or withhold refunds.',
-      },
-    },
-    {
-      index: '04',
-      name: 'Price Oracle',
-      everydayRole: 'The Trusted Rate & Record Messenger',
-      plainExplanation:
-        'A blockchain is a closed system—on its own, it cannot look up real-world Indian Rupee exchange rates or read external AI car appraisals. The Oracle serves as the trusted bridge between the outside world and the Blockchain. It records the AI Backend’s car valuation on the ledger before the auction starts, and continuously supplies the live ETH-to-Indian Rupee (₹) exchange rate so every deposit and bid is displayed accurately in Rupees.',
-      summary: {
-        role: 'Connects off-chain AI appraisals and live Rupee exchange rates to the Blockchain.',
-        communicatesWith: 'Receives valuation records from the AI Backend; feeds verified data to the Blockchain.',
-        guarantee: 'Ensures every auctioned car has a verified valuation record and accurate ₹ INR conversion.',
-      },
-    },
-  ];
-
-  const communicationSteps = [
-    {
-      step: '01',
-      fromTo: 'Frontend → AI Backend',
-      whatIsSent: 'Vehicle details (Make, Model, Year, Kilometers, Condition)',
-      whyItHappens: 'To calculate a fair Indian Rupee (₹) market price before the seller launches the auction.',
-    },
-    {
-      step: '02',
-      fromTo: 'AI Backend → Price Oracle',
-      whatIsSent: 'Estimated ₹ INR value and the vehicle’s digital fingerprint',
-      whyItHappens: 'To lock the official appraisal record on-chain so the car description cannot be changed.',
-    },
-    {
-      step: '03',
-      fromTo: 'Frontend → Blockchain',
-      whatIsSent: 'Sealed bid envelopes and refundable security deposits',
-      whyItHappens: 'To record each buyer’s locked offer and hold their deposit safely until the timer ends.',
-    },
-    {
-      step: '04',
-      fromTo: 'Price Oracle → Blockchain & Frontend',
-      whatIsSent: 'Verified appraisal proof and live ETH-to-Rupee (₹) exchange rate',
-      whyItHappens: 'To confirm the vehicle is genuine and display every ETH amount in Indian Rupees (₹).',
-    },
-  ];
+  const { openAuthModal } = useWallet();
 
   return (
-    <div className="space-y-24 pb-24">
-      {/* =====================================================================
-          SECTION 1: EDITORIAL INTRODUCTION
-         ===================================================================== */}
-      <section className="pt-4 space-y-6 max-w-3xl">
-        <div className="flex items-center gap-3 text-xs font-mono text-[#8E95A5]">
-          <span className="text-[#C5A46D]">System Architecture</span>
-          <span aria-hidden="true">·</span>
-          <span>Four-Server Topology</span>
+    <div className="space-y-8 pb-8">
+      {/* Page Header */}
+      <div className="bg-[#12151E] border border-white/[0.07] rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="max-w-2xl">
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#D4B47E]">
+            System Architecture
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
+            How the 4 System Servers Work Together
+          </h1>
+          <p className="text-sm text-slate-300 mt-2 leading-relaxed">
+            A simple visual look at the 4 servers launched by <code className="text-[#D4B47E] font-mono">start-all.bat</code>, and how they communicate to value a car, run the bidding window, and complete payment.
+          </p>
         </div>
 
-        <h1
-          className="text-3xl sm:text-5xl font-display font-semibold text-[#F4F5F7] tracking-tight leading-[1.1]"
-          style={{ textWrap: 'balance' }}
+        <button
+          onClick={openAuthModal}
+          className="px-5 py-3 rounded-xl bg-[#C5A46D] hover:bg-[#D4B47E] text-[#0B0C10] font-bold text-xs uppercase tracking-wider flex items-center gap-2 shrink-0 self-start md:self-auto cursor-pointer"
         >
-          How the Four System Components Work Together
-        </h1>
+          <Wallet className="w-4 h-4" />
+          Connect Wallet
+        </button>
+      </div>
 
-        <p className="text-base text-[#8E95A5] leading-relaxed">
-          To keep bids private, car valuations objective, and security deposits safe, AuctionChain separates responsibilities across four dedicated servers. Think of them as a <strong className="text-[#F4F5F7] font-medium">Digital Showroom</strong>, an <strong className="text-[#F4F5F7] font-medium">Independent Appraiser</strong>, an <strong className="text-[#F4F5F7] font-medium">Automated Escrow Vault</strong>, and a <strong className="text-[#F4F5F7] font-medium">Trusted Messenger</strong>.
-        </p>
-      </section>
-
-      {/* =====================================================================
-          SECTION 2: CLEAN VISUAL BLOCK DIAGRAM
-         ===================================================================== */}
-      <section className="space-y-8">
-        <div className="max-w-2xl space-y-2">
-          <div className="text-xs font-mono text-[#C5A46D]">
-            01. System Block Diagram
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-            How the Servers Exist and Communicate
+      {/* SECTION 1: VISUAL ARCHITECTURE DIAGRAM */}
+      <div className="bg-[#12151E] border border-white/[0.07] rounded-2xl p-6 sm:p-8 space-y-6">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#D4B47E]">
+            Visual Architecture Diagram
+          </span>
+          <h2 className="text-xl font-bold text-white mt-1">
+            How Data Flows Across the 4 Servers
           </h2>
-          <p className="text-sm text-[#8E95A5]">
-            The diagram below shows the four servers and the exact information they exchange during an auction.
+          <p className="text-xs text-slate-400 mt-1">
+            Every action you take in the browser flows cleanly between the Web App (Port 3000), the AI Valuation Server (Port 8000), the Price Oracle, and the Blockchain Network (Port 8545):
           </p>
         </div>
 
-        <div className="bg-[#12141A] border border-[#232730] rounded-md p-6 sm:p-10 space-y-8">
-          {/* Top Row: Frontend <---> AI Backend */}
-          <div className="grid grid-cols-1 lg:grid-cols-11 gap-6 items-stretch">
-            {/* Block 01: Frontend */}
-            <div className="lg:col-span-4 bg-[#0B0C10] border border-[#232730] rounded-md p-6 flex flex-col justify-between space-y-4">
-              <div className="space-y-1.5">
-                <div className="text-xs font-mono text-[#C5A46D]">01 · CLIENT SERVER</div>
-                <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-                  Web3 Frontend
-                </h3>
-                <div className="text-xs text-[#8E95A5]">
-                  The Digital Showroom &amp; Bid Sealer
+        {/* Simple 4-Step Visual Diagram Box */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#0B0C10] border border-white/[0.08]">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
+            {/* Step 1: Server 4 (Website) */}
+            <div className="p-4 rounded-xl bg-[#12151E] border border-indigo-500/30 flex flex-col justify-between relative">
+              <div className="space-y-2">
+                <span className="inline-block px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-mono text-[11px] font-bold">
+                  1. Website (Port 3000)
+                </span>
+                <div className="text-sm font-bold text-white">
+                  Frontend Server
                 </div>
-              </div>
-              <p className="text-xs text-[#8E95A5] leading-relaxed pt-3 border-t border-[#232730]">
-                Where sellers list cars and buyers place secret bids. Seals bid amounts privately inside the user’s browser.
-              </p>
-            </div>
-
-            {/* Horizontal Connector 1 */}
-            <div className="lg:col-span-3 flex flex-col items-center justify-center text-center px-2 py-2 space-y-2">
-              <div className="text-xs font-mono text-[#F4F5F7]">
-                1. Sends Car Specifications →
-              </div>
-              <div className="w-full border-t border-[#C5A46D]/50" />
-              <div className="text-xs font-mono text-[#C5A46D]">
-                ← 2. Returns Fair Price in ₹ INR
-              </div>
-            </div>
-
-            {/* Block 02: AI Backend */}
-            <div className="lg:col-span-4 bg-[#0B0C10] border border-[#232730] rounded-md p-6 flex flex-col justify-between space-y-4">
-              <div className="space-y-1.5">
-                <div className="text-xs font-mono text-[#C5A46D]">02 · VALUATION SERVER</div>
-                <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-                  AI Valuation Backend
-                </h3>
-                <div className="text-xs text-[#8E95A5]">
-                  The Independent Car Appraiser
-                </div>
-              </div>
-              <p className="text-xs text-[#8E95A5] leading-relaxed pt-3 border-t border-[#232730]">
-                Analyzes the car’s age, mileage, make, and condition to estimate its fair market value in Indian Rupees (₹).
-              </p>
-            </div>
-          </div>
-
-          {/* Middle Vertical Communication Arrows */}
-          <div className="grid grid-cols-1 lg:grid-cols-11 gap-6 py-4 border-y border-[#232730] text-center">
-            <div className="lg:col-span-4 space-y-1">
-              <div className="text-xs font-mono text-[#C5A46D]">
-                ▼ 3. Submits Sealed Bids &amp; Deposits ▲
-              </div>
-              <div className="text-xs text-[#8E95A5]">
-                Locks refundable deposits during bidding; unlocks bids during reveal
-              </div>
-            </div>
-
-            <div className="lg:col-span-3 flex items-center justify-center">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-[#646C7E]">
-                Off-Chain ⇄ On-Chain Bridge
-              </span>
-            </div>
-
-            <div className="lg:col-span-4 space-y-1">
-              <div className="text-xs font-mono text-[#C5A46D]">
-                ▼ 4. Anchors Valuation Record ▲
-              </div>
-              <div className="text-xs text-[#8E95A5]">
-                Records the AI appraisal fingerprint and live ETH-to-Rupee exchange rate
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Row: Blockchain <---> Oracle */}
-          <div className="grid grid-cols-1 lg:grid-cols-11 gap-6 items-stretch">
-            {/* Block 03: Blockchain */}
-            <div className="lg:col-span-4 bg-[#0B0C10] border border-[#232730] rounded-md p-6 flex flex-col justify-between space-y-4">
-              <div className="space-y-1.5">
-                <div className="text-xs font-mono text-[#C5A46D]">03 · BLOCKCHAIN SERVER</div>
-                <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-                  Blockchain Node
-                </h3>
-                <div className="text-xs text-[#8E95A5]">
-                  The Automated Vault &amp; Referee
-                </div>
-              </div>
-              <p className="text-xs text-[#8E95A5] leading-relaxed pt-3 border-t border-[#232730]">
-                Holds security deposits safely, verifies unlocked bids when the timer ends, crowns the winner, and refunds non-winners.
-              </p>
-            </div>
-
-            {/* Horizontal Connector 2 */}
-            <div className="lg:col-span-3 flex flex-col items-center justify-center text-center px-2 py-2 space-y-2">
-              <div className="text-xs font-mono text-[#F4F5F7]">
-                Checks Vehicle Appraisal →
-              </div>
-              <div className="w-full border-t border-[#C5A46D]/50" />
-              <div className="text-xs font-mono text-[#C5A46D]">
-                ← Supplies Live ₹ INR Rate
-              </div>
-            </div>
-
-            {/* Block 04: Oracle */}
-            <div className="lg:col-span-4 bg-[#0B0C10] border border-[#232730] rounded-md p-6 flex flex-col justify-between space-y-4">
-              <div className="space-y-1.5">
-                <div className="text-xs font-mono text-[#C5A46D]">04 · ORACLE SERVICE</div>
-                <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-                  Price Oracle
-                </h3>
-                <div className="text-xs text-[#8E95A5]">
-                  The Trusted Rate &amp; Record Messenger
-                </div>
-              </div>
-              <p className="text-xs text-[#8E95A5] leading-relaxed pt-3 border-t border-[#232730]">
-                Stores the official AI valuation certificate on-chain and provides the live ETH-to-Indian Rupee (₹) conversion rate.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================================
-          SECTION 3: DETAILED SERVER ROLES IN PLAIN LANGUAGE (EDITORIAL LEDGER)
-         ===================================================================== */}
-      <section className="space-y-8">
-        <div className="max-w-2xl space-y-2">
-          <div className="text-xs font-mono text-[#C5A46D]">
-            02. Server Roles &amp; Responsibilities
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-            What Each Server Does in the System
-          </h2>
-          <p className="text-sm text-[#8E95A5]">
-            A clear breakdown of each server’s purpose, how it interacts with the other components, and what it guarantees for users.
-          </p>
-        </div>
-
-        <div className="border-t border-[#232730] divide-y divide-[#232730]">
-          {servers.map((srv) => (
-            <article
-              key={srv.index}
-              className="py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
-            >
-              {/* Left Column: Server Number & Title (3 cols) */}
-              <div className="lg:col-span-3 space-y-2">
-                <div className="text-2xl font-mono font-semibold text-[#C5A46D] tabular-nums">
-                  {srv.index}
-                </div>
-                <h3 className="text-lg font-display font-semibold text-[#F4F5F7]">
-                  {srv.name}
-                </h3>
-                <div className="text-xs text-[#8E95A5] pt-0.5">
-                  {srv.everydayRole}
-                </div>
-              </div>
-
-              {/* Center Column: Plain-Language Explanation (5 cols) */}
-              <div className="lg:col-span-5 space-y-2">
-                <div className="text-xs font-mono text-[#646C7E]">
-                  Role in Plain Language
-                </div>
-                <p className="text-sm text-[#8E95A5] leading-relaxed">
-                  {srv.plainExplanation}
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Seller enters car details, and Bidders place their bids using MetaMask.
                 </p>
               </div>
-
-              {/* Right Column: Clean 3-Point Summary (4 cols) */}
-              <div className="lg:col-span-4 bg-[#12141A] border border-[#232730] rounded-md p-5 space-y-3.5 text-xs">
-                <div className="font-mono text-[#C5A46D] pb-2 border-b border-[#232730]">
-                  Component Summary · {srv.name}
-                </div>
-
-                <dl className="space-y-3">
-                  <div>
-                    <dt className="text-[#646C7E] font-mono">Primary Responsibility</dt>
-                    <dd className="text-[#F4F5F7] mt-0.5 leading-relaxed">{srv.summary.role}</dd>
-                  </div>
-                  <div className="pt-2.5 border-t border-[#232730]">
-                    <dt className="text-[#646C7E] font-mono">How It Connects</dt>
-                    <dd className="text-[#F4F5F7] mt-0.5 leading-relaxed">
-                      {srv.summary.communicatesWith}
-                    </dd>
-                  </div>
-                  <div className="pt-2.5 border-t border-[#232730]">
-                    <dt className="text-[#646C7E] font-mono">User Guarantee</dt>
-                    <dd className="text-[#8E95A5] mt-0.5 leading-relaxed">
-                      {srv.summary.guarantee}
-                    </dd>
-                  </div>
-                </dl>
+              <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#0B0C10] border border-white/20 items-center justify-center">
+                <ArrowRight className="w-3.5 h-3.5 text-[#D4B47E]" />
               </div>
-            </article>
-          ))}
-        </div>
-      </section>
+            </div>
 
-      {/* =====================================================================
-          SECTION 4: SIMPLE COMMUNICATION SUMMARY TABLE
-         ===================================================================== */}
-      <section className="space-y-6">
-        <div className="max-w-2xl space-y-2">
-          <div className="text-xs font-mono text-[#C5A46D]">
-            03. Communication Flow
+            {/* Step 2: Server 2 (AI Valuation) */}
+            <div className="p-4 rounded-xl bg-[#12151E] border border-emerald-500/30 flex flex-col justify-between relative">
+              <div className="space-y-2">
+                <span className="inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono text-[11px] font-bold">
+                  2. AI Server (Port 8000)
+                </span>
+                <div className="text-sm font-bold text-white">
+                  AI Price Check
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Checks the car's brand, year, and mileage to estimate a fair price in ₹ INR.
+                </p>
+              </div>
+              <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#0B0C10] border border-white/20 items-center justify-center">
+                <ArrowRight className="w-3.5 h-3.5 text-[#D4B47E]" />
+              </div>
+            </div>
+
+            {/* Step 3: Server 3 (Price Oracle) */}
+            <div className="p-4 rounded-xl bg-[#12151E] border border-purple-500/30 flex flex-col justify-between relative">
+              <div className="space-y-2">
+                <span className="inline-block px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 font-mono text-[11px] font-bold">
+                  3. Price Oracle
+                </span>
+                <div className="text-sm font-bold text-white">
+                  ETH ↔ ₹ INR Rate
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Automatically converts ₹ INR car prices into ETH for bidding.
+                </p>
+              </div>
+              <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#0B0C10] border border-white/20 items-center justify-center">
+                <ArrowRight className="w-3.5 h-3.5 text-[#D4B47E]" />
+              </div>
+            </div>
+
+            {/* Step 4: Server 1 (Blockchain) */}
+            <div className="p-4 rounded-xl bg-[#12151E] border border-amber-500/30 flex flex-col justify-between">
+              <div className="space-y-2">
+                <span className="inline-block px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 font-mono text-[11px] font-bold">
+                  4. Blockchain (Port 8545)
+                </span>
+                <div className="text-sm font-bold text-white">
+                  Hardhat Ledger
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Records all bids, lets Seller approve the highest bid, and transfers payment.
+                </p>
+              </div>
+            </div>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-display font-semibold text-[#F4F5F7] tracking-tight">
-            How Information Travels Across the System
+        </div>
+      </div>
+
+      {/* SECTION 2: THE 4 SERVERS EXPLAINED SIMPLY */}
+      <div className="space-y-4">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#D4B47E]">
+            What Runs When You Start the System
+          </span>
+          <h2 className="text-xl font-bold text-white mt-1">
+            The 4 Servers & Services Explained
           </h2>
         </div>
 
-        <div className="bg-[#12141A] border border-[#232730] rounded-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-[#0B0C10] border-b border-[#232730] text-xs font-mono text-[#8E95A5]">
-                  <th className="py-4 px-6 font-medium w-16">Step</th>
-                  <th className="py-4 px-6 font-medium w-1/4">Servers Involved</th>
-                  <th className="py-4 px-6 font-medium w-1/3">Information Shared</th>
-                  <th className="py-4 px-6 font-medium">Why It Happens</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#232730]">
-                {communicationSteps.map((row) => (
-                  <tr key={row.step} className="hover:bg-[#171A22]/50 transition-colors">
-                    <td className="py-5 px-6 font-mono text-xs text-[#C5A46D] align-top">
-                      {row.step}
-                    </td>
-                    <td className="py-5 px-6 font-medium text-[#F4F5F7] align-top">
-                      {row.fromTo}
-                    </td>
-                    <td className="py-5 px-6 text-[#F4F5F7] text-xs sm:text-sm align-top">
-                      {row.whatIsSent}
-                    </td>
-                    <td className="py-5 px-6 text-[#8E95A5] text-xs sm:text-sm leading-relaxed align-top">
-                      {row.whyItHappens}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {FOUR_SERVERS.map((srv) => {
+            const Icon = srv.icon;
+            return (
+              <div
+                key={srv.num}
+                className="bg-[#12151E] border border-white/[0.07] rounded-2xl p-6 space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`px-2.5 py-1 rounded-md border text-xs font-mono font-bold ${srv.badgeColor}`}
+                  >
+                    {srv.num} · {srv.port}
+                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-[#0B0C10] border border-white/[0.08] flex items-center justify-center">
+                    <Icon className="w-4 h-4 text-[#D4B47E]" />
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-white">{srv.name}</h3>
+
+                <div className="p-3 rounded-xl bg-[#0B0C10] border border-white/[0.05] text-xs text-slate-300">
+                  <strong className="text-white">Role: </strong>
+                  {srv.whatItIs}
+                </div>
+
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {srv.howItIsUsed}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* SECTION 3: SUMMARY OF TECHNOLOGIES USED */}
+      <div className="bg-[#12151E] border border-white/[0.07] rounded-2xl p-6 sm:p-7 space-y-4">
+        <h2 className="text-lg font-bold text-white">
+          Key Technologies Used (At a Glance)
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="p-4 rounded-xl bg-[#0B0C10] border border-white/[0.06] space-y-1.5">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+              Frontend (React & Ethers.js)
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Provides the clean dashboard for Sellers and Bidders, live countdown timer, and connects to MetaMask.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#0B0C10] border border-white/[0.06] space-y-1.5">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              AI Valuation (Gemini 2.5 Flash)
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Predicts the fair Indian market price (₹ INR) of the car based on its real specifications and condition.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#0B0C10] border border-white/[0.06] space-y-1.5">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              Blockchain (Hardhat & Solidity)
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Records every bid fairly, lets the seller approve the highest bid, and transfers the winning payment directly to the seller.
+            </p>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 };

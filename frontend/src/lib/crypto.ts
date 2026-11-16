@@ -206,7 +206,19 @@ export function formatUsd(amountUsd: number): string {
   return formatInr(amountUsd);
 }
 
+export const computeProductDataHash = computeCanonicalProductHash;
+
+export const formatInrFromEth = formatEthToInr;
+
+export function inrToEth(inrAmount: number, customRate?: number): number {
+  const num = Number(inrAmount) || 0;
+  if (num <= 0) return 0;
+  const rate = customRate && customRate > 0 ? customRate : getActiveEthInrRate();
+  return Number((num / rate).toFixed(4));
+}
+
 export function shortenAddress(addr: string): string {
   if (!addr || addr.length < 10) return addr;
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
+

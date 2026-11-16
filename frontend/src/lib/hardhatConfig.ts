@@ -102,3 +102,10 @@ export const HARDHAT_WALLETS: WalletAccount[] = [
 
 export const HUMAN_ROLE_WALLETS = HARDHAT_WALLETS.filter((w) => w.isHumanFacing);
 export const ORACLE_BACKGROUND_ACCOUNT = HARDHAT_WALLETS.find((w) => w.role === 'oracle')!;
+export const ORACLE_SYSTEM_ACCOUNT = ORACLE_BACKGROUND_ACCOUNT;
+
+export function findRoleAccountByAddress(address?: string): WalletAccount | undefined {
+  if (!address) return undefined;
+  return HARDHAT_WALLETS.find((w) => w.address.toLowerCase() === address.toLowerCase());
+}
+

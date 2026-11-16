@@ -16,20 +16,20 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
     <footer className="bg-[#0B0C10] border-t border-[#232730] mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-12 border-b border-[#232730]">
-          {/* Col 1: Brand & Institutional Statement */}
+          {/* Col 1: Brand & Platform Statement */}
           <div className="md:col-span-8 space-y-4">
-            <Logo size="md" subtitle="Institutional Vehicle Reserve Exchange" />
+            <Logo size="md" subtitle="AI-Valued Vehicle Auction Exchange" />
             <p className="text-sm text-[#8E95A5] max-w-md leading-relaxed">
-              AuctionChain combines luxury and commercial automotive remarketing with
-              cryptographic commit-reveal smart contracts and AI-calibrated Indian market
-              valuation.
+              AuctionChain pairs AI-calibrated Indian market vehicle valuations (₹ INR) with
+              timed blockchain bidding, transparent bid reveal, seller approval, and direct
+              on-chain ETH settlement.
             </p>
             <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-[#646C7E]">
               <span>EVM Chain ID: {HARDHAT_CHAIN_ID}</span>
               <span>·</span>
               <span>Solidity 0.8.20</span>
               <span>·</span>
-              <span>Keccak-256 Sealed Bids</span>
+              <span>AI Valuation + Direct Settlement</span>
             </div>
           </div>
 
@@ -46,7 +46,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232730]">
-                <span className="text-[#8E95A5]">SealedAuction.sol</span>
+                <span className="text-[#8E95A5]">Auction.sol</span>
                 <span className="text-[#F4F5F7] truncate max-w-[190px]">
                   {SEALED_AUCTION_CONTRACT_ADDRESS}
                 </span>
@@ -56,7 +56,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigatePublic }) => {
         </div>
 
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#646C7E]">
-          <p>© {new Date().getFullYear()} AuctionChain Institutional Remarketing. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} AuctionChain Vehicle Exchange. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <button
               type="button"

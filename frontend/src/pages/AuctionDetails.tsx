@@ -1,1273 +1,834 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
-  Lock,
-  Eye,
-  CheckCircle2,
-  Download,
-  Upload,
-  ShieldAlert,
-  Copy,
-  Check,
-  RefreshCw,
   Clock,
+  CheckCircle2,
+  AlertCircle,
+  Trophy,
+  Gavel,
+  Sparkles,
+  Car,
+  Wallet,
+  Eye,
+  EyeOff,
+  ExternalLink,
 } from 'lucide-react';
+import { AuctionItem } from '../types/auction';
 import {
-  AuctionItem,
-  LocalRevealBackupSecret,
-} from '../types/auction';
-import { useWallet } from '../context/WalletContext';
-import { PredictionWidget } from '../components/prediction/PredictionWidget';
-import { useCountdown } from '../hooks/useCountdown';
-import {
-  computeCommitmentHash,
-  generateRandomSalt,
-  formatInr,
-  formatEthToInr,
   shortenAddress,
+  formatInr,
+  formatInrFromEth,
+  inrToEth,
 } from '../lib/crypto';
-
-type TxLifecycleState =
-  | 'idle'
-  | 'waiting_approval'
-  | 'submitted'
-  | 'pending'
-  | 'confirmed'
-  | 'failed';
+import { useWallet } from '../context/WalletContext';
+import { findRoleAccountByAddress } from '../lib/hardhatConfig';
 
 interface AuctionDetailsProps {
   auction: AuctionItem;
   onBack: () => void;
-  onCommitBid: (
+  onPlaceBid: (
     auctionId: string,
-    commitmentHash: string,
-    secretBackup: LocalRevealBackupSecret
+    bidAmountEth: number
   ) => Promise<{ success: boolean; message: string }>;
-  onRevealBid: (
-    auctionId: string,
-    bidAmountEth: number,
-    salt: string
-  ) => Promise<{
-    success: boolean;
-    message: string;
-  }>;
-  onFinalizeAuction: (
+  onCloseBiddingWindow: (auctionId: string) => void;
+  onApproveHighestBid: (
     auctionId: string
   ) => Promise<{ success: boolean; message: string }>;
-  onAdvancePhaseDemo: (auctionId: string) => void;
-  onSettleWinner: (
+  onPayWinningBid: (
     auctionId: string
   ) => Promise<{ success: boolean; message: string }>;
-  onClaimRefund: (
-    auctionId: string
-  ) => Promise<{ success: boolean; message: string }>;
-  onWithdrawProceeds: (
-    auctionId: string
-  ) => Promise<{ success: boolean; message: string }>;
-  savedSecrets: LocalRevealBackupSecret[];
 }
 
-const ATTRIBUTE_LABELS: Record<string, string> = {
-  brand: 'Make / Brand',
-  model: 'Model Variant',
-  year: 'Model Year',
-  manufacturing_year: 'Manufacturing Year',
-  mileage: 'Odometer (Miles)',
-  mileage_km: 'Odometer Reading',
-  fuel_type: 'Fuel / Drivetrain',
-  engine_type: 'Engine Specification',
-  transmission: 'Transmission',
-  exterior_color: 'Exterior Color',
-  interior_color: 'Interior Color',
-  accident_history: 'Accident History',
-  clean_title: 'Clean Title',
-  condition: 'Cosmetic Condition',
-  original_price_inr: 'Original Invoice Price',
-};
+function resolveParticipantLabel(address?: string, fallbackEns?: string): string {
+  if (!address) return '—';
+  const account = findRoleAccountByAddress(address);
+  if (account) {
+    return `${account.label} (${shortenAddress(address)})`;
+  }
+  return fallbackEns ? `${fallbackEns} (${shortenAddress(address)})` : shortenAddress(address);
+}
+
+function formatCountdown(targetIso: string, nowMs: number): { text: string; expired: boolean } {
+  const targetMs = new Date(targetIso).getTime();
+  if (!Number.isFinite(targetMs)) return { text: '00:00', expired: true };
+  const diffSec = Math.max(0, Math.floor((targetMs - nowMs) / 1000));
+  if (diffSec <= 0) return { text: '00:00', expired: true };
+  const mins = Math.floor(diffSec / 60);
+  const secs = diffSec % 60;
+  return {
+    text: `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+    expired: false,
+  };
+}
 
 export const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   auction,
   onBack,
-  onCommitBid,
-  onRevealBid,
-  onFinalizeAuction,
-  onAdvancePhaseDemo,
-  onSettleWinner,
-  onClaimRefund,
-  onWithdrawProceeds,
-  savedSecrets,
+  onPlaceBid,
+  onCloseBiddingWindow,
+  onApproveHighestBid,
+  onPayWinningBid,
 }) => {
-  const {
-    isConnected,
-    wallet,
-    humanWallets,
-    isCorrectNetwork,
-    liveEthInrRate,
-    openAuthModal,
-    switchNetworkToHardhat,
-    selectRoleDirect,
-    inspectTransaction,
-  } = useWallet();
+  const { wallet, openAuthModal, inspectTransaction } = useWallet();
 
-  const targetDeadline =
-    auction.phase === 'Commit' ? auction.commitEndTime : auction.revealEndTime;
-  const countdown = useCountdown(targetDeadline);
-
-  // Commit Phase State
-  const [bidAmountEth, setBidAmountEth] = useState<string>(
-    (auction.startingBidEth + 0.5).toFixed(2)
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [bidAmountInput, setBidAmountInput] = useState<string>(() =>
+    (auction.startingBidEth + 0.05).toFixed(2)
   );
-  const [salt, setSalt] = useState<string>(() => generateRandomSalt());
-  const [computedHash, setComputedHash] = useState<string>('');
-  const [backupSavedAck, setBackupSavedAck] = useState<boolean>(false);
-  const [copiedSalt, setCopiedSalt] = useState<boolean>(false);
-
-  // Transaction Lifecycle State
-  const [txState, setTxState] = useState<TxLifecycleState>('idle');
-  const [actionFeedback, setActionFeedback] = useState<{
+  const [feedback, setFeedback] = useState<{
     type: 'success' | 'error';
-    text: string;
+    message: string;
   } | null>(null);
-
-  // Reveal Phase State
-  const [revealBidInput, setRevealBidInput] = useState<string>('');
-  const [revealSaltInput, setRevealSaltInput] = useState<string>('');
-  const [showManualRevealInputs, setShowManualRevealInputs] = useState<boolean>(false);
-
-  // Clear green/red feedback banners, transaction state, and regenerate salt whenever user switches accounts!
-  useEffect(() => {
-    setActionFeedback(null);
-    setTxState('idle');
-    setBackupSavedAck(false);
-    setSalt(generateRandomSalt());
-    setShowManualRevealInputs(false);
-  }, [wallet?.address, auction.id]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    const addr = wallet?.address || '0x0000000000000000000000000000000000000000';
-    computeCommitmentHash(auction.numericId, addr, bidAmountEth || '0', salt).then((hash) => {
-      if (active) setComputedHash(hash);
-    });
-    return () => {
-      active = false;
-    };
-  }, [auction.numericId, wallet?.address, bidAmountEth, salt]);
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
+  const countdown = formatCountdown(auction.commitEndTime, nowMs);
+
+  // Auto-trigger window close if countdown expires while viewing
   useEffect(() => {
-    if (!wallet) {
-      setRevealBidInput('');
-      setRevealSaltInput('');
-      return;
+    if (auction.phase === 'Commit' && countdown.expired) {
+      onCloseBiddingWindow(auction.id);
     }
-    const match = savedSecrets.find(
-      (s) =>
-        s.auctionId === auction.id &&
-        s.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-    );
-    if (match) {
-      setRevealBidInput(match.bidAmountEth);
-      setRevealSaltInput(match.salt);
-    } else {
-      setRevealBidInput('');
-      setRevealSaltInput('');
-    }
-  }, [auction.id, wallet, savedSecrets]);
+  }, [auction.phase, countdown.expired, auction.id, onCloseBiddingWindow]);
 
-  const isSeller =
-    isConnected &&
-    wallet &&
-    (wallet.role === 'seller' ||
-      wallet.address.toLowerCase() === auction.sellerAddress.toLowerCase());
+  const myBid = wallet
+    ? auction.commitments.find(
+        (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+      )
+    : undefined;
 
-  const isBidderAccount = isConnected && wallet?.role === 'bidder';
+  const isSeller = wallet?.role === 'seller';
+  const isBidder = wallet?.role === 'bidder';
+  const isWinner =
+    Boolean(wallet) &&
+    Boolean(auction.winningBidderAddress) &&
+    wallet!.address.toLowerCase() === auction.winningBidderAddress!.toLowerCase();
 
-  const myCommitment =
-    isConnected && wallet
-      ? auction.commitments.find(
-          (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-        )
-      : undefined;
+  const bidsAreRevealed = auction.phase !== 'Commit';
 
-  const mySavedSecret =
-    isConnected && wallet
-      ? savedSecrets.find(
-          (s) =>
-            s.auctionId === auction.id &&
-            s.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-        )
-      : undefined;
+  // Ranked bids (sorted highest to lowest once revealed)
+  const rankedBids = [...auction.commitments].sort((a, b) => {
+    const diff = (b.revealedAmountEth || 0) - (a.revealedAmountEth || 0);
+    if (diff !== 0) return diff;
+    return a.committedTimestamp - b.committedTimestamp;
+  });
 
-  const runSimulatedTxLifecycle = async (
-    onComplete: () => Promise<{ ok: boolean; msg: string }> | { ok: boolean; msg: string }
-  ) => {
-    setActionFeedback(null);
-    setTxState('waiting_approval');
-    await new Promise((r) => setTimeout(r, 120));
-    setTxState('submitted');
-    await new Promise((r) => setTimeout(r, 120));
-    setTxState('pending');
-    const res = await onComplete();
-    if (res.ok) {
-      setTxState('confirmed');
-      setActionFeedback({ type: 'success', text: res.msg });
-    } else {
-      setTxState('failed');
-      setActionFeedback({ type: 'error', text: res.msg });
-    }
-  };
+  const currentStageIndex =
+    auction.phase === 'Commit'
+      ? 1
+      : auction.phase === 'Reveal'
+      ? 2
+      : auction.phase === 'Sold' && !auction.winnerSettled
+      ? 3
+      : 4;
 
-  const handleDownloadRevealJson = () => {
-    if (!wallet) return;
-    const payload: LocalRevealBackupSecret = {
-      platform: 'AuctionChain',
-      chainId: 31337,
-      auctionId: auction.id,
-      numericAuctionId: auction.numericId,
-      auctionTitle: auction.title,
-      bidderAddress: wallet.address,
-      bidAmountEth: bidAmountEth,
-      salt: salt,
-      commitmentHash: computedHash,
-      fixedDepositEth: auction.fixedDepositEth,
-      createdAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `auctionchain-reveal-backup-${auction.id}-${wallet.address.slice(0, 6)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setBackupSavedAck(true);
-  };
-
-  const handleImportRevealJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setActionFeedback(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed = JSON.parse(String(evt.target?.result || '{}')) as LocalRevealBackupSecret;
-        if (parsed.auctionId && parsed.auctionId !== auction.id) {
-          setActionFeedback({
-            type: 'error',
-            text: `Auction ID Mismatch: Backup file is for ${parsed.auctionId}, but you are viewing ${auction.id}.`,
-          });
-          return;
-        }
-        if (
-          wallet &&
-          parsed.bidderAddress &&
-          parsed.bidderAddress.toLowerCase() !== wallet.address.toLowerCase()
-        ) {
-          setActionFeedback({
-            type: 'error',
-            text: `Wallet Mismatch: Backup belongs to ${shortenAddress(
-              parsed.bidderAddress
-            )}, but active wallet is ${shortenAddress(wallet.address)}. Switch wallets in the header first.`,
-          });
-          return;
-        }
-        setRevealBidInput(String(parsed.bidAmountEth || ''));
-        setRevealSaltInput(String(parsed.salt || ''));
-        setActionFeedback({
-          type: 'success',
-          text: 'Reveal backup JSON loaded. Submit below to verify hash and reveal your bid on-chain.',
-        });
-      } catch {
-        setActionFeedback({
-          type: 'error',
-          text: 'Invalid JSON reveal backup file format.',
-        });
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleCommitSubmit = async (e: React.FormEvent) => {
+  const handleBidSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wallet) return;
-
-    if (isSeller) {
-      setTxState('failed');
-      setActionFeedback({
+    setFeedback(null);
+    const parsed = parseFloat(bidAmountInput);
+    if (isNaN(parsed) || parsed < auction.startingBidEth) {
+      setFeedback({
         type: 'error',
-        text: 'Smart Contract Revert: SellerCannotBidOnOwnAuction(). Switch to Bidder 1 or Bidder 2 in the header.',
+        message: `Please enter a bid of at least ${auction.startingBidEth.toFixed(2)} ETH.`,
       });
       return;
     }
 
-    const numericBid = Number(bidAmountEth);
-    if (Number.isNaN(numericBid) || numericBid < auction.startingBidEth) {
-      setTxState('failed');
-      setActionFeedback({
-        type: 'error',
-        text: `Bid amount must be at least the starting bid of ${auction.startingBidEth.toFixed(2)} ETH.`,
+    setIsSubmitting(true);
+    try {
+      const res = await onPlaceBid(auction.id, parsed);
+      setFeedback({
+        type: res.success ? 'success' : 'error',
+        message: res.message,
       });
-      return;
-    }
-
-    if (!backupSavedAck) {
-      setTxState('failed');
-      setActionFeedback({
-        type: 'error',
-        text: 'Please download or acknowledge saving your secret salt before committing.',
-      });
-      return;
-    }
-
-    await runSimulatedTxLifecycle(async () => {
-      const secretObj: LocalRevealBackupSecret = {
-        platform: 'AuctionChain',
-        chainId: 31337,
-        auctionId: auction.id,
-        numericAuctionId: auction.numericId,
-        auctionTitle: auction.title,
-        bidderAddress: wallet.address,
-        bidAmountEth: bidAmountEth,
-        salt: salt,
-        commitmentHash: computedHash,
-        fixedDepositEth: auction.fixedDepositEth,
-        createdAt: new Date().toISOString(),
-      };
-
-      const res = await onCommitBid(auction.id, computedHash, secretObj);
-      return {
-        ok: res.success,
-        msg: res.message,
-      };
-    });
-  };
-
-  const handleRevealSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const numBid = Number(revealBidInput);
-    if (Number.isNaN(numBid) || numBid <= 0 || !revealSaltInput.trim()) {
-      setTxState('failed');
-      setActionFeedback({
-        type: 'error',
-        text: 'Please provide both your original ETH bid amount and 32-byte hex salt.',
-      });
-      return;
-    }
-
-    await runSimulatedTxLifecycle(async () => {
-      const result = await onRevealBid(auction.id, numBid, revealSaltInput.trim());
-      return { ok: result.success, msg: result.message };
-    });
-  };
-
-  const getTxStatusLabel = (state: TxLifecycleState) => {
-    switch (state) {
-      case 'waiting_approval':
-        return '1/4 Waiting for wallet approval...';
-      case 'submitted':
-        return '2/4 Transaction submitted to Hardhat RPC...';
-      case 'pending':
-        return '3/4 Transaction pending block inclusion...';
-      case 'confirmed':
-        return '4/4 Transaction confirmed on-chain';
-      case 'failed':
-        return 'Transaction reverted or validation failed';
-      default:
-        return null;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const txStatusLabel = getTxStatusLabel(txState);
+  const handleSellerApprove = async () => {
+    setFeedback(null);
+    setIsSubmitting(true);
+    try {
+      const res = await onApproveHighestBid(auction.id);
+      setFeedback({
+        type: res.success ? 'success' : 'error',
+        message: res.message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWinnerPay = async () => {
+    setFeedback(null);
+    setIsSubmitting(true);
+    try {
+      const res = await onPayWinningBid(auction.id);
+      setFeedback({
+        type: res.success ? 'success' : 'error',
+        message: res.message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const aiInr = auction.aiPrediction.predicted_price_inr || auction.aiPrediction.predicted_price;
 
   return (
-    <div className="space-y-8 pb-16">
-      {/* Top Bar: Navigation & Phase Transition Control */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#232730] pb-4">
+    <div className="space-y-6">
+      {/* Top Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <button
-          type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-[#8E95A5] hover:text-[#F4F5F7] transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl self-start cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Auctions</span>
+          Back to Dashboard
         </button>
 
-        <div className="flex items-center gap-4">
-          <div className="text-xs font-mono text-[#8E95A5] tabular-nums">
-            <span>Lot #{auction.numericId} ({auction.id})</span>
-            <span className="mx-2 text-[#646C7E]" aria-hidden="true">·</span>
-            <span>Seller: {shortenAddress(auction.sellerAddress)}</span>
-          </div>
-
-          {isConnected &&
-            wallet?.role === 'seller' &&
-            (auction.phase === 'Commit' || auction.phase === 'Reveal') && (
-              <button
-                type="button"
-                onClick={() => onAdvancePhaseDemo(auction.id)}
-                className="px-3.5 py-1.5 rounded-md bg-[#12141A] hover:bg-[#171A22] border border-[#232730] text-[#F4F5F7] text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+        {/* 4-Step Progress Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:w-auto">
+          {[
+            { step: 1, label: '1. Bidding Open' },
+            { step: 2, label: '2. Bids Revealed' },
+            { step: 3, label: '3. Seller Approval' },
+            { step: 4, label: '4. Paid & Closed' },
+          ].map((item) => {
+            const active = currentStageIndex === item.step;
+            const done = currentStageIndex > item.step || (currentStageIndex === 4 && item.step === 4);
+            return (
+              <div
+                key={item.step}
+                className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 ${
+                  done
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                    : active
+                    ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-200'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-500'
+                }`}
               >
-                {auction.phase === 'Commit'
-                  ? 'Advance to Reveal Phase'
-                  : 'Finalize Auction Window'}
-              </button>
-            )}
+                {done && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                <span>{item.label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column (7 cols): Vehicle Gallery, Specifications, AI Valuation, Event Log */}
-        <div className="lg:col-span-7 space-y-8">
-          {/* Vehicle Gallery & Structured Spec Sheet */}
-          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
-            <div className="relative h-80 sm:h-96 bg-[#0B0C10] border-b border-[#232730]">
-              <img
-                src={auction.imageUrl}
-                alt={auction.title}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-mono text-[#8E95A5] tabular-nums">
-                  <span>{String(auction.attributes.year ?? auction.attributes.manufacturing_year ?? '2024')}</span>
-                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
-                  <span>{String(auction.attributes.fuel_type || 'Electric')}</span>
-                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
-                  <span>{Number(auction.attributes.mileage ?? auction.attributes.mileage_km ?? 0).toLocaleString('en-IN')} km</span>
-                  <span className="text-[#646C7E]" aria-hidden="true">·</span>
-                  <span>{String(auction.attributes.condition ?? (auction.attributes.clean_title === 'Yes' ? 'Clean Title' : 'Verified'))}</span>
-                </div>
-                <h1 className="text-2xl font-semibold text-[#F4F5F7] tracking-tight">{auction.title}</h1>
-                <p className="text-sm text-[#8E95A5] leading-relaxed">{auction.subtitle}</p>
+      {/* Main 2-Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN (7 cols): Vehicle Overview, AI Valuation, & Bids Table */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Vehicle Card */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden">
+            {auction.imageUrl ? (
+              <div className="relative h-64 sm:h-72 bg-slate-950">
+                <img
+                  src={auction.imageUrl}
+                  alt={auction.title}
+                  className="w-full h-full object-cover"
+                />
               </div>
-
-              {/* Structured Specifications Table */}
-              <div className="pt-5 border-t border-[#232730] space-y-3">
-                <h2 className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#8E95A5]">
-                  Vehicle Dossier Specifications
-                </h2>
-                <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6 pt-2 text-xs">
-                  {Object.entries(auction.attributes).map(([key, val]) => (
-                    <div key={key} className="space-y-0.5">
-                      <dt className="text-[#646C7E]">
-                        {ATTRIBUTE_LABELS[key] || key}
-                      </dt>
-                      <dd className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
-                        {key === 'original_price_inr'
-                          ? formatInr(Number(val))
-                          : key === 'mileage_km' || key === 'mileage'
-                          ? `${Number(val).toLocaleString('en-IN')} km`
-                          : String(val)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+            ) : (
+              <div className="h-44 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 flex flex-col items-center justify-center border-b border-slate-800/80">
+                <Car className="w-12 h-12 text-indigo-400/70 mb-2" />
+                <span className="text-xs text-slate-400 font-medium">{auction.title}</span>
               </div>
-            </div>
-          </section>
+            )}
 
-          {/* AI Valuation & PriceOracle Record */}
-          <PredictionWidget prediction={auction.aiPrediction} />
-
-          {/* On-Chain Event Audit Trail Table */}
-          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#232730] flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#F4F5F7]">
-                On-Chain Event Audit Ledger
-              </h2>
-              <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
-                {auction.events.length} events recorded
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-[#0B0C10] text-[#8E95A5] border-b border-[#232730]">
-                  <tr>
-                    <th className="py-2.5 px-4 font-medium">Event</th>
-                    <th className="py-2.5 px-4 font-medium">Summary</th>
-                    <th className="py-2.5 px-4 font-medium text-right">Block / Tx</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#232730]">
-                  {auction.events.map((ev) => (
-                    <tr key={ev.id} className="hover:bg-[#171A22]/60 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-[#F4F5F7] whitespace-nowrap align-top">
-                        {ev.eventName}
-                      </td>
-                      <td className="py-3 px-4 text-[#8E95A5] leading-relaxed align-top">
-                        {ev.summary}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[#8E95A5] text-right whitespace-nowrap tabular-nums align-top">
-                        <div>#{ev.blockNumber}</div>
-                        <button
-                          type="button"
-                          onClick={() => inspectTransaction(ev.txHash)}
-                          className="text-[11px] text-[#C5A46D] hover:text-[#D4B57E] underline cursor-pointer"
-                          title="Inspect live transaction receipt on Hardhat RPC"
-                        >
-                          {shortenAddress(ev.txHash)}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-
-        {/* Right Column (5 cols): Contiguous Auction Terms & Bidding / Settlement Module */}
-        <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-          {/* Auction Terms & Price Comparison Module */}
-          <section className="bg-[#12141A] text-[#F4F5F7] rounded-lg border border-[#232730] overflow-hidden">
-            <div className="p-6 border-b border-[#232730] flex items-center justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
-                  SealedAuction.sol Escrow
-                </div>
-                <h2 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
-                  Phase: {auction.phase}
-                </h2>
-              </div>
-
-              {(auction.phase === 'Commit' || auction.phase === 'Reveal') && (
-                <div className="text-right font-mono tabular-nums">
-                  <div className="text-[11px] text-[#8E95A5] flex items-center justify-end gap-1">
-                    <Clock className="w-3 h-3 text-[#C5A46D]" />
-                    <span>{auction.phase} Window</span>
-                  </div>
-                  <div className="text-sm font-semibold text-[#F4F5F7] mt-0.5">
-                    {countdown}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Price Distinction: Advisory AI Estimate (INR) vs Seller Reserve & Bidding (ETH) */}
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-3 gap-4 font-mono tabular-nums">
+            <div className="p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Starting Bid</div>
-                  <div className="text-base font-semibold text-[#F4F5F7] mt-1">
+                  <span className="text-xs font-mono text-slate-400">
+                    Lot #{auction.numericId} · Seller {shortenAddress(auction.sellerAddress)}
+                  </span>
+                  <h1 className="text-2xl font-bold text-white mt-1">{auction.title}</h1>
+                  <p className="text-xs text-slate-400 mt-1">{auction.subtitle}</p>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-[11px] text-slate-400">Starting Price</div>
+                  <div className="text-xl font-bold text-white font-mono">
                     {auction.startingBidEth.toFixed(2)} ETH
                   </div>
-                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
-                    {formatEthToInr(auction.startingBidEth)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Seller Reserve</div>
-                  <div className="text-base font-semibold text-[#C5A46D] mt-1">
-                    {auction.reservePriceEth.toFixed(2)} ETH
-                  </div>
-                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
-                    {formatEthToInr(auction.reservePriceEth)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] font-sans uppercase tracking-wider text-[#8E95A5]">Fixed Deposit</div>
-                  <div className="text-base font-semibold text-[#F4F5F7] mt-1">
-                    {auction.fixedDepositEth.toFixed(2)} ETH
-                  </div>
-                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
-                    {formatEthToInr(auction.fixedDepositEth)}
+                  <div className="text-xs text-slate-400 font-mono">
+                    {formatInrFromEth(auction.startingBidEth)}
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#232730] flex items-center justify-between text-xs">
-                <span className="text-[#8E95A5]">Advisory AI Valuation (INR)</span>
-                <span className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
-                  {formatInr(auction.aiPrediction.predicted_price ?? auction.aiPrediction.predicted_price_inr)}
-                </span>
+              {/* Clean Vehicle Specs Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800/80">
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/70">
+                  <div className="text-[11px] text-slate-400">Year</div>
+                  <div className="text-sm font-semibold text-white mt-0.5">
+                    {String(auction.attributes.year || '—')}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/70">
+                  <div className="text-[11px] text-slate-400">Mileage</div>
+                  <div className="text-sm font-semibold text-white mt-0.5">
+                    {auction.attributes.mileage_km
+                      ? `${Number(auction.attributes.mileage_km).toLocaleString('en-IN')} km`
+                      : `${Number(auction.attributes.mileage || 0).toLocaleString()} mi`}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/70">
+                  <div className="text-[11px] text-slate-400">Fuel & Gear</div>
+                  <div className="text-sm font-semibold text-white mt-0.5 truncate">
+                    {String(auction.attributes.fuel_type || 'Petrol')} ·{' '}
+                    {String(auction.attributes.transmission || 'Auto')}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/70">
+                  <div className="text-[11px] text-slate-400">Condition</div>
+                  <div className="text-sm font-semibold text-emerald-400 mt-0.5">
+                    {String(auction.attributes.condition || 'Clean Title')}
+                  </div>
+                </div>
               </div>
+            </div>
+          </div>
 
-              <div className="pt-3 border-t border-[#232730] flex items-center justify-between text-xs">
-                <span className="text-[#8E95A5]">Highest Revealed Bid</span>
-                <span className="font-mono font-semibold text-[#F4F5F7] tabular-nums">
-                  {auction.phase === 'Commit'
-                    ? 'Concealed until Reveal Phase'
-                    : auction.highestBidEth
-                    ? `${auction.highestBidEth.toFixed(2)} ETH (${formatEthToInr(auction.highestBidEth)})`
-                    : 'No revealed bids yet'}
-                </span>
+          {/* AI Fair Valuation Summary */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-indigo-400" />
               </div>
-            </div>
-          </section>
-
-          {/* Transaction Lifecycle Status Bar */}
-          {txStatusLabel && (
-            <div
-              className={`px-4 py-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
-                txState === 'confirmed'
-                  ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
-                  : txState === 'failed'
-                  ? 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-                  : 'bg-[#12141A] border-[#C5A46D]/50 text-[#F4F5F7]'
-              }`}
-            >
-              <span>{txStatusLabel}</span>
-              <span className="text-[11px] text-[#8E95A5]">Chain 31337</span>
-            </div>
-          )}
-
-          {actionFeedback && (
-            <div
-              className={`p-4 rounded-lg border text-xs flex items-start gap-2.5 ${
-                actionFeedback.type === 'success'
-                  ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
-                  : 'bg-rose-950/30 border-rose-500/30 text-rose-200'
-              }`}
-            >
-              {actionFeedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              ) : (
-                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              )}
-              <span className="leading-relaxed">{actionFeedback.text}</span>
-            </div>
-          )}
-
-          {/* CASE 1: GUEST VIEW */}
-          {!isConnected && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-4">
-              <div className="space-y-1">
-                <h3 className="text-base font-semibold text-[#F4F5F7]">
-                  Connect Wallet to Participate
-                </h3>
-                <p className="text-xs text-[#8E95A5] leading-relaxed">
-                  Connect MetaMask or select a preconfigured Hardhat role (Seller, Bidder 1, Bidder 2, or Admin) to submit sealed commitments or reveal bids.
+              <div>
+                <div className="text-xs font-semibold text-indigo-300">
+                  AI Fair Market Valuation
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {auction.aiPrediction.valuation_summary ||
+                    `Evaluated using ${auction.aiPrediction.model_version}`}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={openAuthModal}
-                className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Connect Wallet
-              </button>
-            </section>
-          )}
-
-          {/* CASE 2A: COMMIT PHASE — BIDDER ONLY */}
-          {isConnected && auction.phase === 'Commit' && isBidderAccount && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-[#232730] pb-4">
-                <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-[#C5A46D]" />
-                  <span>Submit Sealed Bid ({wallet?.bidderIdentifier || wallet?.label})</span>
-                </h3>
-                <span className="text-xs font-mono text-[#8E95A5] tabular-nums">
-                  Deposit: {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
-                </span>
+            </div>
+            <div className="sm:text-right shrink-0">
+              <div className="text-xl font-extrabold text-white font-mono">
+                {formatInr(aiInr)}
               </div>
-
-              {myCommitment ? (
-                <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 space-y-2 text-xs">
-                  <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Your Sealed Bid Is Locked On-Chain ({wallet?.bidderIdentifier || wallet?.label})</span>
-                  </div>
-                  <div className="font-mono text-[11px] text-[#8E95A5] break-all">
-                    Commitment Hash: {myCommitment.commitmentHash}
-                  </div>
-                  <div className="text-[#8E95A5] font-mono tabular-nums">
-                    Locked Collateral Deposit: <strong className="text-[#F4F5F7]">{myCommitment.depositEth.toFixed(2)} ETH ({formatEthToInr(myCommitment.depositEth)})</strong> · Your bid amount remains hidden until the Reveal Phase.
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleCommitSubmit} className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
-                        Confidential Bid (min {auction.startingBidEth.toFixed(2)} ETH / {formatEthToInr(auction.startingBidEth)})
-                      </label>
-                      <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
-                        ≈ {formatEthToInr(bidAmountEth)}
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={bidAmountEth}
-                      onChange={(e) => setBidAmountEth(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
-                    />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-[#8E95A5] tabular-nums">
-                      <span>
-                        Indian Rupee Equivalent: <strong className="text-[#F4F5F7]">{formatEthToInr(bidAmountEth)}</strong>
-                      </span>
-                      <span>Rate: 1 ETH = {formatEthToInr(1)}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
-                        32-Byte Secret Salt (Auto-Saved for Reveal)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setSalt(generateRandomSalt())}
-                        className="text-xs font-medium text-[#C5A46D] hover:text-[#D4B57E] flex items-center gap-1 cursor-pointer"
-                      >
-                        <RefreshCw className="w-3 h-3" /> Regenerate
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={salt}
-                        className="flex-1 px-3 py-2 rounded-md bg-[#0B0C10] border border-[#232730] font-mono text-xs text-[#8E95A5]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(salt);
-                          setCopiedSalt(true);
-                          setTimeout(() => setCopiedSalt(false), 1500);
-                        }}
-                        className="px-3 py-2 rounded-md border border-[#232730] bg-[#0B0C10] hover:bg-[#171A22] text-xs text-[#F4F5F7] transition-colors cursor-pointer"
-                        aria-label="Copy salt"
-                      >
-                        {copiedSalt ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-md bg-[#0B0C10] border border-[#232730] font-mono text-[11px] space-y-1">
-                    <div className="text-[#646C7E]">
-                      keccak256(auctionId, bidder, bidAmountWei, salt)
-                    </div>
-                    <div className="break-all text-[#F4F5F7]">{computedHash}</div>
-                  </div>
-
-                  {/* Salt Backup Export & Acknowledgement */}
-                  <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-[#F4F5F7]">
-                        Reveal Passkey Backup (.json)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleDownloadRevealJson}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#12141A] border border-[#232730] hover:border-[#C5A46D]/40 text-[#F4F5F7] text-xs font-medium transition-colors cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5 text-[#C5A46D]" />
-                        <span>Download Backup</span>
-                      </button>
-                    </div>
-
-                    <label className="flex items-start gap-2.5 text-xs text-[#8E95A5] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={backupSavedAck}
-                        onChange={(e) => setBackupSavedAck(e.target.checked)}
-                        className="mt-0.5 rounded border-[#232730] bg-[#0B0C10]"
-                      />
-                      <span className="leading-relaxed">
-                        I understand my bid and secret passkey are saved for the Reveal window. Unrevealed commitments forfeit the{' '}
-                        <strong className="text-[#F4F5F7] font-mono">{auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})</strong> deposit.
-                      </span>
-                    </label>
-                  </div>
-
-                  {!isCorrectNetwork ? (
-                    <button
-                      type="button"
-                      onClick={switchNetworkToHardhat}
-                      className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] text-[#0B0C10] text-xs font-semibold cursor-pointer"
-                    >
-                      Switch to Hardhat Chain ID 31337
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={!backupSavedAck || txState === 'waiting_approval' || txState === 'pending'}
-                      className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      Commit Sealed Bid &amp; Lock {auction.fixedDepositEth.toFixed(2)} ETH ({formatEthToInr(auction.fixedDepositEth)})
-                    </button>
-                  )}
-                </form>
-              )}
-            </section>
-          )}
-
-          {/* CASE 2B: COMMIT PHASE — SELLER / ADMIN CONTROL PANEL (No Bid Submission Form Shown) */}
-          {isConnected && auction.phase === 'Commit' && !isBidderAccount && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
-              <div className="border-b border-[#232730] pb-4">
-                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
-                  {wallet?.role === 'admin' ? 'Platform Admin View' : 'Seller Consignment Control'}
-                </div>
-                <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
-                  Sealed Bidding Window Open ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
-                </h3>
+              <div className="text-xs text-indigo-300 font-mono">
+                ≈ {inrToEth(aiInr).toFixed(4)} ETH
               </div>
+            </div>
+          </div>
 
-              <p className="text-xs text-[#8E95A5] leading-relaxed">
-                You are viewing this vehicle as <strong className="text-[#F4F5F7]">{wallet?.label} ({wallet?.roleTitle})</strong>. Only competing <strong className="text-[#F4F5F7]">Bidder</strong> accounts can submit sealed bids. Once bidders have locked their sealed commitments, advance the auction to the <strong className="text-[#F4F5F7]">Reveal Phase</strong> to open envelopes.
-              </p>
-
-              <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2.5">
-                <div className="text-[11px] font-mono uppercase tracking-wider text-[#8E95A5]">
-                  Quick Role Switch (To Place a Test Bid)
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {humanWallets
-                    .filter((w) => w.role === 'bidder')
-                    .map((bidderWallet) => {
-                      const alreadyCommitted = auction.commitments.some(
-                        (c) => c.bidderAddress.toLowerCase() === bidderWallet.address.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={bidderWallet.address}
-                          type="button"
-                          onClick={() => selectRoleDirect(bidderWallet)}
-                          className="px-3 py-2 rounded border border-[#232730] hover:border-[#C5A46D]/50 bg-[#12141A] text-left transition-colors cursor-pointer"
-                        >
-                          <div className="text-xs font-semibold text-[#F4F5F7]">
-                            Switch to {bidderWallet.bidderIdentifier || bidderWallet.label}
-                          </div>
-                          <div className="text-[11px] font-mono text-[#8E95A5] mt-0.5">
-                            {alreadyCommitted ? '✓ Bid Committed' : 'Ready to Bid'}
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {wallet?.role === 'seller' && (
-                <button
-                  type="button"
-                  onClick={() => onAdvancePhaseDemo(auction.id)}
-                  className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Close Bidding &amp; Advance to Reveal Phase ({auction.commitments.length} Sealed {auction.commitments.length === 1 ? 'Bid' : 'Bids'})
-                </button>
-              )}
-            </section>
-          )}
-
-          {/* CASE 3A: REVEAL PHASE — BIDDER PANEL (1-CLICK USER-FRIENDLY REVEAL) */}
-          {isConnected && auction.phase === 'Reveal' && isBidderAccount && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-[#232730] pb-4">
-                <h3 className="text-base font-semibold text-[#F4F5F7] flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-[#C5A46D]" />
-                  <span>Open &amp; Reveal Sealed Bid ({wallet?.bidderIdentifier || wallet?.label})</span>
-                </h3>
-                {myCommitment && !myCommitment.revealed && (
-                  <button
-                    type="button"
-                    onClick={() => setShowManualRevealInputs((prev) => !prev)}
-                    className="text-xs font-mono text-[#C5A46D] hover:underline cursor-pointer"
-                  >
-                    {showManualRevealInputs ? 'Use 1-Click Auto-Fill' : 'Edit / Import JSON'}
-                  </button>
+          {/* Bids Section: Hidden during window, Revealed to everyone once window closes */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                {bidsAreRevealed ? (
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-amber-400" />
                 )}
+                <h2 className="text-base font-bold text-white">
+                  {bidsAreRevealed
+                    ? `Revealed Bids (${auction.commitments.length})`
+                    : `Participant Bids (${auction.commitments.length})`}
+                </h2>
               </div>
-
-              {!myCommitment ? (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] text-xs text-[#8E95A5] leading-relaxed">
-                    <strong className="text-[#F4F5F7]">{wallet?.bidderIdentifier || wallet?.label} ({shortenAddress(wallet?.address || '')})</strong> did not submit a sealed bid on this vehicle during the Commit window.
-                  </div>
-
-                  {auction.commitments.some((c) => !c.revealed) && (
-                    <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-2.5">
-                      <div className="text-[11px] font-mono uppercase tracking-wider text-[#C5A46D]">
-                        Bidders With Unopened Envelopes on This Vehicle
-                      </div>
-                      <div className="space-y-2">
-                        {auction.commitments
-                          .filter((c) => !c.revealed)
-                          .map((c) => {
-                            const matchingWallet = humanWallets.find(
-                              (w) => w.address.toLowerCase() === c.bidderAddress.toLowerCase()
-                            );
-                            return (
-                              <div
-                                key={c.id}
-                                className="flex items-center justify-between gap-2 pt-1"
-                              >
-                                <span className="text-xs text-[#F4F5F7] font-mono">
-                                  {c.bidderEns} ({shortenAddress(c.bidderAddress)})
-                                </span>
-                                {matchingWallet && (
-                                  <button
-                                    type="button"
-                                    onClick={() => selectRoleDirect(matchingWallet)}
-                                    className="px-3 py-1.5 rounded bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold cursor-pointer"
-                                  >
-                                    Switch to {matchingWallet.bidderIdentifier || matchingWallet.label} to Reveal
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : myCommitment.revealed ? (
-                <div className="p-4 rounded-md bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-1.5">
-                  <div className="font-semibold text-[#F4F5F7] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Your Sealed Bid Is Verified &amp; Revealed On-Chain</span>
-                  </div>
-                  <div className="font-mono text-emerald-300 tabular-nums">
-                    Verified Offer: <strong>{myCommitment.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(myCommitment.revealedAmountEth || 0)})</strong>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleRevealSubmit} className="space-y-4">
-                  {/* Streamlined 1-Click Auto-Loaded Reveal Summary */}
-                  {mySavedSecret && !showManualRevealInputs ? (
-                    <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400">
-                          ✓ Saved Passkey Auto-Loaded from Browser
-                        </span>
-                        <span className="text-xs font-mono text-[#8E95A5]">
-                          {shortenAddress(wallet?.address || '')}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 pt-1 border-t border-[#232730] font-mono tabular-nums">
-                        <div>
-                          <div className="text-[11px] font-sans text-[#8E95A5]">Your Sealed Bid</div>
-                          <div className="text-base font-semibold text-[#F4F5F7] mt-0.5">
-                            {Number(revealBidInput).toFixed(2)} ETH
-                          </div>
-                          <div className="text-[11px] text-[#C5A46D]">
-                            {formatEthToInr(revealBidInput)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-sans text-[#8E95A5]">Secret Key (Salt)</div>
-                          <div className="text-xs text-[#F4F5F7] mt-1 truncate">
-                            {revealSaltInput.slice(0, 14)}...{revealSaltInput.slice(-6)}
-                          </div>
-                          <div className="text-[11px] text-emerald-400 mt-0.5">Matches On-Chain Hash</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-[#8E95A5]">
-                          Enter your original bid and salt or import your backup JSON file:
-                        </span>
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0B0C10] border border-[#232730] text-[#F4F5F7] text-xs font-medium cursor-pointer hover:border-[#C5A46D]/40 transition-colors">
-                          <Upload className="w-3.5 h-3.5 text-[#C5A46D]" />
-                          <span>Import JSON</span>
-                          <input
-                            type="file"
-                            accept=".json,application/json"
-                            onChange={handleImportRevealJson}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5]">
-                            Original Committed Bid Amount (ETH)
-                          </label>
-                          <span className="text-xs font-mono font-semibold text-[#C5A46D] tabular-nums">
-                            ≈ {formatEthToInr(revealBidInput)}
-                          </span>
-                        </div>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={revealBidInput}
-                          onChange={(e) => setRevealBidInput(e.target.value)}
-                          placeholder="e.g., 2.00"
-                          className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-sm font-semibold text-[#F4F5F7] tabular-nums focus:outline-none focus:border-[#C5A46D]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8E95A5] mb-1.5">
-                          Original 32-Byte Secret Salt (0x...)
-                        </label>
-                        <input
-                          type="text"
-                          value={revealSaltInput}
-                          onChange={(e) => setRevealSaltInput(e.target.value)}
-                          placeholder="0x..."
-                          className="w-full px-3.5 py-2.5 rounded-md border border-[#232730] bg-[#0B0C10] font-mono text-xs text-[#F4F5F7] focus:outline-none focus:border-[#C5A46D]"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={txState === 'waiting_approval' || txState === 'pending'}
-                    className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] disabled:opacity-50 text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    1-Click Verify Hash &amp; Reveal My Bid ({Number(revealBidInput || 0).toFixed(2)} ETH)
-                  </button>
-                </form>
-              )}
-            </section>
-          )}
-
-          {/* CASE 3B: REVEAL PHASE — SELLER / ADMIN CONTROL PANEL (No Confusing Bidder Reveal Inputs) */}
-          {isConnected && auction.phase === 'Reveal' && !isBidderAccount && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
-              <div className="border-b border-[#232730] pb-4 flex items-center justify-between">
-                <div>
-                  <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">
-                    {wallet?.role === 'admin' ? 'Platform Admin Control' : 'Seller Reveal & Finalization Desk'}
-                  </div>
-                  <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
-                    Envelope Opening Status ({auction.commitments.filter((c) => c.revealed).length} of {auction.commitments.length} Revealed)
-                  </h3>
-                </div>
-              </div>
-
-              <p className="text-xs text-[#8E95A5] leading-relaxed">
-                Each participating buyer opens their own sealed commitment from their Bidder account. You can switch to any bidder below with 1 click to reveal their test bid, or finalize the auction once envelopes are opened.
-              </p>
-
-              {auction.commitments.length > 0 && (
-                <div className="p-4 rounded-md bg-[#0B0C10] border border-[#232730] space-y-3">
-                  <div className="text-[11px] font-mono uppercase tracking-wider text-[#8E95A5]">
-                    Bidder Envelope Status
-                  </div>
-                  <div className="divide-y divide-[#232730]">
-                    {auction.commitments.map((c) => {
-                      const matchingBidder = humanWallets.find(
-                        (w) => w.address.toLowerCase() === c.bidderAddress.toLowerCase()
-                      );
-                      return (
-                        <div
-                          key={c.id}
-                          className="py-2.5 flex items-center justify-between gap-3 text-xs"
-                        >
-                          <div>
-                            <div className="font-semibold text-[#F4F5F7]">
-                              {matchingBidder?.bidderIdentifier || c.bidderEns}{' '}
-                              <span className="font-mono text-[#8E95A5]">({shortenAddress(c.bidderAddress)})</span>
-                            </div>
-                            <div className="font-mono text-[11px] text-[#8E95A5] mt-0.5">
-                              {c.revealed
-                                ? `Revealed: ${c.revealedAmountEth?.toFixed(2)} ETH (${formatEthToInr(c.revealedAmountEth || 0)})`
-                                : 'Sealed · Waiting for Bidder to Reveal'}
-                            </div>
-                          </div>
-                          {!c.revealed && matchingBidder ? (
-                            <button
-                              type="button"
-                              onClick={() => selectRoleDirect(matchingBidder)}
-                              className="px-3 py-1.5 rounded bg-[#171A22] hover:bg-[#C5A46D] text-[#C5A46D] hover:text-[#0B0C10] border border-[#C5A46D]/40 text-xs font-semibold transition-colors cursor-pointer shrink-0"
-                            >
-                              Switch to {matchingBidder.bidderIdentifier || matchingBidder.label}
-                            </button>
-                          ) : (
-                            <span className="text-xs font-mono text-emerald-400 font-semibold">
-                              ✓ Verified
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {wallet?.role === 'seller' && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    runSimulatedTxLifecycle(async () => {
-                      const res = await onFinalizeAuction(auction.id);
-                      return {
-                        ok: res.success,
-                        msg: res.message,
-                      };
-                    })
-                  }
-                  className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Finalize Auction &amp; Resolve Winner (finalizeAuction)
-                </button>
-              )}
-            </section>
-          )}
-
-          {/* CASE 4: FINALIZED OUTCOME & PULL-BASED SETTLEMENT */}
-          {(auction.phase === 'Sold' || auction.phase === 'No Sale') && (
-            <section className="bg-[#12141A] rounded-lg border border-[#232730] p-6 space-y-5">
-              <div className="border-b border-[#232730] pb-4">
-                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-[#C5A46D]">Finalized Settlement</div>
-                <h3 className="text-base font-semibold text-[#F4F5F7] mt-0.5">
-                  Outcome: {auction.phase === 'Sold' ? 'Sold (Reserve Met)' : 'No Sale (Below Reserve)'}
-                </h3>
-              </div>
-
-              {auction.phase === 'Sold' ? (
-                <dl className="space-y-2 text-xs font-mono tabular-nums">
-                  <div className="flex justify-between">
-                    <dt className="font-sans text-[#8E95A5]">Winning Bidder</dt>
-                    <dd className="text-[#F4F5F7] font-semibold">
-                      {shortenAddress(auction.winningBidderAddress || '')} ({auction.winningBidderEns})
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="font-sans text-[#8E95A5]">Winning Bid</dt>
-                    <dd className="text-[#C5A46D] font-semibold">
-                      {auction.highestBidEth?.toFixed(2)} ETH ({formatEthToInr(auction.highestBidEth || 0)}) · Reserve {auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="font-sans text-[#8E95A5]">Escrow Status</dt>
-                    <dd className="text-[#F4F5F7] font-sans font-medium">
-                      {auction.winnerSettled ? 'Winner Balance Settled' : 'Awaiting Winner Settlement'}
-                    </dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="text-xs text-[#8E95A5] leading-relaxed">
-                  Highest revealed bid ({auction.highestBidEth?.toFixed(2) || '0.00'} ETH / {formatEthToInr(auction.highestBidEth || 0)}) did not meet the seller&apos;s reserve price of{' '}
-                  <strong className="text-[#F4F5F7] font-mono">{auction.reservePriceEth.toFixed(2)} ETH ({formatEthToInr(auction.reservePriceEth)})</strong>. All revealed bidders may claim a full pull-based deposit refund.
-                </p>
-              )}
-
-              {isConnected && wallet && (
-                <div className="space-y-2.5 pt-2">
-                  {auction.phase === 'Sold' &&
-                    !auction.winnerSettled &&
-                    auction.winningBidderAddress?.toLowerCase() ===
-                      wallet.address.toLowerCase() && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          runSimulatedTxLifecycle(async () => {
-                            const res = await onSettleWinner(auction.id);
-                            return {
-                              ok: res.success,
-                              msg: res.message,
-                            };
-                          })
-                        }
-                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        Settle Remaining Balance (
-                        {((auction.highestBidEth || 0) - auction.fixedDepositEth).toFixed(2)} ETH /{' '}
-                        {formatEthToInr((auction.highestBidEth || 0) - auction.fixedDepositEth)})
-                      </button>
-                    )}
-
-                  {auction.phase === 'Sold' &&
-                    auction.winnerSettled &&
-                    !auction.sellerWithdrawn &&
-                    isSeller && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          runSimulatedTxLifecycle(async () => {
-                            const res = await onWithdrawProceeds(auction.id);
-                            return {
-                              ok: res.success,
-                              msg: res.message,
-                            };
-                          })
-                        }
-                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        Withdraw Sale Proceeds ({auction.highestBidEth?.toFixed(2)} ETH /{' '}
-                        {formatEthToInr(auction.highestBidEth || 0)})
-                      </button>
-                    )}
-
-                  {myCommitment &&
-                    myCommitment.revealed &&
-                    !myCommitment.depositRefunded &&
-                    (auction.phase === 'No Sale' ||
-                      auction.winningBidderAddress?.toLowerCase() !==
-                        wallet.address.toLowerCase()) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          runSimulatedTxLifecycle(async () => {
-                            const res = await onClaimRefund(auction.id);
-                            return {
-                              ok: res.success,
-                              msg: res.message,
-                            };
-                          })
-                        }
-                        className="w-full py-2.5 px-4 rounded-md bg-[#C5A46D] hover:bg-[#D4B57E] text-[#0B0C10] text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        Claim Deposit Refund ({myCommitment.depositEth.toFixed(2)} ETH /{' '}
-                        {formatEthToInr(myCommitment.depositEth)})
-                      </button>
-                    )}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Recorded Commitments Table (Strict Confidentiality in Commit Phase) */}
-          <section className="bg-[#12141A] rounded-lg border border-[#232730] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#232730] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#F4F5F7]">
-                Commitments ({auction.commitments.length})
-              </h3>
-              <span className="text-xs text-[#8E95A5]">
-                {auction.phase === 'Commit' ? 'Values Sealed' : 'Reveal Verification'}
+              <span className="text-xs text-slate-400">
+                {bidsAreRevealed
+                  ? 'Visible to seller and all participants'
+                  : 'Amounts hidden until bidding window ends'}
               </span>
             </div>
 
             {auction.commitments.length === 0 ? (
-              <div className="p-6 text-xs text-[#8E95A5]">
-                No sealed commitments submitted for this lot yet.
+              <div className="p-8 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center">
+                <p className="text-sm text-slate-400">
+                  {auction.phase === 'Commit'
+                    ? 'No bids placed yet. Bidders can submit their bid while the timer is open.'
+                    : 'No bids were submitted during the bidding window.'}
+                </p>
+              </div>
+            ) : !bidsAreRevealed ? (
+              /* During Open Bidding Window: Show participants who bid, keep amounts hidden from others */
+              <div className="space-y-2.5">
+                {auction.commitments.map((c, idx) => {
+                  const isMine =
+                    Boolean(wallet) &&
+                    c.bidderAddress.toLowerCase() === wallet!.address.toLowerCase();
+                  return (
+                    <div
+                      key={c.id}
+                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-300 flex items-center justify-center">
+                          #{idx + 1}
+                        </span>
+                        <div>
+                          <div className="text-xs font-semibold text-white">
+                            {resolveParticipantLabel(c.bidderAddress, c.bidderEns)}
+                            {isMine && (
+                              <span className="ml-2 text-[11px] text-indigo-400 font-normal">
+                                (You)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Submitted {new Date(c.committedAt).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        {isMine && c.revealedAmountEth ? (
+                          <div>
+                            <div className="text-xs font-bold text-indigo-300 font-mono">
+                              Your Bid: {c.revealedAmountEth.toFixed(4)} ETH
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono">
+                              {formatInrFromEth(c.revealedAmountEth)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-mono text-amber-300/90 bg-amber-950/30 border border-amber-500/30 px-2.5 py-1 rounded-lg">
+                            Hidden until window ends
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="divide-y divide-[#232730]">
-                {auction.commitments.map((c) => (
-                  <div
-                    key={c.id}
-                    className="px-6 py-3.5 flex items-center justify-between gap-4 text-xs"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="font-medium text-[#F4F5F7]">
-                        {c.bidderEns} <span className="font-mono text-[#8E95A5]">({shortenAddress(c.bidderAddress)})</span>
+              /* After Bidding Window Closes: Reveal all bids to seller & participants, highlight highest bid */
+              <div className="space-y-3">
+                {rankedBids.map((c, idx) => {
+                  const isHighest = idx === 0 && (c.revealedAmountEth || 0) >= auction.startingBidEth;
+                  const isMine =
+                    Boolean(wallet) &&
+                    c.bidderAddress.toLowerCase() === wallet!.address.toLowerCase();
+                  const amountEth = c.revealedAmountEth || 0;
+
+                  return (
+                    <div
+                      key={c.id}
+                      className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isHighest
+                          ? 'bg-emerald-950/25 border-emerald-500/50'
+                          : 'bg-slate-950/70 border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono shrink-0 ${
+                            isHighest
+                              ? 'bg-emerald-500 text-slate-950'
+                              : 'bg-slate-900 border border-slate-700 text-slate-300'
+                          }`}
+                        >
+                          {isHighest ? <Trophy className="w-4 h-4" /> : `#${idx + 1}`}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white flex items-center gap-2">
+                            <span>{resolveParticipantLabel(c.bidderAddress, c.bidderEns)}</span>
+                            {isMine && (
+                              <span className="text-xs font-normal text-indigo-400">(You)</span>
+                            )}
+                            {isHighest && (
+                              <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-2 py-0.5 rounded-md">
+                                Highest Bid
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                            <span>Bid placed {new Date(c.committedAt).toLocaleTimeString()}</span>
+                            <button
+                              type="button"
+                              onClick={() => inspectTransaction(c.txHash)}
+                              className="text-indigo-400 hover:text-indigo-300 font-mono inline-flex items-center gap-0.5"
+                            >
+                              {c.txHash.slice(0, 10)}...
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-mono text-[11px] text-[#646C7E]">
-                        Hash: {c.commitmentHash.slice(0, 16)}...
+
+                      <div className="sm:text-right">
+                        <div className="text-lg font-extrabold text-white font-mono">
+                          {amountEth.toFixed(4)} ETH
+                        </div>
+                        <div className="text-xs text-emerald-400 font-mono">
+                          {formatInrFromEth(amountEth)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN (5 cols): Focused Action Panel */}
+        <div className="lg:col-span-5 space-y-5">
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            {/* Feedback Banner */}
+            {feedback && (
+              <div
+                className={`mb-5 p-3.5 rounded-xl border flex items-start gap-2.5 text-xs ${
+                  feedback.type === 'success'
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                }`}
+              >
+                {feedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <span>{feedback.message}</span>
+              </div>
+            )}
+
+            {/* ================= STAGE 1: BIDDING WINDOW OPEN ================= */}
+            {auction.phase === 'Commit' && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+                      Step 1 of 4 · Bidding Open
+                    </span>
+                    <h2 className="text-lg font-bold text-white mt-0.5">
+                      Submit Your Bid
+                    </h2>
+                  </div>
+                  <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-right">
+                    <div className="text-[10px] text-slate-400 uppercase flex items-center justify-end gap-1">
+                      <Clock className="w-3 h-3 text-indigo-400" />
+                      Time Left
+                    </div>
+                    <div className="text-base font-extrabold text-white font-mono">
+                      {countdown.text}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Bids remain private while the window is open. When the timer finishes, all bids are revealed to the seller and participants. No upfront deposit is required.
+                </p>
+
+                {!wallet ? (
+                  <button
+                    onClick={openAuthModal}
+                    className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Wallet className="w-4 h-4" />
+                    Connect Wallet to Bid
+                  </button>
+                ) : isBidder ? (
+                  <form onSubmit={handleBidSubmit} className="space-y-4">
+                    {myBid && myBid.revealedAmountEth && (
+                      <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
+                        <span className="text-xs text-indigo-200">Your current bid:</span>
+                        <span className="text-sm font-bold text-white font-mono">
+                          {myBid.revealedAmountEth.toFixed(4)} ETH ({formatInrFromEth(myBid.revealedAmountEth)})
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-semibold text-slate-200">
+                          {myBid ? 'Increase Your Bid (ETH)' : 'Your Bid Amount (ETH)'}
+                        </label>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Min: {auction.startingBidEth.toFixed(2)} ETH
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={auction.startingBidEth}
+                        value={bidAmountInput}
+                        onChange={(e) => setBidAmountInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-lg text-white font-mono focus:outline-none focus:border-indigo-500"
+                      />
+                      <div className="mt-1.5 text-xs text-emerald-400 font-mono">
+                        ≈ {formatInrFromEth(parseFloat(bidAmountInput) || 0)}
                       </div>
                     </div>
 
-                    <div className="text-right font-mono tabular-nums shrink-0">
-                      {c.revealed && auction.phase !== 'Commit' ? (
-                        <span className="text-emerald-400 font-semibold">
-                          Revealed: {c.revealedAmountEth?.toFixed(2)} ETH ({formatEthToInr(c.revealedAmountEth || 0)})
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Gavel className="w-4 h-4" />
+                      {isSubmitting
+                        ? 'Confirming in MetaMask...'
+                        : myBid
+                        ? 'Update Bid'
+                        : 'Submit Bid'}
+                    </button>
+                  </form>
+                ) : isSeller ? (
+                  <div className="space-y-4 pt-1">
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <span className="text-xs text-slate-400">Bids Received So Far</span>
+                      <span className="text-lg font-bold text-white font-mono">
+                        {auction.commitments.length}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onCloseBiddingWindow(auction.id)}
+                      className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Clock className="w-4 h-4" />
+                      Close Bidding Window & Reveal Bids
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                    Switch to Bidder 1 or Bidder 2 in the header to place a bid.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= STAGE 2: BIDS REVEALED · SELLER APPROVAL ================= */}
+            {auction.phase === 'Reveal' && (
+              <div className="space-y-5">
+                <div className="pb-4 border-b border-slate-800">
+                  <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+                    Step 2 of 4 · Bidding Window Closed
+                  </span>
+                  <h2 className="text-lg font-bold text-white mt-0.5">
+                    Bids Revealed · Awaiting Seller Approval
+                  </h2>
+                </div>
+
+                {auction.highestBidEth && auction.winningBidderAddress ? (
+                  <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                        <Trophy className="w-4 h-4 text-emerald-400" />
+                        Highest Bid for Seller
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        {auction.commitments.length} total bid(s)
+                      </span>
+                    </div>
+                    <div className="text-2xl font-extrabold text-white font-mono">
+                      {auction.highestBidEth.toFixed(4)} ETH
+                    </div>
+                    <div className="text-xs text-emerald-400 font-mono">
+                      {formatInrFromEth(auction.highestBidEth)}
+                    </div>
+                    <div className="pt-2 border-t border-emerald-500/20 text-xs text-slate-300">
+                      Top Bidder:{' '}
+                      <span className="font-semibold text-white">
+                        {resolveParticipantLabel(
+                          auction.winningBidderAddress,
+                          auction.winningBidderEns
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                    No bids were placed during the bidding window.
+                  </div>
+                )}
+
+                {isSeller ? (
+                  <button
+                    type="button"
+                    onClick={handleSellerApprove}
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {isSubmitting
+                      ? 'Confirming in MetaMask...'
+                      : auction.highestBidEth
+                      ? `Approve Highest Bid (${auction.highestBidEth.toFixed(4)} ETH)`
+                      : 'Close Auction (No Bids)'}
+                  </button>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                    All bids are now visible on the left. Waiting for the{' '}
+                    <span className="font-semibold text-white">Vehicle Seller</span> to approve the highest bid.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= STAGE 3: SELLER APPROVED · WINNER PAYS ================= */}
+            {auction.phase === 'Sold' && !auction.winnerSettled && (
+              <div className="space-y-5">
+                <div className="pb-4 border-b border-slate-800">
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                    Step 3 of 4 · Bid Approved by Seller
+                  </span>
+                  <h2 className="text-lg font-bold text-white mt-0.5">
+                    Winner Payment Required
+                  </h2>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Approved Winning Bid</span>
+                    <span>Payable to Seller</span>
+                  </div>
+                  <div className="text-2xl font-extrabold text-white font-mono">
+                    {(auction.highestBidEth || auction.startingBidEth).toFixed(4)} ETH
+                  </div>
+                  <div className="text-xs text-emerald-400 font-mono">
+                    {formatInrFromEth(auction.highestBidEth || auction.startingBidEth)}
+                  </div>
+                  <div className="pt-2 border-t border-slate-800 text-xs text-slate-300">
+                    Approved Winner:{' '}
+                    <span className="font-semibold text-white">
+                      {resolveParticipantLabel(
+                        auction.winningBidderAddress,
+                        auction.winningBidderEns
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {isWinner ? (
+                  <button
+                    type="button"
+                    onClick={handleWinnerPay}
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Wallet className="w-4 h-4" />
+                    {isSubmitting
+                      ? 'Confirming Payment in MetaMask...'
+                      : `Pay ${(auction.highestBidEth || auction.startingBidEth).toFixed(4)} ETH & Complete Purchase`}
+                  </button>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                    The Seller has approved the highest bid. Switch to the winning bidder account (
+                    <span className="font-semibold text-white">
+                      {resolveParticipantLabel(
+                        auction.winningBidderAddress,
+                        auction.winningBidderEns
+                      )}
+                    </span>
+                    ) to pay and close the auction.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= STAGE 4: TRANSACTION COMPLETE & AUCTION CLOSED ================= */}
+            {((auction.phase === 'Sold' && auction.winnerSettled) ||
+              auction.phase === 'No Sale') && (
+              <div className="space-y-5">
+                <div className="pb-4 border-b border-slate-800">
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                    Step 4 of 4 · Auction Closed
+                  </span>
+                  <h2 className="text-lg font-bold text-white mt-0.5">
+                    {auction.phase === 'Sold'
+                      ? 'Payment Complete · Vehicle Sold'
+                      : 'Auction Closed (No Sale)'}
+                  </h2>
+                </div>
+
+                {auction.phase === 'Sold' ? (
+                  <div className="p-5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-300 text-xs font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Full Payment Transferred to Seller</span>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-extrabold text-white font-mono">
+                        {(auction.highestBidEth || 0).toFixed(4)} ETH
+                      </div>
+                      <div className="text-xs text-emerald-400 font-mono">
+                        {formatInrFromEth(auction.highestBidEth || 0)}
+                      </div>
+                    </div>
+                    <div className="pt-3 border-t border-emerald-500/20 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Buyer</span>
+                        <span className="text-white font-semibold">
+                          {resolveParticipantLabel(
+                            auction.winningBidderAddress,
+                            auction.winningBidderEns
+                          )}
                         </span>
-                      ) : (
-                        <span className="text-[#8E95A5]">
-                          Sealed · {c.depositEth.toFixed(2)} ETH ({formatEthToInr(c.depositEth)}) locked
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Seller</span>
+                        <span className="text-white font-semibold">
+                          {resolveParticipantLabel(auction.sellerAddress, auction.sellerEns)}
                         </span>
+                      </div>
+                      {auction.settlementTxHash && (
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-slate-400">Settlement Tx</span>
+                          <button
+                            type="button"
+                            onClick={() => inspectTransaction(auction.settlementTxHash!)}
+                            className="text-indigo-400 hover:text-indigo-300 font-mono inline-flex items-center gap-1"
+                          >
+                            {auction.settlementTxHash.slice(0, 12)}...
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                    This auction closed without any qualifying bids.
+                  </div>
+                )}
               </div>
             )}
-          </section>
+          </div>
+
+          {/* Compact On-Chain Activity Log */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+              On-Chain Activity ({auction.events.length})
+            </h3>
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              {auction.events.map((evt) => (
+                <div
+                  key={evt.id}
+                  className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs flex items-start justify-between gap-2"
+                >
+                  <div>
+                    <div className="font-medium text-slate-200">{evt.summary}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Block #{evt.blockNumber} · {new Date(evt.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => inspectTransaction(evt.txHash)}
+                    className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 shrink-0"
+                  >
+                    {evt.txHash.slice(0, 8)}...
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

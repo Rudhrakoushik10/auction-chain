@@ -776,6 +776,7 @@ export async function executeMetaMaskTransaction(params: {
   toAddress: string;
   valueEth?: number;
   payoutEth?: number;
+  autoCreditSellerAddress?: string;
   contractMethod?:
     | 'createAuction'
     | 'commitBid'
@@ -813,7 +814,7 @@ export async function executeMetaMaskTransaction(params: {
   const actionLabel =
     params.actionName ||
     (valueEthNum > 0
-      ? 'Auction.commitBid(uint256,bytes32) payable'
+      ? 'Auction.settleWinnerPayment(uint256) payable'
       : 'Auction.sol Smart Contract Interaction');
 
   // Ensure PriceOracle.sol and Auction.sol are deployed and funded on the live Hardhat chain
@@ -844,7 +845,7 @@ export async function executeMetaMaskTransaction(params: {
         methodArgs = [1n, payoutWei];
       }
     } else if (valueWei > 0n) {
-      if (actionLabel.toLowerCase().includes('settle')) {
+      if (actionLabel.toLowerCase().includes('settle') || actionLabel.toLowerCase().includes('pay')) {
         methodName = 'settleWinnerPayment';
         methodArgs = [1n];
       } else {
@@ -858,12 +859,12 @@ export async function executeMetaMaskTransaction(params: {
         ethers.ZeroHash,
         1n,
         ethers.parseEther('1.0'),
-        ethers.parseEther('1.2'),
-        ethers.parseEther('0.25'),
+        ethers.parseEther('1.0'),
+        1n,
         3600n,
         3600n,
       ];
-    } else if (actionLabel.toLowerCase().includes('reveal')) {
+    } else if (actionLabel.toLowerCase().includes('reveal') || actionLabel.toLowerCase().includes('bid')) {
       methodName = 'revealBid';
       methodArgs = [1n, ethers.parseEther('1.5'), ethers.ZeroHash];
     } else {
@@ -952,6 +953,31 @@ export async function executeMetaMaskTransaction(params: {
           await roleTx.wait();
         } catch {
           // non-blocking role mirror
+        }
+      }
+
+      // When the winning bidder pays the approved bid, automatically disburse the full payment from Auction.sol
+      // into the Seller's wallet on-chain so the transaction is 100% complete and the auction is closed.
+      if (params.autoCreditSellerAddress && valueWei > 0n) {
+        const sellerRole = findRoleAccountByAddress(params.autoCreditSellerAddress) || HUMAN_ROLE_WALLETS[0];
+        if (sellerRole?.privateKey) {
+          try {
+            const sellerWallet = new ethers.Wallet(sellerRole.privateKey, freshProvider);
+            const sellerNonce = await getFreshNonce(sellerWallet.address);
+            const sellerContract = new ethers.Contract(deployedAuctionAddr, AUCTION_ABI, sellerWallet);
+            const auctionNumericId = methodArgs[0] ?? 1n;
+            const payoutTx = await sellerContract.withdrawSellerProceedsWithAmount(
+              auctionNumericId,
+              valueWei,
+              {
+                gasLimit: 300000n,
+                nonce: sellerNonce,
+              }
+            );
+            await payoutTx.wait();
+          } catch {
+            // non-blocking seller payout
+          }
         }
       }
 

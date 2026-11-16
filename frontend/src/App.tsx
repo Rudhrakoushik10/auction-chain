@@ -1,6 +1,6 @@
 /**
- * AuctionChain — AI-Powered Sealed-Bid Vehicle Auction Platform
- * Hardhat Localhost (Chain ID: 31337) · Dark Blockchain Theme
+ * AuctionChain — AI-Valued Blockchain Vehicle Auction Platform
+ * Hardhat Localhost (Chain ID: 31337)
  */
 
 import React, { useState } from 'react';
@@ -17,19 +17,16 @@ import { ArchitecturePage } from './pages/public/ArchitecturePage';
 import { SellerDashboard } from './pages/seller/SellerDashboard';
 import { BidderDashboard } from './pages/bidder/BidderDashboard';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AuctionItem, LocalRevealBackupSecret } from './types/auction';
+import { AuctionItem } from './types/auction';
 import {
-  computeCommitmentHash,
   generateDeterministicTxHash,
-  normalizeSaltHex,
   shortenAddress,
 } from './lib/crypto';
 import { SEALED_AUCTION_CONTRACT_ADDRESS } from './lib/hardhatConfig';
 import { executeMetaMaskTransaction } from './services/blockchain/walletService';
 import logoImg from './assets/images/auctionchain_logo.png';
 
-const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v1';
-const SECRETS_STORAGE_KEY = 'auctionchain_reveal_secrets_v1';
+const AUCTIONS_STORAGE_KEY = 'auctionchain_auctions_registry_v2';
 
 function AuctionChainAppContent() {
   const {
@@ -49,14 +46,6 @@ function AuctionChainAppContent() {
     }
   });
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
-  const [savedSecrets, setSavedSecrets] = useState<LocalRevealBackupSecret[]>(() => {
-    try {
-      const saved = localStorage.getItem(SECRETS_STORAGE_KEY);
-      return saved ? (JSON.parse(saved) as LocalRevealBackupSecret[]) : [];
-    } catch {
-      return [];
-    }
-  });
 
   // Ensure browser tab favicon always matches the header AuctionChain emblem
   React.useEffect(() => {
@@ -75,7 +64,7 @@ function AuctionChainAppContent() {
     }
   }, []);
 
-  // Reset selected auction to null whenever the user switches accounts so they always land on the first menu option
+  // Reset selected auction to null whenever the user switches accounts
   const prevWalletAddrRef = React.useRef<string | undefined>(wallet?.address);
   React.useEffect(() => {
     if (prevWalletAddrRef.current !== wallet?.address) {
@@ -92,13 +81,34 @@ function AuctionChainAppContent() {
     }
   }, [auctions]);
 
+  // Automatically reveal bids when the bidding window countdown reaches zero
   React.useEffect(() => {
-    try {
-      localStorage.setItem(SECRETS_STORAGE_KEY, JSON.stringify(savedSecrets));
-    } catch {
-      // ignore storage quota errors
-    }
-  }, [savedSecrets]);
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setAuctions((prev) => {
+        let changed = false;
+        const next = prev.map((auc) => {
+          if (auc.phase === 'Commit') {
+            const deadline = new Date(auc.commitEndTime).getTime();
+            if (Number.isFinite(deadline) && now >= deadline) {
+              changed = true;
+              return {
+                ...auc,
+                phase: 'Reveal' as const,
+                commitments: auc.commitments.map((c) => ({
+                  ...c,
+                  revealed: true,
+                })),
+              };
+            }
+          }
+          return auc;
+        });
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -119,7 +129,6 @@ function AuctionChainAppContent() {
 
   const handleDeleteAuction = (auctionId: string) => {
     setAuctions((prev) => prev.filter((a) => a.id !== auctionId));
-    setSavedSecrets((prev) => prev.filter((s) => s.auctionId !== auctionId));
     if (selectedAuctionId === auctionId) {
       setSelectedAuctionId(null);
     }
@@ -127,43 +136,65 @@ function AuctionChainAppContent() {
 
   const handleResetAllData = () => {
     setAuctions([]);
-    setSavedSecrets([]);
     setSelectedAuctionId(null);
     localStorage.removeItem(AUCTIONS_STORAGE_KEY);
-    localStorage.removeItem(SECRETS_STORAGE_KEY);
     resetBalances();
   };
 
-  // Commit Sealed Bid on Auction.sol (Payable deposit locked in smart contract)
-  const handleCommitBid = async (
+  // Step 2: Bidder Places a Bid during the Bidding Window (No upfront deposit; bids hidden until window closes)
+  const handlePlaceBid = async (
     auctionId: string,
-    commitmentHash: string,
-    secretBackup: LocalRevealBackupSecret
+    bidAmountEth: number
   ): Promise<{ success: boolean; message: string }> => {
     if (!wallet) {
       return { success: false, message: 'Please connect your wallet first.' };
     }
+
     const targetAuction = auctions.find((a) => a.id === auctionId);
     if (!targetAuction) {
       return { success: false, message: 'Auction not found.' };
     }
 
-    const hashBytes32 = normalizeSaltHex(commitmentHash);
+    if (targetAuction.phase !== 'Commit') {
+      return {
+        success: false,
+        message: 'The bidding window for this auction has already closed.',
+      };
+    }
+
+    if (bidAmountEth < targetAuction.startingBidEth) {
+      return {
+        success: false,
+        message: `Bid amount (${bidAmountEth} ETH) must be at least the starting price (${targetAuction.startingBidEth} ETH).`,
+      };
+    }
+
+    const existingBid = targetAuction.commitments.find(
+      (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+    );
+    if (existingBid && existingBid.revealedAmountEth && bidAmountEth <= existingBid.revealedAmountEth) {
+      return {
+        success: false,
+        message: `Your new bid must be higher than your previous bid of ${existingBid.revealedAmountEth.toFixed(4)} ETH.`,
+      };
+    }
+
+    const bidWei = ethers.parseEther(bidAmountEth.toFixed(6));
 
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      valueEth: targetAuction.fixedDepositEth,
-      contractMethod: 'commitBid',
-      contractArgs: [BigInt(targetAuction.numericId || 1), hashBytes32],
-      actionName: 'Auction.commitBid(uint256,bytes32) payable',
-      summary: `${wallet.label} committed sealed hash ${commitmentHash.slice(0, 14)}... and locked ${targetAuction.fixedDepositEth.toFixed(4)} ETH collateral on Lot #${targetAuction.numericId}`,
+      valueEth: 0,
+      contractMethod: 'revealBid',
+      contractArgs: [BigInt(targetAuction.numericId || 1), bidWei, ethers.ZeroHash],
+      actionName: 'Auction.placeBid(uint256,uint256)',
+      summary: `${wallet.label} submitted bid on Lot #${targetAuction.numericId} (hidden until window ends)`,
     });
 
     if (!txRes.success) {
       return {
         success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+        message: txRes.error || 'Transaction was rejected in MetaMask.',
       };
     }
 
@@ -171,37 +202,81 @@ function AuctionChainAppContent() {
 
     const txHash =
       txRes.receipt?.txHash ||
-      generateDeterministicTxHash(
-        `COMMIT:${auctionId}:${wallet.address}:${commitmentHash}`
-      );
+      generateDeterministicTxHash(`BID:${auctionId}:${wallet.address}:${bidAmountEth}`);
     const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
-
-    setSavedSecrets((prev) => [secretBackup, ...prev]);
+    const nowSec = Math.floor(Date.now() / 1000);
 
     setAuctions((prev) =>
       prev.map((auc) => {
         if (auc.id !== auctionId) return auc;
+
+        const hasExisting = auc.commitments.some(
+          (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+        );
+
+        const updatedCommitments = hasExisting
+          ? auc.commitments.map((c) =>
+              c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
+                ? {
+                    ...c,
+                    committedAt: nowIso,
+                    committedTimestamp: nowSec,
+                    blockNumber: blockNum,
+                    txHash,
+                    revealedAmountEth: bidAmountEth,
+                    revealedAt: nowIso,
+                    revealTxHash: txHash,
+                  }
+                : c
+            )
+          : [
+              ...auc.commitments,
+              {
+                id: `BID-${auc.numericId}-${auc.commitments.length + 1}`,
+                auctionId: auc.id,
+                numericAuctionId: auc.numericId,
+                bidderAddress: wallet.address,
+                bidderEns: wallet.ens,
+                commitmentHash: txHash,
+                depositEth: 0,
+                committedAt: nowIso,
+                committedTimestamp: nowSec,
+                blockNumber: blockNum,
+                txHash,
+                revealed: false,
+                revealedAmountEth: bidAmountEth,
+                revealedAt: nowIso,
+                revealTxHash: txHash,
+                depositRefunded: true,
+              },
+            ];
+
+        // Recompute highest bid across all submitted bids (earliest bid wins ties)
+        let currentHighest = 0;
+        let currentWinnerAddr: string | undefined = undefined;
+        let currentWinnerEns: string | undefined = undefined;
+        let earliestWinTime = Number.MAX_SAFE_INTEGER;
+
+        for (const c of updatedCommitments) {
+          const amt = c.revealedAmountEth || 0;
+          if (
+            amt > currentHighest ||
+            (amt === currentHighest && amt > 0 && c.committedTimestamp < earliestWinTime)
+          ) {
+            currentHighest = amt;
+            currentWinnerAddr = c.bidderAddress;
+            currentWinnerEns = c.bidderEns;
+            earliestWinTime = c.committedTimestamp;
+          }
+        }
+
         return {
           ...auc,
-          commitments: [
-            ...auc.commitments,
-            {
-              id: `CMT-${auc.numericId}-${auc.commitments.length + 1}`,
-              auctionId: auc.id,
-              numericAuctionId: auc.numericId,
-              bidderAddress: wallet.address,
-              bidderEns: wallet.ens,
-              commitmentHash,
-              depositEth: auc.fixedDepositEth,
-              committedAt: nowIso,
-              committedTimestamp: Math.floor(Date.now() / 1000),
-              blockNumber: blockNum,
-              txHash,
-              revealed: false,
-              depositRefunded: false,
-            },
-          ],
+          highestBidEth: currentHighest > 0 ? currentHighest : undefined,
+          winningBidderAddress: currentWinnerAddr,
+          winningBidderEns: currentWinnerEns,
+          commitments: updatedCommitments,
           events: [
             ...auc.events,
             {
@@ -211,10 +286,7 @@ function AuctionChainAppContent() {
               blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
-              summary: `${wallet.label} submitted sealed commitment ${commitmentHash.slice(
-                0,
-                14
-              )}... with ${auc.fixedDepositEth.toFixed(4)} ETH collateral`,
+              summary: `${wallet.label} placed a sealed bid on Lot #${auc.numericId}`,
             },
           ],
         };
@@ -227,162 +299,37 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Sealed commitment ${commitmentHash.slice(0, 14)}... recorded with ${targetAuction.fixedDepositEth.toFixed(4)} ETH collateral deposit.`,
+      message: `Bid of ${bidAmountEth.toFixed(4)} ETH recorded on-chain (${txHash.slice(0, 10)}...). All bids will be revealed when the bidding window closes.`,
     };
   };
 
-  // Reveal Sealed Bid on Auction.sol
-  const handleRevealBid = async (
-    auctionId: string,
-    bidAmountEth: number,
-    salt: string
-  ): Promise<{ success: boolean; message: string }> => {
-    if (!wallet) {
-      return { success: false, message: 'Connect wallet first.' };
-    }
-
-    const targetAuction = auctions.find((a) => a.id === auctionId);
-    if (!targetAuction) {
-      return { success: false, message: 'Auction not found.' };
-    }
-
-    const myComm = targetAuction.commitments.find(
-      (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-    );
-    if (!myComm) {
-      return {
-        success: false,
-        message: `No commitment found for ${shortenAddress(
-          wallet.address
-        )} on this auction. Switch to the wallet that committed the bid.`,
-      };
-    }
-
-    if (myComm.revealed) {
-      return { success: false, message: 'You have already revealed your bid.' };
-    }
-
-    if (bidAmountEth < targetAuction.startingBidEth) {
-      return {
-        success: false,
-        message: `BidBelowStartingPrice(): Revealed bid (${bidAmountEth} ETH) is below starting bid (${targetAuction.startingBidEth} ETH).`,
-      };
-    }
-
-    const recomputedHash = await computeCommitmentHash(
-      targetAuction.numericId,
-      wallet.address,
-      bidAmountEth,
-      salt
-    );
-    if (recomputedHash.toLowerCase() !== myComm.commitmentHash.toLowerCase()) {
-      return {
-        success: false,
-        message:
-          'Hash Mismatch: The bid amount or secret key you entered does not match your original sealed envelope.',
-      };
-    }
-
-    const bidWei = ethers.parseEther(bidAmountEth.toFixed(6));
-    const saltBytes32 = normalizeSaltHex(salt);
-
-    const txRes = await executeMetaMaskTransaction({
-      senderAddress: wallet.address,
-      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      valueEth: 0,
-      contractMethod: 'revealBid',
-      contractArgs: [BigInt(targetAuction.numericId || 1), bidWei, saltBytes32],
-      actionName: 'Auction.revealBid(uint256,uint256,bytes32)',
-      summary: `${wallet.label} verified hash and revealed bid of ${bidAmountEth.toFixed(4)} ETH on Lot #${targetAuction.numericId}`,
-    });
-
-    if (!txRes.success) {
-      return {
-        success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
-      };
-    }
-
-    await refreshHardhatNode();
-
-    const revealTxHash =
-      txRes.receipt?.txHash ||
-      generateDeterministicTxHash(
-        `REVEAL:${auctionId}:${wallet.address}:${bidAmountEth}:${salt}`
-      );
-    const blockNum = txRes.receipt?.blockNumber || 1;
+  // Step 3A: Close Bidding Window Early (Seller can close window immediately to reveal all bids)
+  const handleCloseBiddingWindow = (auctionId: string) => {
     const nowIso = new Date().toISOString();
-
     setAuctions((prev) =>
       prev.map((auc) => {
-        if (auc.id !== auctionId) return auc;
-
-        const updatedCommitments = auc.commitments.map((c) =>
-          c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-            ? {
-                ...c,
-                revealed: true,
-                revealedAmountEth: bidAmountEth,
-                revealedAt: nowIso,
-                revealTxHash,
-              }
-            : c
-        );
-
-        let currentHighest = auc.highestBidEth || 0;
-        let currentWinnerAddr = auc.winningBidderAddress;
-        let currentWinnerEns = auc.winningBidderEns;
-
-        if (bidAmountEth > currentHighest) {
-          currentHighest = bidAmountEth;
-          currentWinnerAddr = wallet.address;
-          currentWinnerEns = wallet.ens;
-        }
-
+        if (auc.id !== auctionId || auc.phase !== 'Commit') return auc;
         return {
           ...auc,
-          highestBidEth: currentHighest,
-          winningBidderAddress: currentWinnerAddr,
-          winningBidderEns: currentWinnerEns,
-          commitments: updatedCommitments,
-          events: [
-            ...auc.events,
-            {
-              id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
-              eventName: 'BidRevealed',
-              txHash: revealTxHash,
-              blockNumber: blockNum,
-              timestamp: nowIso,
-              actorAddress: wallet.address,
-              summary: `${wallet.label} verified hash and revealed bid of ${bidAmountEth.toFixed(
-                4
-              )} ETH`,
-            },
-          ],
+          phase: 'Reveal',
+          commitEndTime: nowIso,
+          commitments: auc.commitments.map((c) => ({
+            ...c,
+            revealed: true,
+          })),
         };
       })
     );
-
-    if (txRes.receipt?.txHash) {
-      inspectTransaction(txRes.receipt.txHash);
-    }
-
-    return {
-      success: true,
-      message: `Hash verified & confirmed (${revealTxHash.slice(0, 12)}...)! Revealed bid of ${bidAmountEth.toFixed(
-        4
-      )} ETH recorded on Auction.sol.`,
-    };
   };
 
-  // Finalize Auction & Check Reserve Price (Seller Only)
-  const handleFinalizeAuction = async (
+  // Step 3B: Seller Approves Highest Bid (or closes auction if no bids were placed)
+  const handleApproveHighestBid = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
     if (!wallet || wallet.role !== 'seller') {
       return {
         success: false,
-        message: 'Only the Vehicle Seller account can finalize the auction.',
+        message: 'Only the Vehicle Seller account can approve the winning bid.',
       };
     }
 
@@ -393,9 +340,8 @@ function AuctionChainAppContent() {
 
     const senderAddr = wallet.address;
     const highest = targetAuction.highestBidEth || 0;
-    const isSold =
-      highest >= targetAuction.reservePriceEth && Boolean(targetAuction.winningBidderAddress);
-    const newPhase = isSold ? 'Sold' : 'No Sale';
+    const hasWinner = highest >= targetAuction.startingBidEth && Boolean(targetAuction.winningBidderAddress);
+    const newPhase = hasWinner ? 'Sold' : 'No Sale';
 
     const txRes = await executeMetaMaskTransaction({
       senderAddress: senderAddr,
@@ -404,20 +350,22 @@ function AuctionChainAppContent() {
       contractMethod: 'finalizeAuction',
       contractArgs: [BigInt(targetAuction.numericId || 1)],
       actionName: 'Auction.finalizeAuction(uint256)',
-      summary: `Finalized Lot #${targetAuction.numericId} as ${newPhase} (Highest Revealed Bid: ${highest.toFixed(4)} ETH vs Seller Reserve: ${targetAuction.reservePriceEth.toFixed(4)} ETH)`,
+      summary: hasWinner
+        ? `Seller approved highest bid of ${highest.toFixed(4)} ETH from ${shortenAddress(targetAuction.winningBidderAddress || '')} on Lot #${targetAuction.numericId}`
+        : `Seller closed Lot #${targetAuction.numericId} with no bids`,
     });
 
     if (!txRes.success) {
       return {
         success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+        message: txRes.error || 'Transaction was rejected in MetaMask.',
       };
     }
 
     await refreshHardhatNode();
 
     const txHash =
-      txRes.receipt?.txHash || generateDeterministicTxHash(`FINALIZE:${auctionId}:${newPhase}`);
+      txRes.receipt?.txHash || generateDeterministicTxHash(`APPROVE:${auctionId}:${newPhase}`);
     const blockNum = txRes.receipt?.blockNumber || 1;
     const nowIso = new Date().toISOString();
 
@@ -429,6 +377,10 @@ function AuctionChainAppContent() {
           phase: newPhase,
           finalizedAt: nowIso,
           finalizedTxHash: txHash,
+          commitments: auc.commitments.map((c) => ({
+            ...c,
+            revealed: true,
+          })),
           events: [
             ...auc.events,
             {
@@ -438,15 +390,11 @@ function AuctionChainAppContent() {
               blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: senderAddr,
-              summary: isSold
-                ? `Auction #${auc.numericId} finalized as SOLD to ${shortenAddress(
+              summary: hasWinner
+                ? `Seller approved highest bid of ${highest.toFixed(4)} ETH by ${shortenAddress(
                     auc.winningBidderAddress || ''
-                  )} for ${highest.toFixed(4)} ETH (Reserve ${auc.reservePriceEth.toFixed(
-                    4
-                  )} ETH met)`
-                : `Auction #${auc.numericId} finalized as NO SALE (Highest revealed bid ${highest.toFixed(
-                    4
-                  )} ETH below reserve ${auc.reservePriceEth.toFixed(4)} ETH)`,
+                  )}`
+                : `Auction #${auc.numericId} closed with no bids`,
             },
           ],
         };
@@ -459,26 +407,14 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Auction finalized as ${newPhase}.`,
+      message: hasWinner
+        ? `Highest bid (${highest.toFixed(4)} ETH) approved! The selected bidder can now complete payment.`
+        : `Auction closed with no bids.`,
     };
   };
 
-  // Seller helper to advance phase
-  const handleAdvancePhaseDemo = (auctionId: string) => {
-    if (!wallet || wallet.role !== 'seller') return;
-    const target = auctions.find((a) => a.id === auctionId);
-    if (!target) return;
-    if (target.phase === 'Commit') {
-      setAuctions((prev) =>
-        prev.map((a) => (a.id === auctionId ? { ...a, phase: 'Reveal' } : a))
-      );
-    } else if (target.phase === 'Reveal') {
-      handleFinalizeAuction(auctionId);
-    }
-  };
-
-  // Winner Settles Balance (Payable on Auction.sol)
-  const handleSettleWinner = async (
+  // Step 4: Selected Winning Bidder Pays Full Winning Bid & Completes Auction
+  const handlePayWinningBid = async (
     auctionId: string
   ): Promise<{ success: boolean; message: string }> => {
     if (!wallet) {
@@ -489,22 +425,23 @@ function AuctionChainAppContent() {
       return { success: false, message: 'Auction not found.' };
     }
 
-    const due = Math.max(0, (targetAuction.highestBidEth || 0) - targetAuction.fixedDepositEth);
+    const amountEth = targetAuction.highestBidEth || targetAuction.startingBidEth;
 
     const txRes = await executeMetaMaskTransaction({
       senderAddress: wallet.address,
       toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      valueEth: due,
+      valueEth: amountEth,
+      autoCreditSellerAddress: targetAuction.sellerAddress,
       contractMethod: 'settleWinnerPayment',
       contractArgs: [BigInt(targetAuction.numericId || 1)],
       actionName: 'Auction.settleWinnerPayment(uint256) payable',
-      summary: `Winner (${wallet.label}) settled remaining ${due.toFixed(4)} ETH balance (+ ${targetAuction.fixedDepositEth.toFixed(4)} ETH deposit credit) on Lot #${targetAuction.numericId}`,
+      summary: `Winner (${wallet.label}) paid ${amountEth.toFixed(4)} ETH to Seller (${shortenAddress(targetAuction.sellerAddress)}) and closed Lot #${targetAuction.numericId}`,
     });
 
     if (!txRes.success) {
       return {
         success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
+        message: txRes.error || 'Transaction was rejected in MetaMask.',
       };
     }
 
@@ -522,11 +459,8 @@ function AuctionChainAppContent() {
           ...auc,
           winnerSettled: true,
           settlementTxHash: txHash,
-          commitments: auc.commitments.map((c) =>
-            c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-              ? { ...c, depositRefunded: true }
-              : c
-          ),
+          sellerWithdrawn: true,
+          sellerWithdrawTxHash: txHash,
           events: [
             ...auc.events,
             {
@@ -536,9 +470,9 @@ function AuctionChainAppContent() {
               blockNumber: blockNum,
               timestamp: nowIso,
               actorAddress: wallet.address,
-              summary: `Winner settled remaining ${due.toFixed(
+              summary: `Winner (${wallet.label}) paid ${amountEth.toFixed(
                 4
-              )} ETH balance (+ ${auc.fixedDepositEth.toFixed(4)} ETH deposit credit)`,
+              )} ETH to Seller and completed the auction`,
             },
           ],
         };
@@ -551,172 +485,12 @@ function AuctionChainAppContent() {
 
     return {
       success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Winning balance of ${due.toFixed(4)} ETH settled on Auction.sol.`,
-    };
-  };
-
-  // Pull-Based Deposit Refund (Transfers deposit ETH from Auction.sol back to Bidder's wallet on-chain)
-  const handleClaimRefund = async (
-    auctionId: string
-  ): Promise<{ success: boolean; message: string }> => {
-    if (!wallet) {
-      return { success: false, message: 'Please connect your wallet first.' };
-    }
-    const targetAuction = auctions.find((a) => a.id === auctionId);
-    if (!targetAuction) {
-      return { success: false, message: 'Auction not found.' };
-    }
-    const myComm = targetAuction.commitments.find(
-      (c) => c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-    );
-    if (!myComm || myComm.depositRefunded) {
-      return { success: false, message: 'No refundable deposit available.' };
-    }
-
-    const refundWei = ethers.parseEther(myComm.depositEth.toFixed(6));
-
-    const txRes = await executeMetaMaskTransaction({
-      senderAddress: wallet.address,
-      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      valueEth: 0,
-      payoutEth: myComm.depositEth,
-      contractMethod: 'claimRefundWithAmount',
-      contractArgs: [BigInt(targetAuction.numericId || 1), refundWei],
-      actionName: 'Auction.claimRefund(uint256)',
-      summary: `${wallet.label} claimed pull-based collateral refund of ${myComm.depositEth.toFixed(4)} ETH from Lot #${targetAuction.numericId}`,
-    });
-
-    if (!txRes.success) {
-      return {
-        success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
-      };
-    }
-
-    await refreshHardhatNode();
-
-    const txHash =
-      txRes.receipt?.txHash || generateDeterministicTxHash(`REFUND:${auctionId}:${wallet.address}`);
-    const blockNum = txRes.receipt?.blockNumber || 1;
-    const nowIso = new Date().toISOString();
-
-    setAuctions((prev) =>
-      prev.map((auc) => {
-        if (auc.id !== auctionId) return auc;
-        return {
-          ...auc,
-          commitments: auc.commitments.map((c) =>
-            c.bidderAddress.toLowerCase() === wallet.address.toLowerCase()
-              ? { ...c, depositRefunded: true, refundTxHash: txHash }
-              : c
-          ),
-          events: [
-            ...auc.events,
-            {
-              id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
-              eventName: 'RefundClaimed',
-              txHash,
-              blockNumber: blockNum,
-              timestamp: nowIso,
-              actorAddress: wallet.address,
-              summary: `${wallet.label} claimed pull-based deposit refund of ${myComm.depositEth.toFixed(
-                4
-              )} ETH`,
-            },
-          ],
-        };
-      })
-    );
-
-    if (txRes.receipt?.txHash) {
-      inspectTransaction(txRes.receipt.txHash);
-    }
-
-    return {
-      success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Refunded ${myComm.depositEth.toFixed(4)} ETH deposit to your wallet.`,
-    };
-  };
-
-  // Pull-Based Seller Proceeds Withdrawal (Transfers full winning bid ETH from Auction.sol to Seller's wallet on-chain)
-  const handleWithdrawProceeds = async (
-    auctionId: string
-  ): Promise<{ success: boolean; message: string }> => {
-    if (!wallet) {
-      return { success: false, message: 'Please connect your wallet first.' };
-    }
-    const targetAuction = auctions.find((a) => a.id === auctionId);
-    if (!targetAuction || targetAuction.sellerWithdrawn) {
-      return { success: false, message: 'Proceeds already withdrawn or auction not found.' };
-    }
-
-    const proceeds = targetAuction.highestBidEth || 0;
-    const proceedsWei = ethers.parseEther(proceeds.toFixed(6));
-
-    const txRes = await executeMetaMaskTransaction({
-      senderAddress: wallet.address,
-      toAddress: SEALED_AUCTION_CONTRACT_ADDRESS,
-      valueEth: 0,
-      payoutEth: proceeds,
-      contractMethod: 'withdrawSellerProceedsWithAmount',
-      contractArgs: [BigInt(targetAuction.numericId || 1), proceedsWei],
-      actionName: 'Auction.withdrawSellerProceeds(uint256)',
-      summary: `Seller (${wallet.label}) withdrew ${proceeds.toFixed(4)} ETH sale proceeds from Lot #${targetAuction.numericId}`,
-    });
-
-    if (!txRes.success) {
-      return {
-        success: false,
-        message: txRes.error || 'Rejected: Transaction was rejected in MetaMask.',
-      };
-    }
-
-    await refreshHardhatNode();
-
-    const txHash =
-      txRes.receipt?.txHash ||
-      generateDeterministicTxHash(`WITHDRAW:${auctionId}:${wallet.address}`);
-    const blockNum = txRes.receipt?.blockNumber || 1;
-    const nowIso = new Date().toISOString();
-
-    setAuctions((prev) =>
-      prev.map((auc) => {
-        if (auc.id !== auctionId || auc.sellerWithdrawn) return auc;
-        return {
-          ...auc,
-          sellerWithdrawn: true,
-          sellerWithdrawTxHash: txHash,
-          events: [
-            ...auc.events,
-            {
-              id: `EVT-${auc.numericId}-${auc.events.length + 1}`,
-              eventName: 'SellerProceedsWithdrawn',
-              txHash,
-              blockNumber: blockNum,
-              timestamp: nowIso,
-              actorAddress: wallet.address,
-              summary: `Seller withdrew ${proceeds.toFixed(
-                4
-              )} ETH proceeds via pull-based withdrawSellerProceeds()`,
-            },
-          ],
-        };
-      })
-    );
-
-    if (txRes.receipt?.txHash) {
-      inspectTransaction(txRes.receipt.txHash);
-    }
-
-    return {
-      success: true,
-      message: `Transaction confirmed (${txHash.slice(0, 12)}...): Withdrew ${proceeds.toFixed(4)} ETH sale proceeds.`,
+      message: `Payment of ${amountEth.toFixed(4)} ETH confirmed (${txHash.slice(0, 10)}...)! Funds transferred to Seller and auction is now closed.`,
     };
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0B0C10] text-[#F4F5F7] selection:bg-[#C5A46D]/20 selection:text-[#F4F5F7]">
-      {/* Dynamic Header: Public Pre-Login vs Authenticated Dashboard */}
       {!isConnected || !wallet ? (
         <PublicHeader
           activeTab={publicTab}
@@ -734,10 +508,8 @@ function AuctionChainAppContent() {
         />
       )}
 
-      {/* Main Content Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-6">
         {!isConnected || !wallet ? (
-          /* ================= PRE-LOGIN PUBLIC ROUTES (Overview, How It Works, Architecture) ================= */
           publicTab === 'home' ? (
             <Home
               onNavigate={(tab) => {
@@ -754,49 +526,39 @@ function AuctionChainAppContent() {
           <AuctionDetails
             auction={selectedAuction}
             onBack={() => setSelectedAuctionId(null)}
-            onCommitBid={handleCommitBid}
-            onRevealBid={handleRevealBid}
-            onFinalizeAuction={handleFinalizeAuction}
-            onAdvancePhaseDemo={handleAdvancePhaseDemo}
-            onSettleWinner={handleSettleWinner}
-            onClaimRefund={handleClaimRefund}
-            onWithdrawProceeds={handleWithdrawProceeds}
-            savedSecrets={savedSecrets}
+            onPlaceBid={handlePlaceBid}
+            onCloseBiddingWindow={handleCloseBiddingWindow}
+            onApproveHighestBid={handleApproveHighestBid}
+            onPayWinningBid={handlePayWinningBid}
+          />
+        ) : wallet.role === 'seller' ? (
+          <SellerDashboard
+            auctions={auctions}
+            onSelectAuction={handleSelectAuction}
+            onCreateAuction={handleCreateAuction}
+            onCloseBiddingWindow={handleCloseBiddingWindow}
+            onApproveHighestBid={handleApproveHighestBid}
+          />
+        ) : wallet.role === 'bidder' ? (
+          <BidderDashboard
+            auctions={auctions}
+            onSelectAuction={handleSelectAuction}
+            onPayWinningBid={handlePayWinningBid}
+          />
+        ) : wallet.role === 'admin' ? (
+          <AdminDashboard
+            auctions={auctions}
+            onSelectAuction={handleSelectAuction}
+            onDeleteAuction={handleDeleteAuction}
+            onResetAllData={handleResetAllData}
           />
         ) : (
-          /* ================= POST-LOGIN ROLE-BASED DASHBOARDS (Sections 6, 7, 8) ================= */
-          wallet.role === 'seller' ? (
-            <SellerDashboard
-              auctions={auctions}
-              onSelectAuction={handleSelectAuction}
-              onCreateAuction={handleCreateAuction}
-              onFinalizeAuction={handleFinalizeAuction}
-              onWithdrawProceeds={handleWithdrawProceeds}
-            />
-          ) : wallet.role === 'bidder' ? (
-            <BidderDashboard
-              auctions={auctions}
-              savedSecrets={savedSecrets}
-              onSelectAuction={handleSelectAuction}
-              onClaimRefund={handleClaimRefund}
-              onSettleWinner={handleSettleWinner}
-            />
-          ) : wallet.role === 'admin' ? (
-            <AdminDashboard
-              auctions={auctions}
-              onSelectAuction={handleSelectAuction}
-              onDeleteAuction={handleDeleteAuction}
-              onResetAllData={handleResetAllData}
-            />
-          ) : (
-            <div className="p-8 text-center text-xs text-slate-400">
-              Role not recognized. Please switch account.
-            </div>
-          )
+          <div className="p-8 text-center text-xs text-slate-400">
+            Role not recognized. Please switch account.
+          </div>
         )}
       </main>
 
-      {/* Global Footer with dark blockchain styling */}
       <Footer
         onNavigatePublic={(tab) => {
           setSelectedAuctionId(null);
@@ -804,7 +566,6 @@ function AuctionChainAppContent() {
         }}
       />
 
-      {/* Connect to AuctionChain Modal */}
       <AuthModal />
     </div>
   );
