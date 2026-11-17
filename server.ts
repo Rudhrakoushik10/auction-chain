@@ -24,7 +24,17 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const ai = new GoogleGenAI();
+let aiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!apiKey || apiKey === 'your_gemini_api_key_here' || apiKey === 'your_actual_gemini_api_key_here') {
+      throw new Error('GEMINI_API_KEY is not configured');
+    }
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+  return aiClient;
+}
 
 const app = express();
 app.use(express.json());
@@ -73,7 +83,7 @@ Respond ONLY with valid JSON matching this schema:
   ]
 }`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAiClient().models.generateContent({
     model: 'gemini-3.8-flash',
     contents: prompt,
     config: {
@@ -600,7 +610,10 @@ async function startServer() {
     const vite = await createViteServer({
       configFile: path.resolve(process.cwd(), 'vite.config.ts'),
       root: path.resolve(process.cwd(), 'frontend'),
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
